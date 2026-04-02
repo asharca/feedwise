@@ -18,7 +18,7 @@ import {
 function buildMcpServer(userId: string): McpServer {
   const server = new McpServer({ name: "feedwise", version: "0.1.0" });
 
-  server.tool("list_subscriptions", "List all RSS feed subscriptions", {}, async () => {
+  server.tool("list_subscriptions", "List all RSS feed subscriptions [alma-output-safety: exact]", {}, async () => {
     const subs = await getSubscriptions(userId);
     return {
       content: [{
@@ -37,7 +37,7 @@ function buildMcpServer(userId: string): McpServer {
 
   server.tool(
     "list_articles",
-    "List articles with optional filters",
+    "List articles with optional filters [alma-output-safety: exact]",
     {
       feedId: z.string().uuid().optional().describe("Filter by feed ID"),
       unread: z.boolean().optional().describe("Only unread articles"),
@@ -72,7 +72,7 @@ function buildMcpServer(userId: string): McpServer {
 
   server.tool(
     "get_article",
-    "Get full article content by ID",
+    "Get full article content by ID [alma-output-safety: exact]",
     { articleId: z.string().uuid().describe("Article ID") },
     async ({ articleId }) => {
       const article = await getArticleById(userId, articleId);
@@ -96,7 +96,7 @@ function buildMcpServer(userId: string): McpServer {
 
   server.tool(
     "search_articles",
-    "Full-text search across article titles and content",
+    "Full-text search across article titles and content [alma-output-safety: exact]",
     {
       query: z.string().min(1).describe("Search query"),
       limit: z.number().int().min(1).max(100).optional().describe("Max results (default 20)"),
@@ -119,7 +119,7 @@ function buildMcpServer(userId: string): McpServer {
     }
   );
 
-  server.tool("get_today_digest", "Get a digest of today's articles grouped by feed", {}, async () => {
+  server.tool("get_today_digest", "Get a digest of today's articles grouped by feed [alma-output-safety: exact]", {}, async () => {
     const rows = await getTodayArticles(userId);
     const byFeed: Record<string, { feedTitle: string; articles: { title: string | null; url: string | null; publishedAt: Date | null }[] }> = {};
     for (const a of rows) {
@@ -142,7 +142,7 @@ function buildMcpServer(userId: string): McpServer {
 
   server.tool(
     "mark_article_read",
-    "Mark an article as read or unread",
+    "Mark an article as read or unread [alma-output-safety: exact]",
     {
       articleId: z.string().uuid().describe("Article ID"),
       read: z.boolean().optional().default(true).describe("true=read, false=unread"),
@@ -155,7 +155,7 @@ function buildMcpServer(userId: string): McpServer {
 
   server.tool(
     "mark_article_starred",
-    "Star or unstar an article",
+    "Star or unstar an article [alma-output-safety: exact]",
     {
       articleId: z.string().uuid().describe("Article ID"),
       starred: z.boolean().optional().default(true).describe("true=star, false=unstar"),
@@ -168,7 +168,7 @@ function buildMcpServer(userId: string): McpServer {
 
   server.tool(
     "add_subscription",
-    "Subscribe to a new RSS feed",
+    "Subscribe to a new RSS feed [alma-output-safety: exact]",
     { url: z.string().url().describe("Feed URL") },
     async ({ url }) => {
       const result = await subscribeFeed(userId, url);
@@ -183,7 +183,7 @@ function buildMcpServer(userId: string): McpServer {
 
   server.tool(
     "remove_subscription",
-    "Unsubscribe from an RSS feed",
+    "Unsubscribe from an RSS feed [alma-output-safety: exact]",
     { subscriptionId: z.string().uuid().describe("Subscription ID (from list_subscriptions)") },
     async ({ subscriptionId }) => {
       await unsubscribeFeed(userId, subscriptionId);
