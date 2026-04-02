@@ -200,20 +200,41 @@ function extractBearerToken(req: Request): string | null {
   return auth.slice(7).trim() || null;
 }
 
+function getBaseUrl(req: Request): string {
+  const url = new URL(req.url);
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? url.host;
+  const proto = req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");
+  return `${proto}://${host}`;
+}
+
 async function handler(req: Request): Promise<Response> {
   const token = extractBearerToken(req);
   if (!token) {
+    const base = getBaseUrl(req);
     return new Response(
       JSON.stringify({ error: "Missing Bearer token" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
+      {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+          "WWW-Authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource"`,
+        },
+      }
     );
   }
 
   const userId = await validateApiToken(token);
   if (!userId) {
+    const base = getBaseUrl(req);
     return new Response(
       JSON.stringify({ error: "Invalid or expired token" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
+      {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+          "WWW-Authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource"`,
+        },
+      }
     );
   }
 
