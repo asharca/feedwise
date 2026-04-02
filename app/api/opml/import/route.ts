@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
 import { subscribeFeed } from "@/lib/db/queries/feeds";
-import { feedFetchQueue } from "@/lib/jobs/queue";
+import { getFeedFetchQueue } from "@/lib/jobs/queue";
 
 export async function POST(req: Request) {
   try {
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     for (const url of feedUrls) {
       try {
         const { feedId } = await subscribeFeed(session.user.id, url);
-        await feedFetchQueue.add("fetch", { feedId, url }, { jobId: `import-${feedId}` });
+        await getFeedFetchQueue().add("fetch", { feedId, url }, { jobId: `import-${feedId}` });
         results.push({ url, ok: true });
       } catch {
         results.push({ url, ok: false });

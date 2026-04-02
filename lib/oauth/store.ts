@@ -1,8 +1,14 @@
 import IORedis from "ioredis";
 
-const redis = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
-  maxRetriesPerRequest: null,
-});
+let _redis: IORedis | null = null;
+function getRedis(): IORedis {
+  if (!_redis) {
+    _redis = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
+      maxRetriesPerRequest: null,
+    });
+  }
+  return _redis;
+}
 
 const PREFIX = "oauth:";
 const CLIENT_TTL = 86400 * 30; // 30 days
@@ -27,7 +33,7 @@ export interface AuthCode {
 // ─── Client Registration ──────────────────────────────────────
 
 export async function saveClient(client: OAuthClient): Promise<void> {
-  await redis.set(
+  await getRedis().set(
     `${PREFIX}client:${client.client_id}`,
     JSON.stringify(client),
     "EX",
@@ -36,14 +42,14 @@ export async function saveClient(client: OAuthClient): Promise<void> {
 }
 
 export async function getClient(clientId: string): Promise<OAuthClient | null> {
-  const raw = await redis.get(`${PREFIX}client:${clientId}`);
+  const raw = await getRedis().get(`${PREFIX}client:${clientId}`);
   return raw ? (JSON.parse(raw) as OAuthClient) : null;
 }
 
 // ─── Authorization Codes ──────────────────────────────────────
 
 export async function saveAuthCode(data: AuthCode): Promise<void> {
-  await redis.set(
+  await getRedis().set(
     `${PREFIX}code:${data.code}`,
     JSON.stringify(data),
     "EX",
@@ -53,8 +59,8 @@ export async function saveAuthCode(data: AuthCode): Promise<void> {
 
 export async function consumeAuthCode(code: string): Promise<AuthCode | null> {
   const key = `${PREFIX}code:${code}`;
-  const raw = await redis.get(key);
+  const raw = await getRedis().get(key);
   if (!raw) return null;
-  await redis.del(key);
+  await getRedis().del(key);
   return JSON.parse(raw) as AuthCode;
 }

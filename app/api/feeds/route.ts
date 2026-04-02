@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { getSubscriptions, subscribeFeed } from "@/lib/db/queries/feeds";
-import { feedFetchQueue } from "@/lib/jobs/queue";
+import { getFeedFetchQueue } from "@/lib/jobs/queue";
 
 const SubscribeSchema = z.object({
   url: z.string().url().optional(),
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       try {
         const { feedId } = await subscribeFeed(session.user.id, feedUrl, folderId);
         try {
-          await feedFetchQueue.add(
+          await getFeedFetchQueue().add(
             "fetch",
             { feedId, url: feedUrl },
             { jobId: `feed-${feedId}-init`, attempts: 3 }

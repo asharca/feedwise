@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
-import { connection } from "@/lib/jobs/queue";
+import { getConnection } from "@/lib/jobs/queue";
 import { db } from "@/lib/db";
 import { feeds, articles } from "@/lib/db/schema";
 import { parseFeed } from "@/lib/feeds/parser";
@@ -54,7 +54,7 @@ export function startFeedWorker() {
         throw error;
       }
     },
-    { connection, concurrency: 5 }
+    { connection: getConnection(), concurrency: 5 }
   );
 
   worker.on("failed", (job, err) => {

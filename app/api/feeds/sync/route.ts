@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
 import { getSubscriptions } from "@/lib/db/queries/feeds";
-import { feedFetchQueue } from "@/lib/jobs/queue";
+import { getFeedFetchQueue } from "@/lib/jobs/queue";
 
 export async function POST() {
   try {
@@ -11,7 +11,7 @@ export async function POST() {
     let enqueued = 0;
     for (const sub of subs) {
       try {
-        await feedFetchQueue.add(
+        await getFeedFetchQueue().add(
           "fetch",
           { feedId: sub.feedId, url: sub.url },
           { jobId: `feed-${sub.feedId}-manual-${Date.now()}`, attempts: 3 }

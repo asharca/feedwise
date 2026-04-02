@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { unsubscribeFeed, updateSubscription, updateFeedUrl, updateFeedInterval } from "@/lib/db/queries/feeds";
-import { feedFetchQueue } from "@/lib/jobs/queue";
+import { getFeedFetchQueue } from "@/lib/jobs/queue";
 
 const PatchSchema = z.object({
   customTitle: z.string().max(500).optional(),
@@ -35,7 +35,7 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
       }
       try {
-        await feedFetchQueue.add(
+        await getFeedFetchQueue().add(
           "fetch",
           { feedId: feed.feedId, url: data.feedUrl },
           { jobId: `feed-${feed.feedId}-url-update-${Date.now()}`, attempts: 3 }

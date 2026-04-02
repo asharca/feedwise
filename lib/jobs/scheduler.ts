@@ -1,4 +1,4 @@
-import { feedFetchQueue } from "./queue";
+import { getFeedFetchQueue } from "./queue";
 import { db } from "@/lib/db";
 import { feeds, subscriptions } from "@/lib/db/schema";
 import { sql, lt, or, isNull } from "drizzle-orm";
@@ -20,7 +20,7 @@ export async function scheduleFeedRefreshes() {
     );
 
   for (const feed of due) {
-    await feedFetchQueue.add(
+    await getFeedFetchQueue().add(
       "fetch",
       { feedId: feed.id, url: feed.url },
       { jobId: `feed-${feed.id}`, attempts: 3, backoff: { type: "exponential", delay: 5000 } }
