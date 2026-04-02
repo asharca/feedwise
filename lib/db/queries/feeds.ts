@@ -17,6 +17,7 @@ export async function getSubscriptions(userId: string) {
       position: subscriptions.position,
       lastFetchedAt: feeds.lastFetchedAt,
       lastFetchError: feeds.lastFetchError,
+      fetchIntervalMinutes: feeds.fetchIntervalMinutes,
     })
     .from(subscriptions)
     .innerJoin(feeds, eq(subscriptions.feedId, feeds.id))
@@ -81,6 +82,31 @@ export async function updateSubscription(
     )
     .returning();
   return updated;
+}
+
+export async function updateFeedInterval(
+  userId: string,
+  subscriptionId: string,
+  intervalMinutes: number
+): Promise<{ feedId: string } | null> {
+  const [sub] = await db
+    .select({ feedId: subscriptions.feedId })
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.id, subscriptionId),
+        eq(subscriptions.userId, userId)
+      )
+    );
+
+  if (!sub) return null;
+
+  await db
+    .update(feeds)
+    .set({ fetchIntervalMinutes: intervalMinutes })
+    .where(eq(feeds.id, sub.feedId));
+
+  return { feedId: sub.feedId };
 }
 
 export async function updateFeedUrl(

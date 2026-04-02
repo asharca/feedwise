@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { ArrowLeft, Sun, Moon, Monitor, Upload, Download, Trash2, Plus, Copy, Check, KeyRound } from "lucide-react";
+import { ArrowLeft, Sun, Moon, Monitor, Upload, Download, Trash2, Plus, Copy, Check, KeyRound, RefreshCw, Clock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ interface Sub {
   feedTitle: string | null;
   url: string;
   iconUrl: string | null;
+  fetchIntervalMinutes: number | null;
 }
 
 interface ApiToken {
@@ -39,6 +40,7 @@ export default function SettingsPage() {
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [tokenLoading, setTokenLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     fetch("/api/feeds")
@@ -108,6 +110,27 @@ export default function SettingsPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function handleSyncAll() {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      await fetch("/api/feeds/sync", { method: "POST" });
+    } finally {
+      setTimeout(() => setSyncing(false), 2000);
+    }
+  }
+
+  async function handleIntervalChange(sub: Sub, minutes: number) {
+    await fetch(`/api/feeds/${sub.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fetchIntervalMinutes: minutes }),
+    });
+    setSubs((prev) =>
+      prev.map((s) => (s.id === sub.id ? { ...s, fetchIntervalMinutes: minutes } : s))
+    );
+  }
+
   async function handleDeleteFeed(sub: Sub) {
     const confirmed = window.confirm(`Unsubscribe from "${sub.title ?? sub.feedTitle ?? sub.url}"?`);
     if (!confirmed) return;
@@ -165,8 +188,18 @@ export default function SettingsPage() {
             <CardDescription>Manage your RSS subscriptions</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* OPML actions */}
-            <div className="flex gap-2">
+            {/* Actions */}
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl"
+                onClick={handleSyncAll}
+                disabled={syncing}
+              >
+                <RefreshCw className={cn("size-4", syncing && "animate-spin")} />
+                {syncing ? "Syncing..." : "Sync All"}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -206,6 +239,23 @@ export default function SettingsPage() {
                         {sub.title ?? sub.feedTitle ?? sub.url}
                       </p>
                       <p className="text-[11px] text-muted-foreground truncate">{sub.url}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Clock className="size-3 text-muted-foreground" />
+                      <select
+                        value={sub.fetchIntervalMinutes ?? 60}
+                        onChange={(e) => handleIntervalChange(sub, Number(e.target.value))}
+                        className="text-xs bg-muted rounded-lg px-1.5 py-1 outline-none cursor-pointer"
+                      >
+                        <option value={5}>5m</option>
+                        <option value={15}>15m</option>
+                        <option value={30}>30m</option>
+                        <option value={60}>1h</option>
+                        <option value={120}>2h</option>
+                        <option value={360}>6h</option>
+                        <option value={720}>12h</option>
+                        <option value={1440}>24h</option>
+                      </select>
                     </div>
                     <Button
                       variant="ghost"

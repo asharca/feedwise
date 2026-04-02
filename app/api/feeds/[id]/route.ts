@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
-import { unsubscribeFeed, updateSubscription, updateFeedUrl } from "@/lib/db/queries/feeds";
+import { unsubscribeFeed, updateSubscription, updateFeedUrl, updateFeedInterval } from "@/lib/db/queries/feeds";
 import { feedFetchQueue } from "@/lib/jobs/queue";
 
 const PatchSchema = z.object({
   customTitle: z.string().max(500).optional(),
   folderId: z.string().uuid().nullable().optional(),
   feedUrl: z.string().url().optional(),
+  fetchIntervalMinutes: z.number().int().min(5).max(1440).optional(),
 });
 
 export async function PATCH(
@@ -19,6 +20,14 @@ export async function PATCH(
     const { id } = await params;
     const body = await req.json();
     const data = PatchSchema.parse(body);
+
+    if (data.fetchIntervalMinutes !== undefined) {
+      const result = await updateFeedInterval(session.user.id, id, data.fetchIntervalMinutes);
+      if (!result) {
+        return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, data: result });
+    }
 
     if (data.feedUrl !== undefined) {
       const feed = await updateFeedUrl(session.user.id, id, data.feedUrl);
