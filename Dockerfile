@@ -1,11 +1,13 @@
 FROM node:20-alpine AS base
-RUN corepack enable pnpm
+RUN npm install -g pnpm@10
 
 # Install dependencies
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc* ./
+RUN echo "frozen-lockfile=true" >> .npmrc && \
+    echo "network-timeout=120000" >> .npmrc && \
+    pnpm install
 
 # Build Next.js
 FROM base AS builder
@@ -23,7 +25,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/drizzle ./drizzle
-COPY package.json drizzle.config.ts ./
+COPY package.json drizzle.config.ts tsconfig.json ./
 COPY lib ./lib
 COPY mcp-server.ts ./
 
