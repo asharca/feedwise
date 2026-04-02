@@ -55,7 +55,7 @@ Open http://localhost:3000, create an account, and start adding feeds.
 
 ## MCP Server
 
-Feedwise includes an MCP (Model Context Protocol) server that exposes your RSS data as tools for AI assistants like Claude.
+Feedwise exposes your RSS data as MCP tools for AI assistants like Claude. There are two modes: **HTTP** (recommended, no local setup needed) and **stdio** (local only).
 
 ### Available Tools
 
@@ -71,9 +71,92 @@ Feedwise includes an MCP (Model Context Protocol) server that exposes your RSS d
 | `add_subscription` | Subscribe to a new RSS feed |
 | `remove_subscription` | Unsubscribe from a feed |
 
-### Claude Desktop Configuration
+---
 
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+### Mode 1 — HTTP (Recommended)
+
+The MCP server runs as part of the Feedwise web app at `/api/mcp`. No local installation required — just a token.
+
+#### Step 1: Generate an API Token
+
+1. Open Feedwise in your browser → **Settings** → **MCP Server**
+2. Enter a name for the token (e.g. `Claude Desktop`) and click **Generate**
+3. Copy the token immediately — it is shown **only once**
+
+Tokens look like: `fw_a3f8c2e1d4b7...`
+
+To revoke a token, click the delete icon next to it in Settings.
+
+#### Step 2: Configure Your MCP Client
+
+**Claude Desktop** — edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "feedwise": {
+      "url": "https://your-app.com/api/mcp",
+      "headers": {
+        "Authorization": "Bearer fw_your_token_here"
+      }
+    }
+  }
+}
+```
+
+**Cursor** — open Settings → MCP and add:
+
+```json
+{
+  "feedwise": {
+    "url": "https://your-app.com/api/mcp",
+    "headers": {
+      "Authorization": "Bearer fw_your_token_here"
+    }
+  }
+}
+```
+
+**Claude Code (CLI)** — add to `.mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "feedwise": {
+      "url": "https://your-app.com/api/mcp",
+      "headers": {
+        "Authorization": "Bearer fw_your_token_here"
+      }
+    }
+  }
+}
+```
+
+#### Example Prompts
+
+```
+What are today's top articles from my RSS feeds?
+```
+
+```
+Search my feeds for anything about TypeScript 5.9
+```
+
+```
+Mark all articles from Hacker News as read
+```
+
+```
+Subscribe me to https://example.com/feed.xml
+```
+
+---
+
+### Mode 2 — stdio (Local Only)
+
+For running Feedwise locally and connecting via stdio transport.
+
+**Claude Desktop** — edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -90,25 +173,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 }
 ```
 
-Or using `npx tsx` directly:
-
-```json
-{
-  "mcpServers": {
-    "feedwise": {
-      "command": "npx",
-      "args": ["tsx", "--env-file=/path/to/feedwise/.env", "/path/to/feedwise/mcp-server.ts"],
-      "env": {
-        "FEEDWISE_USER_EMAIL": "your@email.com"
-      }
-    }
-  }
-}
-```
-
-### Claude Code Configuration
-
-Add to `.claude/settings.json`:
+**Claude Code (CLI)** — add to `~/.claude/settings.json`:
 
 ```json
 {
@@ -124,13 +189,11 @@ Add to `.claude/settings.json`:
   }
 }
 ```
-
-### Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `FEEDWISE_USER_EMAIL` | No | User email for MCP server (defaults to first user) |
+| `FEEDWISE_USER_EMAIL` | No | User to connect as (defaults to first user in DB) |
 
 ## Deployment (Docker)
 
@@ -150,7 +213,7 @@ pnpm worker &
 - **Backend**: Next.js API routes, Drizzle ORM, PostgreSQL
 - **Jobs**: BullMQ + Redis for background feed fetching
 - **Auth**: Better Auth (email + password)
-- **MCP**: @modelcontextprotocol/sdk (stdio transport)
+- **MCP**: @modelcontextprotocol/sdk (HTTP + stdio transports)
 
 ## Keyboard Shortcuts
 
