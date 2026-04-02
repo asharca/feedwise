@@ -43,6 +43,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_APP_URL=https://feedwise.${ROOT_DOMAIN}
     container_name: feedwise
     depends_on:
       feedwise-migrate:
