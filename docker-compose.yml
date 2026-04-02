@@ -1,0 +1,75 @@
+name: feedwise
+services:
+  feedwise-db:
+    image: postgres:16-alpine
+    container_name: feedwise-db
+    environment:
+      - POSTGRES_USER=feedwise
+      - POSTGRES_PASSWORD=${FEEDWISE_DB_PASSWORD}
+      - POSTGRES_DB=feedwise
+    volumes:
+      - ../../data/feedwise/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feedwise"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  feedwise-redis:
+    image: redis:7-alpine
+    container_name: feedwise-redis
+    volumes:
+      - ../../data/feedwise/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  feedwise-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: feedwise-migrate
+    restart: "no"
+    depends_on:
+      feedwise-db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://feedwise:${FEEDWISE_DB_PASSWORD}@feedwise-db:5432/feedwise
+    command: ["pnpm", "db:migrate"]
+
+  feedwise:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: feedwise
+    depends_on:
+      feedwise-migrate:
+        condition: service_completed_successfully
+      feedwise-redis:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ}
+      - DATABASE_URL=postgresql://feedwise:${FEEDWISE_DB_PASSWORD}@feedwise-db:5432/feedwise
+      - REDIS_URL=redis://feedwise-redis:6379
+      - BETTER_AUTH_SECRET=${FEEDWISE_AUTH_SECRET}
+      - BETTER_AUTH_URL=https://feedwise.${ROOT_DOMAIN}
+
+  feedwise-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: feedwise-worker
+    depends_on:
+      feedwise-migrate:
+        condition: service_completed_successfully
+      feedwise-redis:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ}
+      - DATABASE_URL=postgresql://feedwise:${FEEDWISE_DB_PASSWORD}@feedwise-db:5432/feedwise
+      - REDIS_URL=redis://feedwise-redis:6379
+      - BETTER_AUTH_SECRET=${FEEDWISE_AUTH_SECRET}
+      - BETTER_AUTH_URL=https://feedwise.${ROOT_DOMAIN}
+    command: ["pnpm", "worker"]
