@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
-import { getClient, saveAuthCode } from "@/lib/oauth/store";
+import { getClient, saveClient, saveAuthCode } from "@/lib/oauth/store";
 
 export async function POST(req: Request) {
   let session;
@@ -13,13 +13,16 @@ export async function POST(req: Request) {
   const body = await req.json();
   const { client_id, redirect_uri, state, code_challenge, code_challenge_method } = body;
 
-  const client = await getClient(client_id);
+  let client = await getClient(client_id);
   if (!client) {
-    return NextResponse.json({ error: "invalid_client" }, { status: 400 });
-  }
-
-  if (!client.redirect_uris.includes(redirect_uri)) {
-    return NextResponse.json({ error: "invalid_redirect_uri" }, { status: 400 });
+    // Auto-register unknown clients (e.g. Claude.ai skips /register)
+    client = {
+      client_id,
+      client_secret: "",
+      client_name: client_id,
+      redirect_uris: [redirect_uri],
+    };
+    await saveClient(client);
   }
 
   // Generate authorization code

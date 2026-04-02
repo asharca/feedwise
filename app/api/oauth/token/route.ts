@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { consumeAuthCode, getClient } from "@/lib/oauth/store";
+import { consumeAuthCode } from "@/lib/oauth/store";
 import { verifyPKCE } from "@/lib/oauth/pkce";
 import { createApiToken } from "@/lib/db/queries/api-tokens";
 
@@ -10,11 +10,6 @@ export async function POST(req: Request) {
 
   if (grantType !== "authorization_code") {
     return NextResponse.json({ error: "unsupported_grant_type" }, { status: 400 });
-  }
-
-  const client = await getClient(clientId);
-  if (!client) {
-    return NextResponse.json({ error: "invalid_client" }, { status: 401 });
   }
 
   const code = body.get("code") as string;
@@ -37,7 +32,7 @@ export async function POST(req: Request) {
   // Create a real API token for this OAuth session
   const { token } = await createApiToken(
     authCode.userId,
-    `OAuth: ${client.client_name}`
+    `OAuth: ${clientId}`
   );
 
   return NextResponse.json({
