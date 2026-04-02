@@ -29,7 +29,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_grant" }, { status: 400 });
   }
 
-  // Create a real API token for this OAuth session
   const { token } = await createApiToken(
     authCode.userId,
     `OAuth: ${clientId}`
@@ -38,6 +37,6 @@ export async function POST(req: Request) {
   return NextResponse.json({
     access_token: token,
     token_type: "bearer",
-    expires_in: 86400 * 365, // long-lived
+    expires_in: 86400 * 365,
   });
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Rss } from "lucide-react";
 import { signIn } from "@/lib/auth/client";
@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -25,7 +26,8 @@ export default function LoginPage() {
       if (res.error) {
         setError(res.error.message ?? "Login failed");
       } else {
-        router.push("/reader");
+        const redirect = searchParams.get("redirect");
+        router.push(redirect ?? "/reader");
       }
     } finally {
       setLoading(false);
@@ -35,7 +37,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8">
-        {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           <div className="size-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
             <Rss className="size-6 text-primary-foreground" />
@@ -46,7 +47,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
@@ -85,5 +85,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -1,20 +1,39 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 function AuthorizeForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
 
   const clientId = searchParams.get("client_id") ?? "";
   const redirectUri = searchParams.get("redirect_uri") ?? "";
   const state = searchParams.get("state") ?? "";
   const codeChallenge = searchParams.get("code_challenge") ?? "";
   const codeChallengeMethod = searchParams.get("code_challenge_method") ?? "S256";
+
+  // Check if user is logged in
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => {
+        if (!r.ok) {
+          // Not logged in — redirect to login, then back here
+          const returnUrl = window.location.href;
+          router.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+        } else {
+          setChecking(false);
+        }
+      })
+      .catch(() => {
+        router.push("/login");
+      });
+  }, [router]);
 
   async function handleApprove() {
     setLoading(true);
@@ -34,6 +53,11 @@ function AuthorizeForm() {
 
       if (!res.ok) {
         const data = await res.json();
+        if (data.error === "Not logged in") {
+          const returnUrl = window.location.href;
+          router.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+          return;
+        }
         setError(data.error ?? "Authorization failed");
         setLoading(false);
         return;
@@ -45,6 +69,14 @@ function AuthorizeForm() {
       setError("Authorization failed");
       setLoading(false);
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <p className="text-muted-foreground">Checking authentication...</p>
+      </div>
+    );
   }
 
   return (
