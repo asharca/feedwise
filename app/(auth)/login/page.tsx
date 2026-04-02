@@ -27,7 +27,11 @@ function LoginForm() {
         setError(res.error.message ?? "Login failed");
       } else {
         const redirect = searchParams.get("redirect");
-        router.push(redirect ?? "/reader");
+        if (redirect && redirect.startsWith("http")) {
+          window.location.href = redirect;
+        } else {
+          router.push(redirect ?? "/reader");
+        }
       }
     } finally {
       setLoading(false);
