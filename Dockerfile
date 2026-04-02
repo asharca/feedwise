@@ -23,7 +23,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/drizzle ./drizzle
-COPY package.json pnpm-workspace.yaml drizzle.config.ts ./
+COPY package.json drizzle.config.ts ./
 COPY lib ./lib
 COPY mcp-server.ts ./
 
