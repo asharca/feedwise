@@ -11,6 +11,7 @@
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
     "worker": "tsx --env-file=.env lib/jobs/start-workers.ts",
+    "worker:prod": "tsx lib/jobs/start-workers.ts",
     "dev:all": "concurrently \"pnpm dev\" \"pnpm worker\"",
     "test": "vitest run tests/",
     "mcp": "tsx --env-file=.env mcp-server.ts"
