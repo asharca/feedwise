@@ -17,39 +17,54 @@ async function parseBody(req: Request): Promise<Record<string, string>> {
 }
 
 export async function POST(req: Request) {
-  const body = await parseBody(req);
-  const grantType = body.grant_type;
-  const clientId = body.client_id;
+  try {
+    const body = await parseBody(req);
+    const grantType = body.grant_type;
+    const clientId = body.client_id;
 
-  if (grantType !== "authorization_code") {
-    return NextResponse.json({ error: "unsupported_grant_type" }, { status: 400 });
+    console.log("[token] request:", { grantType, clientId, hasCode: !!body.code, hasVerifier: !!body.code_verifier, hasRedirectUri: !!body.redirect_uri, hasResource: !!body.resource });
+
+    if (grantType !== "authorization_code") {
+      console.log("[token] rejected: unsupported_grant_type", grantType);
+      return NextResponse.json({ error: "unsupported_grant_type" }, { status: 400 });
+    }
+
+    const code = body.code;
+    const codeVerifier = body.code_verifier;
+
+    const authCode = await consumeAuthCode(code);
+    if (!authCode) {
+      console.log("[token] rejected: auth code not found or expired");
+      return NextResponse.json({ error: "invalid_grant", error_description: "code not found" }, { status: 400 });
+    }
+    if (authCode.clientId !== clientId) {
+      console.log("[token] rejected: client_id mismatch", { expected: authCode.clientId, got: clientId });
+      return NextResponse.json({ error: "invalid_grant", error_description: "client mismatch" }, { status: 400 });
+    }
+
+    const pkceValid = await verifyPKCE(
+      codeVerifier,
+      authCode.codeChallenge,
+      authCode.codeChallengeMethod
+    );
+    if (!pkceValid) {
+      console.log("[token] rejected: PKCE verification failed");
+      return NextResponse.json({ error: "invalid_grant", error_description: "PKCE failed" }, { status: 400 });
+    }
+
+    const { token } = await createApiToken(
+      authCode.userId,
+      `OAuth: ${clientId}`
+    );
+
+    console.log("[token] success: token issued for user", authCode.userId);
+    return NextResponse.json({
+      access_token: token,
+      token_type: "bearer",
+      expires_in: 86400 * 365,
+    });
+  } catch (err) {
+    console.error("[token] unhandled error:", err);
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
-
-  const code = body.code;
-  const codeVerifier = body.code_verifier;
-
-  const authCode = await consumeAuthCode(code);
-  if (!authCode || authCode.clientId !== clientId) {
-    return NextResponse.json({ error: "invalid_grant" }, { status: 400 });
-  }
-
-  const pkceValid = await verifyPKCE(
-    codeVerifier,
-    authCode.codeChallenge,
-    authCode.codeChallengeMethod
-  );
-  if (!pkceValid) {
-    return NextResponse.json({ error: "invalid_grant" }, { status: 400 });
-  }
-
-  const { token } = await createApiToken(
-    authCode.userId,
-    `OAuth: ${clientId}`
-  );
-
-  return NextResponse.json({
-    access_token: token,
-    token_type: "bearer",
-    expires_in: 86400 * 365,
-  });
 }

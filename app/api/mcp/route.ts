@@ -208,6 +208,7 @@ function getBaseUrl(req: Request): string {
 }
 
 async function handler(req: Request): Promise<Response> {
+  console.log("[mcp]", req.method, "hasAuth:", !!req.headers.get("authorization"));
   const token = extractBearerToken(req);
   if (!token) {
     const base = getBaseUrl(req);
@@ -224,6 +225,7 @@ async function handler(req: Request): Promise<Response> {
   }
 
   const userId = await validateApiToken(token);
+  console.log("[mcp] token validation:", userId ? "valid" : "invalid");
   if (!userId) {
     const base = getBaseUrl(req);
     return new Response(
