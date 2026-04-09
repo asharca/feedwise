@@ -54,11 +54,19 @@ export function ArticleList({ articles, activeId, onSelect, onStar }: ArticleLis
           : null;
 
         return (
-          <button
+          <div
             key={article.id}
+            role="button"
+            tabIndex={0}
             onClick={() => onSelect(article.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(article.id);
+              }
+            }}
             className={cn(
-              "w-full text-left px-3 py-3 rounded-xl transition-all duration-150 relative group",
+              "w-full text-left px-3 py-3 rounded-xl transition-all duration-150 relative group cursor-pointer",
               isActive
                 ? "bg-accent shadow-sm"
                 : "hover:bg-accent/50",
@@ -135,7 +143,7 @@ export function ArticleList({ articles, activeId, onSelect, onStar }: ArticleLis
                 <Star className="size-3 text-muted-foreground/40 hover:text-yellow-400 transition-colors" />
               </button>
             )}
-          </button>
+          </div>
         );
       })}
     </div>

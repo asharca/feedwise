@@ -1,6 +1,6 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { feeds, subscriptions, folders } from "@/lib/db/schema";
+import { feeds, subscriptions, folders, articles, userArticles } from "@/lib/db/schema";
 
 
 export async function getSubscriptions(userId: string) {
@@ -18,6 +18,13 @@ export async function getSubscriptions(userId: string) {
       lastFetchedAt: feeds.lastFetchedAt,
       lastFetchError: feeds.lastFetchError,
       fetchIntervalMinutes: feeds.fetchIntervalMinutes,
+      unreadCount: sql<number>`(
+        select count(*)::int from ${articles} a
+        left join ${userArticles} ua
+          on ua.article_id = a.id and ua.user_id = ${userId}
+        where a.feed_id = ${feeds.id}
+          and (ua.is_read is null or ua.is_read = false)
+      )`,
     })
     .from(subscriptions)
     .innerJoin(feeds, eq(subscriptions.feedId, feeds.id))

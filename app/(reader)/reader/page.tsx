@@ -58,7 +58,8 @@ function ReaderContent() {
     setArticleList((prev) =>
       prev.map((a) => (a.id === id ? { ...a, isRead: true } : a))
     );
-    await fetch(`/api/articles/${id}`, {
+    // Fire-and-forget: mark read in background, don't block article loading
+    fetch(`/api/articles/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isRead: true }),
@@ -150,7 +151,7 @@ function ReaderContent() {
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  });
+  }, [activeArticle, articleList]);
 
   const viewTitle =
     feedId && articleList.length > 0

@@ -57,8 +57,12 @@ export function startFeedWorker() {
     { connection: getConnection(), concurrency: 5 }
   );
 
+  worker.on("completed", (job) => {
+    console.log(`[feed-worker] ${job.id} completed`);
+  });
+
   worker.on("failed", (job, err) => {
-    console.error(`[feed-worker] job ${job?.id} failed:`, err.message);
+    console.error(`[feed-worker] ${job?.id} failed:`, err.message);
   });
 
   return worker;

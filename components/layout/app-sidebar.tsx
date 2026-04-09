@@ -98,7 +98,7 @@ export function AppSidebar({ subscriptions: initialSubs }: AppSidebarProps) {
       if (v === null) p.delete(k);
       else p.set(k, v);
     }
-    router.push(`/reader?${p.toString()}`);
+    router.replace(`/reader?${p.toString()}`);
   }
 
   async function handleAddFeed(e: React.FormEvent) {

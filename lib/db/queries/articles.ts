@@ -51,7 +51,9 @@ export async function getArticles(userId: string, filter: ArticleFilter = {}) {
     .where(
       and(
         feedId ? eq(articles.feedId, feedId) : undefined,
-        unreadOnly ? isNull(userArticles.isRead) : undefined,
+        unreadOnly
+          ? or(isNull(userArticles.isRead), eq(userArticles.isRead, false))
+          : undefined,
         starredOnly ? eq(userArticles.isStarred, true) : undefined,
         since ? gte(articles.publishedAt, since) : undefined,
         search
