@@ -69,16 +69,20 @@ export const verifications = pgTable("verifications", {
 });
 
 // ─── Folders ──────────────────────────────────────────────────
-export const folders = pgTable("folders", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id")
-    .references(() => users.id, { onDelete: "cascade" })
-    .notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  parentId: uuid("parent_id").references((): AnyPgColumn => folders.id),
-  position: integer("position").default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const folders = pgTable(
+  "folders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    parentId: uuid("parent_id").references((): AnyPgColumn => folders.id),
+    position: integer("position").default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [unique().on(t.userId, t.name)]
+);
 
 // ─── Feeds (global) ───────────────────────────────────────────
 export const feeds = pgTable("feeds", {

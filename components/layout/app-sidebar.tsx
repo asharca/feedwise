@@ -16,6 +16,8 @@ import {
   MoreHorizontal,
   Sun,
   Moon,
+  ChevronRight,
+  FolderOpen,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
@@ -51,11 +53,18 @@ interface Subscription {
   feedTitle: string | null;
   url: string;
   iconUrl: string | null;
+  folderId: string | null;
   unreadCount?: number;
+}
+
+interface Folder {
+  id: string;
+  name: string;
 }
 
 interface AppSidebarProps {
   subscriptions: Subscription[];
+  folders: Folder[];
 }
 
 const smartViews = [
@@ -64,14 +73,16 @@ const smartViews = [
   { key: "starred", label: "Starred", icon: Star },
 ] as const;
 
-export function AppSidebar({ subscriptions: initialSubs }: AppSidebarProps) {
+export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders }: AppSidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeFeedId = searchParams.get("feedId");
+  const activeFolderId = searchParams.get("folderId");
   const activeView = searchParams.get("view") ?? "all";
   const { theme, setTheme } = useTheme();
 
   const [subs, setSubs] = useState(initialSubs);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
   // Add feed state
   const [addOpen, setAddOpen] = useState(false);
@@ -92,6 +103,21 @@ export function AppSidebar({ subscriptions: initialSubs }: AppSidebarProps) {
   const [editUrlSaving, setEditUrlSaving] = useState(false);
   const [editUrlError, setEditUrlError] = useState("");
 
+  // Group subs by folder
+  const folderMap = new Map<string, { folder: Folder; subs: Subscription[] }>();
+  const uncategorized: Subscription[] = [];
+
+  for (const folder of initialFolders) {
+    folderMap.set(folder.id, { folder, subs: [] });
+  }
+  for (const sub of subs) {
+    if (sub.folderId && folderMap.has(sub.folderId)) {
+      folderMap.get(sub.folderId)!.subs.push(sub);
+    } else {
+      uncategorized.push(sub);
+    }
+  }
+
   function navigate(params: Record<string, string | null>) {
     const p = new URLSearchParams(searchParams.toString());
     for (const [k, v] of Object.entries(params)) {
@@ -99,6 +125,21 @@ export function AppSidebar({ subscriptions: initialSubs }: AppSidebarProps) {
       else p.set(k, v);
     }
     router.replace(`/reader?${p.toString()}`);
+  }
+
+  function toggleFolder(folderId: string) {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
+      return next;
+    });
+  }
+
+  function folderUnreadCount(folderId: string): number {
+    const group = folderMap.get(folderId);
+    if (!group) return 0;
+    return group.subs.reduce((sum, s) => sum + (s.unreadCount ?? 0), 0);
   }
 
   async function handleAddFeed(e: React.FormEvent) {
@@ -131,7 +172,6 @@ export function AppSidebar({ subscriptions: initialSubs }: AppSidebarProps) {
 
       setFeedUrl("");
       if (failed === 0) setAddOpen(false);
-      // Refresh sidebar feed list from server
       const subsRes = await fetch("/api/feeds");
       const subsData = await subsRes.json();
       if (subsData.success) setSubs(subsData.data);
@@ -233,6 +273,58 @@ export function AppSidebar({ subscriptions: initialSubs }: AppSidebarProps) {
     );
   }
 
+  function renderFeedItem(sub: Subscription) {
+    const name = sub.title ?? sub.feedTitle ?? sub.url;
+    return (
+      <SidebarMenuItem key={sub.id}>
+        <SidebarMenuButton
+          isActive={activeFeedId === sub.feedId}
+          onClick={() => navigate({ feedId: sub.feedId, folderId: null, view: "all" })}
+          className="group rounded-xl h-8 transition-all duration-150"
+        >
+          <FeedIcon url={sub.iconUrl} name={name} />
+          <span className="truncate flex-1 text-sm">{name}</span>
+          {sub.unreadCount != null && sub.unreadCount > 0 && (
+            <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+              {sub.unreadCount}
+            </span>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<span />}
+              nativeButton={false}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded-md hover:bg-accent/80 transition-opacity cursor-pointer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="size-3.5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="rounded-xl">
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); openRename(sub); }}
+              >
+                <Pencil className="size-4" />
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); openEditUrl(sub); }}
+              >
+                <Link className="size-4" />
+                Edit URL
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={(e) => { e.stopPropagation(); handleDelete(sub); }}
+              >
+                <Trash2 className="size-4" />
+                Unsubscribe
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
   return (
     <Sidebar className="border-r-0">
       <SidebarHeader className="px-4 py-4">
@@ -252,8 +344,8 @@ export function AppSidebar({ subscriptions: initialSubs }: AppSidebarProps) {
               {smartViews.map(({ key, label, icon: Icon }) => (
                 <SidebarMenuItem key={key}>
                   <SidebarMenuButton
-                    isActive={activeView === key && !activeFeedId}
-                    onClick={() => navigate({ view: key, feedId: null })}
+                    isActive={activeView === key && !activeFeedId && !activeFolderId}
+                    onClick={() => navigate({ view: key, feedId: null, folderId: null })}
                     className="rounded-xl h-9 transition-all duration-150"
                   >
                     <Icon className={cn("size-4", key === "starred" && activeView === key && "text-yellow-500")} />
@@ -261,78 +353,103 @@ export function AppSidebar({ subscriptions: initialSubs }: AppSidebarProps) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Feed list */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center justify-between pr-1 text-xs uppercase tracking-wider text-muted-foreground/70">
-            Feeds
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              className="size-5 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
-            >
-              <Plus className="size-3" />
-            </button>
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {subs.map((sub) => {
-                const name = sub.title ?? sub.feedTitle ?? sub.url;
-                return (
-                  <SidebarMenuItem key={sub.id}>
-                    <SidebarMenuButton
-                      isActive={activeFeedId === sub.feedId}
-                      onClick={() => navigate({ feedId: sub.feedId, view: "all" })}
-                      className="group rounded-xl h-9 transition-all duration-150"
-                    >
-                      <FeedIcon url={sub.iconUrl} name={name} />
-                      <span className="truncate flex-1 text-sm">{name}</span>
-                      {sub.unreadCount != null && sub.unreadCount > 0 && (
-                        <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                          {sub.unreadCount}
-                        </span>
+        {/* Categorized feeds */}
+        {Array.from(folderMap.values())
+          .filter((g) => g.subs.length > 0)
+          .map(({ folder, subs: folderSubs }) => {
+            const isCollapsed = collapsedFolders.has(folder.id);
+            const unread = folderUnreadCount(folder.id);
+            const isActiveFolder = activeFolderId === folder.id;
+
+            return (
+              <SidebarGroup key={folder.id}>
+                <SidebarGroupLabel className="flex items-center gap-1 pr-1 text-xs uppercase tracking-wider text-muted-foreground/70 cursor-pointer select-none">
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 flex-1 min-w-0"
+                    onClick={() => toggleFolder(folder.id)}
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "size-3 shrink-0 transition-transform duration-150",
+                        !isCollapsed && "rotate-90"
                       )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={<span />}
-                          nativeButton={false}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded-md hover:bg-accent/80 transition-opacity cursor-pointer"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreHorizontal className="size-3.5" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl">
-                          <DropdownMenuItem
-                            onClick={(e) => { e.stopPropagation(); openRename(sub); }}
-                          >
-                            <Pencil className="size-4" />
-                            Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => { e.stopPropagation(); openEditUrl(sub); }}
-                          >
-                            <Link className="size-4" />
-                            Edit URL
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => { e.stopPropagation(); handleDelete(sub); }}
-                          >
-                            <Trash2 className="size-4" />
-                            Unsubscribe
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                    />
+                    <span className="truncate">{folder.name}</span>
+                  </button>
+                  {unread > 0 && (
+                    <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium shrink-0">
+                      {unread}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => navigate({ folderId: folder.id, feedId: null, view: "all" })}
+                    className={cn(
+                      "size-5 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0",
+                      isActiveFolder && "bg-accent"
+                    )}
+                    title="View all in category"
+                  >
+                    <FolderOpen className="size-3" />
+                  </button>
+                </SidebarGroupLabel>
+                {!isCollapsed && (
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {folderSubs.map(renderFeedItem)}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                )}
+              </SidebarGroup>
+            );
+          })}
+
+        {/* Uncategorized feeds */}
+        {uncategorized.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="flex items-center justify-between pr-1 text-xs uppercase tracking-wider text-muted-foreground/70">
+              Feeds
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="size-5 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+              >
+                <Plus className="size-3" />
+              </button>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {uncategorized.map(renderFeedItem)}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Add feed button when no uncategorized feeds */}
+        {uncategorized.length === 0 && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setAddOpen(true)}
+                    className="rounded-xl h-9 transition-all duration-150 text-muted-foreground"
+                  >
+                    <Plus className="size-4" />
+                    <span className="flex-1">Add Feed</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="px-2 pb-3 space-y-1">

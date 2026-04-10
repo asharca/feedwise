@@ -116,6 +116,31 @@ export async function updateFeedInterval(
   return { feedId: sub.feedId };
 }
 
+export async function createFolder(
+  userId: string,
+  name: string,
+  parentId?: string
+) {
+  const [folder] = await db
+    .insert(folders)
+    .values({ userId, name, parentId })
+    .returning();
+  return folder;
+}
+
+export async function getOrCreateFolder(userId: string, name: string) {
+  // Use upsert to avoid TOCTOU race condition
+  const [folder] = await db
+    .insert(folders)
+    .values({ userId, name })
+    .onConflictDoUpdate({
+      target: [folders.userId, folders.name],
+      set: { name },
+    })
+    .returning();
+  return folder;
+}
+
 export async function updateFeedUrl(
   userId: string,
   subscriptionId: string,

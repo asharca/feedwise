@@ -1,9 +1,10 @@
 "use client";
 
 import { Suspense, useState, useEffect, useCallback, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { ArticleList } from "@/components/article/article-list";
 import { ArticleReader } from "@/components/article/article-reader";
+import { NewsDashboard } from "@/components/dashboard/news-dashboard";
 
 interface Article {
   id: string;
@@ -26,47 +27,66 @@ interface ArticleDetail extends Article {
 
 function ReaderContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const feedId = searchParams.get("feedId") ?? undefined;
+  const folderId = searchParams.get("folderId") ?? undefined;
   const view = searchParams.get("view") ?? "all";
 
   const [articleList, setArticleList] = useState<Article[]>([]);
   const [activeArticle, setActiveArticle] = useState<ArticleDetail | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // Show dashboard when no specific filter is active (default "all" view)
+  const showDashboard = view === "all" && !feedId && !folderId;
+
   const fetchArticles = useCallback(async () => {
     const params = new URLSearchParams();
     if (feedId) params.set("feedId", feedId);
+    if (folderId) params.set("folderId", folderId);
     if (view === "unread") params.set("unread", "true");
     if (view === "starred") params.set("starred", "true");
     const res = await fetch(`/api/articles?${params}`);
     const data = await res.json();
     if (data.success) return data.data as Article[];
     return [];
-  }, [feedId, view]);
+  }, [feedId, folderId, view]);
 
   useEffect(() => {
-    // Don't clear the list before fetching — keep stale data visible to avoid flash
-    startTransition(() => {
-      fetchArticles().then((data) => {
-        setArticleList(data);
-      });
+    if (showDashboard) return;
+    startTransition(async () => {
+      const data = await fetchArticles();
+      setArticleList(data);
     });
     setActiveArticle(null);
-  }, [fetchArticles]);
+  }, [fetchArticles, showDashboard]);
 
   async function handleSelect(id: string) {
     setArticleList((prev) =>
       prev.map((a) => (a.id === id ? { ...a, isRead: true } : a))
     );
-    // Fire-and-forget: mark read in background, don't block article loading
     fetch(`/api/articles/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isRead: true }),
-    });
+    }).catch(() => {});
     const res = await fetch(`/api/articles/${id}`);
+    if (!res.ok) return;
     const data = await res.json();
     if (data.success) setActiveArticle(data.data);
+  }
+
+  async function handleDashboardSelect(id: string) {
+    const res = await fetch(`/api/articles/${id}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.success) {
+      setActiveArticle(data.data);
+      fetch(`/api/articles/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isRead: true }),
+      }).catch(() => {});
+    }
   }
 
   async function handleStar(id: string, starred: boolean) {
@@ -144,23 +164,54 @@ function ReaderContent() {
           break;
         }
         case "Escape": {
-          setActiveArticle(null);
+          if (activeArticle && showDashboard) {
+            setActiveArticle(null);
+          } else if (activeArticle) {
+            setActiveArticle(null);
+          }
           break;
         }
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [activeArticle, articleList]);
+  }, [activeArticle, articleList, showDashboard]);
 
+  // Dashboard mode: show magazine layout or article reader
+  if (showDashboard) {
+    if (activeArticle) {
+      return (
+        <div className="flex h-full">
+          <div className="flex-1 overflow-hidden bg-background">
+            <ArticleReader
+              article={{
+                ...activeArticle,
+                publishedAt: activeArticle.publishedAt
+                  ? new Date(activeArticle.publishedAt)
+                  : null,
+              }}
+              onMarkRead={handleMarkRead}
+              onStar={handleStar}
+              onBack={() => setActiveArticle(null)}
+            />
+          </div>
+        </div>
+      );
+    }
+    return <NewsDashboard onSelectArticle={handleDashboardSelect} />;
+  }
+
+  // List + reader mode
   const viewTitle =
     feedId && articleList.length > 0
       ? articleList[0].feedTitle ?? "Feed"
-      : view === "all"
-        ? "All Articles"
+      : folderId
+        ? "Category"
         : view === "unread"
           ? "Unread"
-          : "Starred";
+          : view === "starred"
+            ? "Starred"
+            : "All Articles";
 
   return (
     <div className="flex h-full">

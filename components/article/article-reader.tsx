@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { ExternalLink, Star, CheckCheck, BookOpen } from "lucide-react";
+import DOMPurify from "dompurify";
+import { ExternalLink, Star, CheckCheck, BookOpen, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ArticleDetail {
@@ -22,6 +23,7 @@ interface ArticleReaderProps {
   article: ArticleDetail | null;
   onMarkRead: (id: string, read: boolean) => void;
   onStar: (id: string, starred: boolean) => void;
+  onBack?: () => void;
 }
 
 function estimateReadingTime(text: string | null | undefined): number {
@@ -55,7 +57,7 @@ function ActionButton({
   );
 }
 
-export function ArticleReader({ article, onMarkRead, onStar }: ArticleReaderProps) {
+export function ArticleReader({ article, onMarkRead, onStar, onBack }: ArticleReaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
 
@@ -94,6 +96,11 @@ export function ArticleReader({ article, onMarkRead, onStar }: ArticleReaderProp
 
       {/* Action bar */}
       <div className="flex items-center gap-1 px-4 py-2 shrink-0 border-b border-border/50">
+        {onBack && (
+          <ActionButton title="Back" onClick={onBack}>
+            <ArrowLeft className="size-4 text-muted-foreground" />
+          </ActionButton>
+        )}
         <ActionButton
           title={article.isRead ? "Mark unread" : "Mark read"}
           onClick={() => onMarkRead(article.id, !article.isRead)}
@@ -187,9 +194,10 @@ export function ArticleReader({ article, onMarkRead, onStar }: ArticleReaderProp
 }
 
 function sanitize(html: string): string {
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-    .replace(/\son\w+="[^"]*"/gi, "")
-    .replace(/\son\w+='[^']*'/gi, "");
+  if (typeof window === "undefined") return html;
+  return DOMPurify.sanitize(html, {
+    ADD_TAGS: ["iframe"],
+    ADD_ATTR: ["target", "allow", "allowfullscreen"],
+    FORBID_TAGS: ["form", "object", "embed"],
+  });
 }
