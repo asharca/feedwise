@@ -5,8 +5,15 @@ RUN npm install -g pnpm@10
 FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc* ./
+# Use Chinese npm mirror for stable Docker builds
 RUN echo "frozen-lockfile=true" >> .npmrc && \
-    echo "network-timeout=120000" >> .npmrc && \
+    echo "network-timeout=300000" >> .npmrc && \
+    echo "registry=https://registry.npmmirror.com" >> .npmrc && \
+    pnpm config set registry https://registry.npmmirror.com && \
+    pnpm config set fetch-retries 5 && \
+    pnpm config set fetch-retry-mintimeout 10000 && \
+    pnpm config set fetch-retry-maxtimeout 60000 && \
+    pnpm config set fetch-retry-factor 2 && \
     pnpm install
 
 # Build Next.js
@@ -20,8 +27,15 @@ RUN pnpm build
 FROM base AS prod-deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc* ./
+# Use Chinese npm mirror for stable Docker builds
 RUN echo "frozen-lockfile=true" >> .npmrc && \
-    echo "network-timeout=120000" >> .npmrc && \
+    echo "network-timeout=300000" >> .npmrc && \
+    echo "registry=https://registry.npmmirror.com" >> .npmrc && \
+    pnpm config set registry https://registry.npmmirror.com && \
+    pnpm config set fetch-retries 5 && \
+    pnpm config set fetch-retry-mintimeout 10000 && \
+    pnpm config set fetch-retry-maxtimeout 60000 && \
+    pnpm config set fetch-retry-factor 2 && \
     pnpm install --prod && \
     pnpm add tsx esbuild drizzle-kit
 
@@ -36,7 +50,6 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/drizzle ./drizzle
 COPY package.json drizzle.config.ts tsconfig.json ./
 COPY lib ./lib
-COPY mcp-server.ts ./
 
 EXPOSE 3000
 CMD ["pnpm", "start"]

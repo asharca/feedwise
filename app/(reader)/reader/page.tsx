@@ -1,10 +1,12 @@
 "use client";
 
 import { Suspense, useState, useEffect, useCallback, useTransition } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { ArticleList } from "@/components/article/article-list";
 import { ArticleReader } from "@/components/article/article-reader";
 import { NewsDashboard } from "@/components/dashboard/news-dashboard";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
 interface Article {
   id: string;
@@ -27,7 +29,6 @@ interface ArticleDetail extends Article {
 
 function ReaderContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const feedId = searchParams.get("feedId") ?? undefined;
   const folderId = searchParams.get("folderId") ?? undefined;
   const view = searchParams.get("view") ?? "all";
@@ -36,7 +37,6 @@ function ReaderContent() {
   const [activeArticle, setActiveArticle] = useState<ArticleDetail | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Show dashboard when no specific filter is active (default "all" view)
   const showDashboard = view === "all" && !feedId && !folderId;
 
   const fetchArticles = useCallback(async () => {
@@ -133,78 +133,66 @@ function ReaderContent() {
       switch (e.key) {
         case "j": {
           const nextIdx = currentIdx + 1;
-          if (nextIdx < articleList.length) {
-            handleSelect(articleList[nextIdx].id);
-          }
+          if (nextIdx < articleList.length) handleSelect(articleList[nextIdx].id);
           break;
         }
         case "k": {
           const prevIdx = currentIdx - 1;
-          if (prevIdx >= 0) {
-            handleSelect(articleList[prevIdx].id);
-          }
+          if (prevIdx >= 0) handleSelect(articleList[prevIdx].id);
           break;
         }
         case "s": {
-          if (activeArticle) {
-            handleStar(activeArticle.id, !activeArticle.isStarred);
-          }
+          if (activeArticle) handleStar(activeArticle.id, !activeArticle.isStarred);
           break;
         }
         case "m": {
-          if (activeArticle) {
-            handleMarkRead(activeArticle.id, !activeArticle.isRead);
-          }
+          if (activeArticle) handleMarkRead(activeArticle.id, !activeArticle.isRead);
           break;
         }
         case "o": {
-          if (activeArticle?.url) {
-            window.open(activeArticle.url, "_blank");
-          }
+          if (activeArticle?.url) window.open(activeArticle.url, "_blank");
           break;
         }
         case "Escape": {
-          if (activeArticle && showDashboard) {
-            setActiveArticle(null);
-          } else if (activeArticle) {
-            setActiveArticle(null);
-          }
+          if (activeArticle) setActiveArticle(null);
           break;
         }
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [activeArticle, articleList, showDashboard]);
+  }, [activeArticle, articleList]);
 
-  // Dashboard mode: show magazine layout or article reader
+  // Dashboard
   if (showDashboard) {
     if (activeArticle) {
       return (
         <div className="flex h-full">
-          <div className="flex-1 overflow-hidden bg-background">
-            <ArticleReader
-              article={{
-                ...activeArticle,
-                publishedAt: activeArticle.publishedAt
-                  ? new Date(activeArticle.publishedAt)
-                  : null,
-              }}
-              onMarkRead={handleMarkRead}
-              onStar={handleStar}
-              onBack={() => setActiveArticle(null)}
-            />
-          </div>
+          <ArticleReader
+            article={{ ...activeArticle, publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null }}
+            onMarkRead={handleMarkRead}
+            onStar={handleStar}
+            onBack={() => setActiveArticle(null)}
+          />
         </div>
       );
     }
-    return <NewsDashboard onSelectArticle={handleDashboardSelect} />;
+    return (
+      <div className="flex flex-col h-full">
+        <div className="md:hidden px-4 h-12 flex items-center gap-2 shrink-0 border-b border-border/50">
+          <SidebarTrigger />
+        </div>
+        <div className="flex-1 min-h-0">
+          <NewsDashboard onSelectArticle={handleDashboardSelect} />
+        </div>
+      </div>
+    );
   }
 
-  // List + reader mode
+  // Article list view
   const viewTitle =
     feedId && articleList.length > 0
-      ? articleList[0].feedTitle ?? "Feed"
+      ? (articleList[0].feedTitle ?? "Feed")
       : folderId
         ? "Category"
         : view === "unread"
@@ -213,43 +201,49 @@ function ReaderContent() {
             ? "Starred"
             : "All Articles";
 
+  const mappedArticles = articleList.map((a) => ({
+    ...a,
+    publishedAt: a.publishedAt ? new Date(a.publishedAt) : null,
+  }));
+
   return (
     <div className="flex h-full">
-      {/* Article list panel */}
-      <div className="w-[340px] shrink-0 border-r border-border/50 flex flex-col bg-background">
-        <div className="px-4 py-3 h-12 flex items-center shrink-0">
-          <h2 className="text-sm font-semibold tracking-tight">{viewTitle}</h2>
-          {isPending && (
-            <div className="ml-2 size-3 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
-          )}
-        </div>
-        <ArticleList
-          articles={articleList.map((a) => ({
-            ...a,
-            publishedAt: a.publishedAt ? new Date(a.publishedAt) : null,
-          }))}
-          activeId={activeArticle?.id}
-          onSelect={handleSelect}
-          onStar={handleStar}
-        />
+      {/* Reader panel — center/main */}
+      <div className={cn(
+        "flex-1 min-w-0 overflow-hidden",
+        !activeArticle && "hidden"
+      )}>
+        {activeArticle && (
+          <ArticleReader
+            article={{ ...activeArticle, publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null }}
+            onMarkRead={handleMarkRead}
+            onStar={handleStar}
+            onBack={() => setActiveArticle(null)}
+          />
+        )}
       </div>
 
-      {/* Reader panel */}
-      <div className="flex-1 overflow-hidden bg-background">
-        <ArticleReader
-          article={
-            activeArticle
-              ? {
-                  ...activeArticle,
-                  publishedAt: activeArticle.publishedAt
-                    ? new Date(activeArticle.publishedAt)
-                    : null,
-                }
-              : null
-          }
-          onMarkRead={handleMarkRead}
-          onStar={handleStar}
-        />
+      {/* Article list panel — right */}
+      <div className={cn(
+        "flex flex-col border-l border-border/50 bg-background shrink-0",
+        activeArticle ? "w-72 hidden md:flex" : "w-full border-l-0"
+      )}>
+        <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border/50">
+          <SidebarTrigger className="md:hidden" />
+          <h2 className="text-sm font-semibold tracking-tight truncate">{viewTitle}</h2>
+          {isPending && (
+            <div className="ml-auto size-3 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
+          )}
+        </div>
+        <div className="flex-1 min-h-0">
+          <ArticleList
+            articles={mappedArticles}
+            activeId={activeArticle?.id}
+            onSelect={handleSelect}
+            onStar={handleStar}
+            compact={!!activeArticle}
+          />
+        </div>
       </div>
     </div>
   );

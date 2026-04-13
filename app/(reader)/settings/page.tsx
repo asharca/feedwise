@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { ArrowLeft, Sun, Moon, Monitor, Upload, Download, Trash2, Plus, Copy, Check, KeyRound, RefreshCw, Clock } from "lucide-react";
+import { ArrowLeft, Sun, Moon, Monitor, Upload, Download, Trash2, RefreshCw, Clock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,13 +18,6 @@ interface Sub {
   fetchIntervalMinutes: number | null;
 }
 
-interface ApiToken {
-  id: string;
-  name: string;
-  lastUsedAt: string | null;
-  createdAt: string;
-}
-
 const themes = [
   { key: "light", label: "Light", icon: Sun },
   { key: "dark", label: "Dark", icon: Moon },
@@ -35,20 +28,15 @@ export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [subs, setSubs] = useState<Sub[]>([]);
-  const [tokens, setTokens] = useState<ApiToken[]>([]);
-  const [newTokenName, setNewTokenName] = useState("");
-  const [createdToken, setCreatedToken] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [tokenLoading, setTokenLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     fetch("/api/feeds")
       .then((r) => r.json())
       .then((data) => { if (data.success) setSubs(data.data); });
-    fetch("/api/tokens")
-      .then((r) => r.json())
-      .then((data) => { if (data.success) setTokens(data.data); });
   }, []);
 
   async function handleExportOPML() {
@@ -73,41 +61,10 @@ export default function SettingsPage() {
       const formData = new FormData();
       formData.append("file", file);
       await fetch("/api/opml/import", { method: "POST", body: formData });
-      router.refresh();
+      const data = await fetch("/api/feeds").then((r) => r.json());
+      if (data.success) setSubs(data.data);
     };
     input.click();
-  }
-
-  async function handleCreateToken() {
-    if (!newTokenName.trim() || tokenLoading) return;
-    setTokenLoading(true);
-    try {
-      const res = await fetch("/api/tokens", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newTokenName.trim() }),
-      });
-      const data = await res.json() as { success: boolean; data?: { token: string; id: string; name: string; createdAt: string } };
-      if (data.success && data.data) {
-        setCreatedToken(data.data.token);
-        setNewTokenName("");
-        setTokens((prev) => [...prev, { id: data.data!.id, name: data.data!.name, lastUsedAt: null, createdAt: data.data!.createdAt }]);
-      }
-    } finally {
-      setTokenLoading(false);
-    }
-  }
-
-  async function handleDeleteToken(id: string) {
-    await fetch(`/api/tokens/${id}`, { method: "DELETE" });
-    setTokens((prev) => prev.filter((t) => t.id !== id));
-    if (createdToken) setCreatedToken(null);
-  }
-
-  async function handleCopyToken(token: string) {
-    await navigator.clipboard.writeText(token);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   async function handleSyncAll() {
@@ -164,11 +121,12 @@ export default function SettingsPage() {
             <div className="flex gap-2">
               {themes.map(({ key, label, icon: Icon }) => (
                 <button
+                  type="button"
                   key={key}
                   onClick={() => setTheme(key)}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150",
-                    theme === key
+                    mounted && theme === key
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "bg-muted hover:bg-accent"
                   )}
@@ -206,7 +164,7 @@ export default function SettingsPage() {
                 className="rounded-xl"
                 onClick={handleImportOPML}
               >
-                <Upload className="size-4" />
+                <Download className="size-4" />
                 Import OPML
               </Button>
               <Button
@@ -215,7 +173,7 @@ export default function SettingsPage() {
                 className="rounded-xl"
                 onClick={handleExportOPML}
               >
-                <Download className="size-4" />
+                <Upload className="size-4" />
                 Export OPML
               </Button>
             </div>
@@ -280,102 +238,6 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">Coming soon.</p>
-          </CardContent>
-        </Card>
-
-        {/* MCP API Tokens */}
-        <Card className="rounded-2xl border-border/50">
-          <CardHeader>
-            <CardTitle className="text-base">MCP Server</CardTitle>
-            <CardDescription>
-              Connect Claude and other AI assistants to your RSS data via the hosted MCP endpoint
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Created token banner */}
-            {createdToken && (
-              <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-3 space-y-2">
-                <p className="text-xs font-medium text-green-700 dark:text-green-400">
-                  Token created — copy it now, it won&apos;t be shown again.
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs font-mono bg-background/60 rounded-lg px-2 py-1.5 truncate">
-                    {createdToken}
-                  </code>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="size-7 rounded-lg shrink-0"
-                    onClick={() => handleCopyToken(createdToken)}
-                  >
-                    {copied ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Create token */}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Token name (e.g. Claude Desktop)"
-                value={newTokenName}
-                onChange={(e) => setNewTokenName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCreateToken()}
-                className="flex-1 text-sm bg-muted rounded-xl px-3 py-2 outline-none focus:ring-2 ring-ring/30 placeholder:text-muted-foreground"
-              />
-              <Button
-                size="sm"
-                className="rounded-xl"
-                onClick={handleCreateToken}
-                disabled={!newTokenName.trim() || tokenLoading}
-              >
-                <Plus className="size-4" />
-                Generate
-              </Button>
-            </div>
-
-            {/* Token list */}
-            {tokens.length > 0 && (
-              <div className="border border-border/50 rounded-xl divide-y divide-border/50 overflow-hidden">
-                {tokens.map((t) => (
-                  <div key={t.id} className="flex items-center gap-3 px-3 py-2.5">
-                    <KeyRound className="size-4 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{t.name}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {t.lastUsedAt
-                          ? `Last used ${new Date(t.lastUsedAt).toLocaleDateString()}`
-                          : `Created ${new Date(t.createdAt).toLocaleDateString()}`}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 rounded-lg shrink-0 text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteToken(t.id)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Connection instructions */}
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground font-medium">Add to your MCP client config:</p>
-              <pre className="text-xs bg-muted rounded-xl p-3 overflow-x-auto leading-relaxed">{`{
-  "mcpServers": {
-    "feedwise": {
-      "url": "${typeof window !== "undefined" ? window.location.origin : "https://your-app.com"}/api/mcp",
-      "headers": {
-        "Authorization": "Bearer <your-token>"
-      }
-    }
-  }
-}`}</pre>
-            </div>
           </CardContent>
         </Card>
       </div>

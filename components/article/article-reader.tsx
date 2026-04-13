@@ -6,6 +6,14 @@ import DOMPurify from "dompurify";
 import { ExternalLink, Star, CheckCheck, BookOpen, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+function proxyImagesInHtml(html: string): string {
+  return html.replace(
+    /(<img\b[^>]*?\ssrc=)(["'])(https?:\/\/[^"']+)\2/gi,
+    (_, prefix, quote, url) =>
+      `${prefix}${quote}/api/image-proxy?url=${encodeURIComponent(url)}${quote}`
+  );
+}
+
 interface ArticleDetail {
   id: string;
   feedTitle: string | null;
@@ -95,7 +103,7 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack }: ArticleRe
       />
 
       {/* Action bar */}
-      <div className="flex items-center gap-1 px-4 py-2 shrink-0 border-b border-border/50">
+      <div className="flex items-center gap-0.5 px-3 py-1.5 shrink-0 border-b border-border/50">
         {onBack && (
           <ActionButton title="Back" onClick={onBack}>
             <ArrowLeft className="size-4 text-muted-foreground" />
@@ -179,7 +187,7 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack }: ArticleRe
           {article.contentHtml ? (
             <div
               className="article-content"
-              dangerouslySetInnerHTML={{ __html: sanitize(article.contentHtml) }}
+              dangerouslySetInnerHTML={{ __html: proxyImagesInHtml(sanitize(article.contentHtml)) }}
             />
           ) : (
             <p className="text-muted-foreground text-sm">No content available.</p>

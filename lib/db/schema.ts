@@ -199,15 +199,3 @@ export const articleTags = pgTable(
   },
   (t) => [primaryKey({ columns: [t.articleId, t.tagId] })]
 );
-
-// ─── API Tokens (for MCP and programmatic access) ─────────────
-export const apiTokens = pgTable("api_tokens", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id")
-    .references(() => users.id, { onDelete: "cascade" })
-    .notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  tokenHash: text("token_hash").notNull().unique(),
-  lastUsedAt: timestamp("last_used_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});

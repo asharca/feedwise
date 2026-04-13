@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { Star, ChevronRight, Rss } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, proxyImg } from "@/lib/utils";
 
 interface Article {
   id: string;
@@ -59,7 +59,7 @@ function ArticleCard({
         {article.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={article.imageUrl}
+            src={proxyImg(article.imageUrl)}
             alt=""
             className="w-full h-48 object-cover"
           />
@@ -68,7 +68,7 @@ function ArticleCard({
           <div className="flex items-center gap-1.5 mb-2">
             {article.feedIconUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={article.feedIconUrl} alt="" className="size-3.5 rounded-sm" />
+              <img src={proxyImg(article.feedIconUrl)} alt="" className="size-3.5 rounded-sm" />
             )}
             <span className="text-[11px] text-muted-foreground font-medium">
               {article.feedTitle}
@@ -135,7 +135,7 @@ function ArticleCard({
         {article.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={article.imageUrl}
+            src={proxyImg(article.imageUrl)}
             alt=""
             className="size-12 rounded-lg object-cover shrink-0"
           />
@@ -160,7 +160,7 @@ function ArticleCard({
       {article.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={article.imageUrl}
+          src={proxyImg(article.imageUrl)}
           alt=""
           className="w-full h-32 object-cover"
         />
@@ -209,9 +209,9 @@ function CategorySection({
   const [hero, ...rest] = group.articles;
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-2.5">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-bold tracking-tight">{group.folderName}</h2>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{group.folderName}</h2>
         {group.folderId && (
           <button
             type="button"
@@ -223,15 +223,11 @@ function CategorySection({
           </button>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        <div className="lg:col-span-1">
-          <ArticleCard article={hero} size="hero" onSelect={onSelectArticle} />
-        </div>
-        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {rest.slice(0, 4).map((article) => (
-            <ArticleCard key={article.id} article={article} size="normal" onSelect={onSelectArticle} />
-          ))}
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+        <ArticleCard article={hero} size="hero" onSelect={onSelectArticle} />
+        {rest.slice(0, 3).map((article) => (
+          <ArticleCard key={article.id} article={article} size="normal" onSelect={onSelectArticle} />
+        ))}
       </div>
     </section>
   );
@@ -289,20 +285,20 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
 
   return (
     <div className="h-full overflow-y-auto scrollbar-thin">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-8">
+      <div className="px-4 sm:px-6 py-5 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Today&apos;s News</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Your personalized news feed across all categories
+          <h1 className="text-xl font-bold tracking-tight">Today&apos;s News</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Your personalized news feed
           </p>
         </div>
 
         {/* Featured stories */}
         {featured.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-base font-bold tracking-tight">Featured</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Featured</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
               {featured.map((article, idx) => (
                 <ArticleCard
                   key={article.id}

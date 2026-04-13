@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   Rss,
   Star,
@@ -18,6 +18,7 @@ import {
   Moon,
   ChevronRight,
   FolderOpen,
+  Compass,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
@@ -44,7 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { signOut } from "@/lib/auth/client";
-import { cn } from "@/lib/utils";
+import { cn, proxyImg } from "@/lib/utils";
 
 interface Subscription {
   id: string;
@@ -73,9 +74,14 @@ const smartViews = [
   { key: "starred", label: "Starred", icon: Star },
 ] as const;
 
+const navLinks = [
+  { href: "/discover", label: "Discover", icon: Compass },
+] as const;
+
 export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders }: AppSidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const activeFeedId = searchParams.get("feedId");
   const activeFolderId = searchParams.get("folderId");
   const activeView = searchParams.get("view") ?? "all";
@@ -262,7 +268,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
     if (url) {
       return (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="" className="size-4 rounded-sm shrink-0" />
+        <img src={proxyImg(url)} alt="" className="size-4 rounded-sm shrink-0" />
       );
     }
     const letter = (name || "?")[0].toUpperCase();
@@ -344,8 +350,8 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
               {smartViews.map(({ key, label, icon: Icon }) => (
                 <SidebarMenuItem key={key}>
                   <SidebarMenuButton
-                    isActive={activeView === key && !activeFeedId && !activeFolderId}
-                    onClick={() => navigate({ view: key, feedId: null, folderId: null })}
+                    isActive={activeView === key && !activeFeedId && !activeFolderId && pathname === "/reader"}
+                    onClick={() => { router.replace(`/reader?view=${key}`); }}
                     className="rounded-xl h-9 transition-all duration-150"
                   >
                     <Icon className={cn("size-4", key === "starred" && activeView === key && "text-yellow-500")} />
@@ -353,8 +359,18 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-
-
+              {navLinks.map(({ href, label, icon: Icon }) => (
+                <SidebarMenuItem key={href}>
+                  <SidebarMenuButton
+                    isActive={pathname === href}
+                    onClick={() => router.push(href)}
+                    className="rounded-xl h-9 transition-all duration-150"
+                  >
+                    <Icon className="size-4" />
+                    <span className="flex-1">{label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

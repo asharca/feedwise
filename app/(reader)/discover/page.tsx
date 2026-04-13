@@ -162,14 +162,11 @@ function RouteCard({ route, onSubscribe }: { route: Route; onSubscribe: (url: st
                         className="w-full text-[12px] rounded-lg border border-border bg-background px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
                       >
                         <option value="">Select...</option>
-                        {Object.entries(opts).map(([val, opt]) => {
-                          const label = typeof opt === "string" ? opt : opt?.label ?? val;
-                          return (
-                            <option key={val} value={typeof opt === "object" ? opt.value ?? val : val}>
-                              {label}
-                            </option>
-                          );
-                        })}
+                        {Object.entries(opts).map(([val, opt]) => (
+                          <option key={val} value={val}>
+                            {opt}
+                          </option>
+                        ))}
                       </select>
                     ) : (
                       <Input
