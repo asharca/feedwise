@@ -199,3 +199,62 @@ export const articleTags = pgTable(
   },
   (t) => [primaryKey({ columns: [t.articleId, t.tagId] })]
 );
+
+// ─── Email Subscriptions ──────────────────────────────────────────
+export const emailSubscriptions = pgTable(
+  "email_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull()
+      .unique(),
+    enabled: boolean("enabled").notNull().default(false),
+    sendTime: varchar("send_time", { length: 5 }).default("08:00"),
+    frequency: varchar("frequency", { length: 10 })
+      .$type<"daily" | "weekly">()
+      .default("daily"),
+    lastSentAt: timestamp("last_sent_at"),
+    smtpHost: varchar("smtp_host", { length: 255 }),
+    smtpPort: integer("smtp_port").default(587),
+    smtpUser: varchar("smtp_user", { length: 255 }),
+    smtpPass: text("smtp_pass"),
+    smtpFrom: varchar("smtp_from", { length: 255 }),
+    emailProvider: varchar("email_provider", { length: 20 }),
+    emailApiKey: text("email_api_key"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  }
+);
+
+// User's selected tags for email delivery
+export const emailSubscriptionTags = pgTable(
+  "email_subscription_tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subscriptionId: uuid("subscription_id")
+      .references(() => emailSubscriptions.id, { onDelete: "cascade" })
+      .notNull(),
+    tagId: uuid("tag_id")
+      .references(() => tags.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [unique().on(t.subscriptionId, t.tagId)]
+);
+
+// User's selected feeds for email delivery
+export const emailSubscriptionFeeds = pgTable(
+  "email_subscription_feeds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subscriptionId: uuid("subscription_id")
+      .references(() => emailSubscriptions.id, { onDelete: "cascade" })
+      .notNull(),
+    feedId: uuid("feed_id")
+      .references(() => feeds.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [unique().on(t.subscriptionId, t.feedId)]
+);

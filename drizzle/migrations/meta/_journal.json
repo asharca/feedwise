@@ -15,6 +15,27 @@
       "when": 1775807026940,
       "tag": "0001_first_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776111111111,
+      "tag": "0002_email_subscription",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776200000000,
+      "tag": "0003_smtp_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776300000000,
+      "tag": "0004_email_provider",
+      "breakpoints": true
     }
   ]
 }

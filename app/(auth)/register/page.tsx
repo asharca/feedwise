@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Rss } from "lucide-react";
-import { signUp } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +14,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -26,18 +26,24 @@ export default function RegisterPage() {
       setError("Passwords do not match");
       return;
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await signUp.email({ name, email, password });
-      if (res.error) {
-        setError(res.error.message ?? "Registration failed");
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password, code }),
+      });
+      const data = await res.json();
+      
+      if (!data.success) {
+        setError(data.error ?? "Registration failed");
       } else {
-        router.push("/reader");
+        router.push("/login");
       }
     } finally {
       setLoading(false);
@@ -47,7 +53,6 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8">
-        {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           <div className="size-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
             <Rss className="size-6 text-primary-foreground" />
@@ -58,7 +63,6 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="name">Name</Label>
@@ -100,6 +104,18 @@ export default function RegisterPage() {
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
+              required
+              className="rounded-xl h-10"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="code">Registration Code</Label>
+            <Input
+              id="code"
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Enter code"
               required
               className="rounded-xl h-10"
             />

@@ -1,5 +1,6 @@
 import { startFeedWorker } from "./workers/feed-worker";
 import { scheduleFeedRefreshes } from "./scheduler";
+import { processDailyDigests } from "./workers/digest-worker";
 
 const worker = startFeedWorker();
 
@@ -17,10 +18,20 @@ async function runScheduler() {
   }
 }
 
-runScheduler();
-const schedulerTimer = setInterval(runScheduler, INTERVAL_MS);
+async function runDigestWorker() {
+  try {
+    await processDailyDigests();
+  } catch (err) {
+    console.error("[digest] Failed:", err);
+  }
+}
 
-console.log("[workers] Feed worker and scheduler started (interval: 15m)");
+runScheduler();
+runDigestWorker();
+const schedulerTimer = setInterval(runScheduler, INTERVAL_MS);
+const digestTimer = setInterval(runDigestWorker, 60 * 1000); // Check every minute
+
+console.log("[workers] Feed worker and scheduler started (interval: 15m), digest worker (interval: 1m)");
 
 // Graceful shutdown
 async function shutdown(signal: string) {
