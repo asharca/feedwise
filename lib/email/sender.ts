@@ -86,7 +86,7 @@ export async function sendDailyDigest(email: DailyDigestEmail): Promise<void> {
         <p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">
           ${a.feedTitle} · ${a.publishedAt ? formatDate(a.publishedAt) : ""}
         </p>
-        ${a.summary ? `<p style="margin: 0; color: #444; font-size: 14px; line-height: 1.5;">${a.summary}</p>` : ""}
+        ${a.summary ? `<p style="margin: 0; color: #444; font-size: 14px; line-height: 1.5;">${limitEmailImageSize(a.summary)}</p>` : ""}
       </div>
     `
     )
@@ -172,6 +172,19 @@ function normalizeFromAddress(
   }
 
   return fallback;
+}
+
+function limitEmailImageSize(html: string): string {
+  const imageStyle = "max-width:100%;width:auto;height:auto;max-height:280px;object-fit:contain;display:block;border-radius:8px;margin:8px 0;";
+  return html.replace(/<img\b([^>]*)>/gi, (_match, attrs: string) => {
+    const styleMatch = attrs.match(/\sstyle\s*=\s*(['"])(.*?)\1/i);
+    if (styleMatch) {
+      const mergedStyle = `${styleMatch[2].trim().replace(/;?$/, ";")} ${imageStyle}`;
+      const updatedAttrs = attrs.replace(styleMatch[0], ` style="${mergedStyle}"`);
+      return `<img${updatedAttrs}>`;
+    }
+    return `<img${attrs} style="${imageStyle}">`;
+  });
 }
 
 function formatDate(date: Date): string {
