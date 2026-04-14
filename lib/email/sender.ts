@@ -86,7 +86,14 @@ export async function sendDailyDigest(email: DailyDigestEmail): Promise<void> {
         <p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">
           ${a.feedTitle} · ${a.publishedAt ? formatDate(a.publishedAt) : ""}
         </p>
-        ${a.summary ? `<p style="margin: 0; color: #444; font-size: 14px; line-height: 1.5;">${limitEmailImageSize(a.summary)}</p>` : ""}
+        <details style="margin-top: 8px;">
+          <summary style="cursor: pointer; color: #2563eb; font-size: 13px; font-weight: 500; outline: none;">
+            Click to expand details
+          </summary>
+          <div style="margin-top: 8px; color: #444; font-size: 14px; line-height: 1.6;">
+            ${normalizeArticleDetailsHtml(a.summary)}
+          </div>
+        </details>
       </div>
     `
     )
@@ -185,6 +192,19 @@ function limitEmailImageSize(html: string): string {
     }
     return `<img${attrs} style="${imageStyle}">`;
   });
+}
+
+function normalizeArticleDetailsHtml(summary: string | null): string {
+  if (!summary || summary.trim().length === 0) {
+    return `<p style="margin: 0; color: #666;">No details available for this article.</p>`;
+  }
+
+  // Prevent nested collapses from source content that can hide article titles in some clients.
+  const withoutNativeDisclosure = summary
+    .replace(/<\/?details\b[^>]*>/gi, "")
+    .replace(/<\/?summary\b[^>]*>/gi, "");
+
+  return limitEmailImageSize(withoutNativeDisclosure);
 }
 
 function formatDate(date: Date): string {

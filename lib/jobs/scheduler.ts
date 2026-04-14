@@ -19,13 +19,23 @@ export async function scheduleFeedRefreshes() {
       )
     );
 
+  let enqueued = 0;
+
   for (const feed of due) {
     await getFeedFetchQueue().add(
       "fetch",
       { feedId: feed.id, url: feed.url },
-      { jobId: `feed-${feed.id}`, attempts: 3, backoff: { type: "exponential", delay: 5000 } }
+      {
+        // Use a per-run unique ID so periodic refresh jobs are not permanently deduplicated.
+        jobId: `feed-${feed.id}-scheduled-${Date.now()}`,
+        attempts: 3,
+        backoff: { type: "exponential", delay: 5000 },
+        removeOnComplete: 100,
+        removeOnFail: 200,
+      }
     );
+    enqueued++;
   }
 
-  return due.length;
+  return enqueued;
 }

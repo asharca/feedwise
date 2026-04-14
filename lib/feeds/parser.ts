@@ -38,7 +38,7 @@ export async function parseFeed(url: string): Promise<ParsedFeed> {
       contentText: stripHtml((i["description"] as string) ?? ""),
       summary: (i["summary"] as string) ?? null,
       imageUrl: getImageUrl(i),
-      publishedAt: i["pubdate"] ? new Date(i["pubdate"] as string) : null,
+      publishedAt: parsePublishedAt(i["pubdate"]),
     };
   });
 
@@ -65,4 +65,11 @@ function getImageUrl(item: Record<string, unknown>): string | null {
 
   const img = (item["image"] as { url?: string } | undefined)?.url;
   return img ?? null;
+}
+
+function parsePublishedAt(input: unknown): Date | null {
+  if (!input) return null;
+
+  const date = input instanceof Date ? input : new Date(String(input));
+  return Number.isNaN(date.getTime()) ? null : date;
 }
