@@ -174,12 +174,9 @@ async function syncSubscriptionEntities(subscriptionId: string, settings: Partia
   }
 }
 
-export async function getArticlesForEmail(userId: string): Promise<EmailArticle[]> {
-  const settings = await getSubscriptionSettings(userId);
-  if (!settings || !settings.enabled) return [];
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export async function getArticlesForEmail(userId: string, date?: Date): Promise<EmailArticle[]> {
+  const queryDate = date || new Date();
+  queryDate.setHours(0, 0, 0, 0);
 
   let query = db
     .select({
@@ -197,7 +194,7 @@ export async function getArticlesForEmail(userId: string): Promise<EmailArticle[
       subscriptions,
       and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, userId))
     )
-    .where(gte(articles.publishedAt, today));
+    .where(gte(articles.publishedAt, queryDate));
 
   const rows = await query;
 
