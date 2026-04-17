@@ -21,8 +21,8 @@ export async function processDailyDigests() {
 
   for (const sub of subscriptions) {
     try {
-      // Parse scheduled time
-      const [scheduledHour, scheduledMinute] = sub.sendTime.split(":").map(Number);
+      const sendTime = sub.sendTime ?? "08:00";
+      const [scheduledHour, scheduledMinute] = sendTime.split(":").map(Number);
       const scheduledMinutes = scheduledHour * 60 + scheduledMinute;
       const currentMinutes = currentHour * 60 + currentMinute;
       

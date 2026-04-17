@@ -175,6 +175,9 @@ async function syncSubscriptionEntities(subscriptionId: string, settings: Partia
 }
 
 export async function getArticlesForEmail(userId: string, date?: Date): Promise<EmailArticle[]> {
+  const settings = await getSubscriptionSettings(userId);
+  if (!settings) return [];
+
   const queryDate = date || new Date();
   queryDate.setHours(0, 0, 0, 0);
 
