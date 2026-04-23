@@ -1,122 +1,189 @@
-import { getAllActiveSubscriptions, getUserEmail, getArticlesForEmail, markDigestSent, getUserSMTPConfig } from "@/lib/email/queries";
+import { CronExpressionParser } from "cron-parser";
+import type { CronDate } from "cron-parser";
+import {
+  getAllActiveSubscriptions,
+  getUserEmail,
+  getArticlesForEmail,
+  markArticlesAsSent,
+  logDigestSend,
+  updateNextScheduledAt,
+  getLastDigestSentDate,
+} from "@/lib/email/queries";
 import { sendDailyDigest } from "@/lib/email/sender";
 
+const DEFAULT_CRON = "0 8 * * *"; // Daily at 8:00 AM
+
 /**
- * Process daily digests with catch-up mechanism to prevent missed emails.
- * 
+ * Process daily digests using cron expressions with article-level tracking.
+ *
  * Key improvements:
- * 1. Catch-up: If a day was missed, send the digest for that day
- * 2. Time window: Allow sending within a window around sendTime (not just exact minute)
- * 3. Retry logic: Failed sends will be retried on next run
+ * 1. Cron-based scheduling instead of fixed sendTime
+ * 2. Article-level deduplication via emailSentArticles table
+ * 3. Proper catch-up: sends missed digest windows without corrupting state
+ * 4. Date-bounded article queries (no future articles in catch-up)
+ * 5. Per-digest logging for history and retry safety
  */
 export async function processDailyDigests() {
   const subscriptions = await getAllActiveSubscriptions();
   const now = new Date();
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
-  const currentTime = `${String(currentHour).padStart(2, "0")}:${String(currentMinute).padStart(2, "0")}`;
-
-  // Time window in minutes (send within 10 minutes of scheduled time)
-  const sendWindowMinutes = 10;
 
   for (const sub of subscriptions) {
     try {
-      const sendTime = sub.sendTime ?? "08:00";
-      const [scheduledHour, scheduledMinute] = sendTime.split(":").map(Number);
-      const scheduledMinutes = scheduledHour * 60 + scheduledMinute;
-      const currentMinutes = currentHour * 60 + currentMinute;
-      
-      // Check if we're within the send window
-      const timeDiff = Math.abs(currentMinutes - scheduledMinutes);
-      const isInSendWindow = timeDiff <= sendWindowMinutes;
+      const cronExpr = sub.cronExpression || cronFromLegacySettings(sub.frequency, sub.sendTime);
+      const lastSent = await getLastDigestSentDate(sub.userId);
 
-      // Check if already sent today (within this catch-up cycle)
-      const today = new Date();
-      const lastSentDate = sub.lastSentAt ? new Date(sub.lastSentAt) : null;
-      const sentToday = lastSentDate && lastSentDate.toDateString() === today.toDateString();
+      // Compute all trigger dates between last successful send and now
+      const missedDates = getMissedCronTriggers(cronExpr, lastSent, now);
 
-      if (sub.frequency === "daily") {
-        // CATCH-UP LOGIC: Check if we missed any days
-        if (lastSentDate) {
-          const daysSinceLastSent = Math.floor((now.getTime() - lastSentDate.getTime()) / (1000 * 60 * 60 * 24));
-          
-          if (daysSinceLastSent > 1) {
-            // Missed one or more days - catch up each missed day
-            console.log(`[digest] Catching up ${daysSinceLastSent - 1} day(s) for user ${sub.userId}`);
-            
-            for (let dayOffset = 1; dayOffset < daysSinceLastSent; dayOffset++) {
-              const catchUpDate = new Date(now);
-              catchUpDate.setDate(catchUpDate.getDate() - dayOffset);
-              
-              await sendDigestForDate(sub, catchUpDate);
-            }
-          }
-        }
+      if (missedDates.length === 0) {
+        continue;
+      }
 
-        // If already sent today, skip (but still check catch-up above)
-        if (sentToday && !isInSendWindow) {
-          continue;
-        }
+      console.log(
+        `[digest] User ${sub.userId}: ${missedDates.length} missed trigger(s) for cron "${cronExpr}"`
+      );
 
-        // If in send window and not sent today, send today's digest
-        if (isInSendWindow && !sentToday) {
-          await sendDigestForDate(sub, now);
-        }
-      } else {
-        // Weekly - just check send window
-        if (isInSendWindow) {
-          await sendDigestForDate(sub, now);
-        }
+      // Send a digest for each missed trigger date
+      for (const triggerDate of missedDates) {
+        await sendDigestForDate(sub, triggerDate);
+      }
+
+      // Update nextScheduledAt to the upcoming trigger
+      const nextTrigger = getNextCronTrigger(cronExpr, now);
+      if (nextTrigger) {
+        await updateNextScheduledAt(sub.userId, nextTrigger);
       }
     } catch (err) {
       console.error(`[digest] Failed for user ${sub.userId}:`, err);
-      // Continue with next subscription instead of stopping
+      // Continue with next subscription
     }
   }
 }
 
 /**
- * Send digest for a specific date
+ * Send digest for a specific trigger date.
  */
-async function sendDigestForDate(subscription: Awaited<ReturnType<typeof getAllActiveSubscriptions>>[0], date: Date) {
+async function sendDigestForDate(
+  subscription: Awaited<ReturnType<typeof getAllActiveSubscriptions>>[0],
+  date: Date
+) {
   const email = await getUserEmail(subscription.userId);
   if (!email) {
     console.log(`[digest] No email for user ${subscription.userId}`);
     return;
   }
 
-  const articles = await getArticlesForEmailForDate(subscription.userId, date);
-  
-  const smtpConfig = subscription.smtpHost && subscription.smtpUser && subscription.smtpPass
-    ? {
-        host: subscription.smtpHost,
-        port: subscription.smtpPort || 587,
-        user: subscription.smtpUser,
-        pass: subscription.smtpPass,
-        from: subscription.smtpFrom || "Feedwise <noreply@feedwise.app>",
-      }
-    : null;
+  const articles = await getArticlesForEmail(subscription.userId, date);
+  const articleIds = articles.map((a) => a.id);
+
+  const smtpConfig =
+    subscription.smtpHost && subscription.smtpUser && subscription.smtpPass
+      ? {
+          host: subscription.smtpHost,
+          port: subscription.smtpPort || 587,
+          user: subscription.smtpUser,
+          pass: subscription.smtpPass,
+          from: subscription.smtpFrom || "Feedwise <noreply@feedwise.app>",
+        }
+      : null;
 
   const dateStr = date.toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
-  const subject = articles.length === 0
-    ? `📰 Feedwise Digest - ${dateStr} - No new articles`
-    : `📰 Feedwise Digest - ${dateStr} - ${articles.length} article${articles.length === 1 ? "" : "s"}`;
+  const subject =
+    articles.length === 0
+      ? `📰 Feedwise Digest - ${dateStr} - No new articles`
+      : `📰 Feedwise Digest - ${dateStr} - ${articles.length} article${articles.length === 1 ? "" : "s"}`;
 
-  await sendDailyDigest({
-    to: email,
-    subject,
-    articles,
-    smtpConfig,
-  });
+  try {
+    await sendDailyDigest({
+      to: email,
+      subject,
+      articles,
+      smtpConfig,
+    });
 
-  await markDigestSent(subscription.userId);
-  console.log(`[digest] Sent digest to ${email} (${articles.length} articles) for ${date.toDateString()}`);
+    // Mark articles as sent so they are never duplicated
+    await markArticlesAsSent(subscription.userId, articleIds);
+    await logDigestSend(subscription.userId, articles.length, "success");
+
+    console.log(
+      `[digest] Sent digest to ${email} (${articles.length} articles) for ${date.toDateString()}`
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await logDigestSend(subscription.userId, articles.length, "failed", message);
+    console.error(`[digest] Failed to send to ${email}:`, message);
+    throw err; // Re-throw so the outer loop can continue but we know it failed
+  }
 }
 
 /**
- * Get articles for a specific date (used for catch-up)
+ * Convert legacy frequency + sendTime into a cron expression.
  */
-async function getArticlesForEmailForDate(userId: string, date: Date): Promise<Awaited<ReturnType<typeof getArticlesForEmail>>> {
-  const { getArticlesForEmail } = await import("@/lib/email/queries");
-  return getArticlesForEmail(userId, date);
+function cronFromLegacySettings(
+  frequency: "daily" | "weekly" | null,
+  sendTime: string | null
+): string {
+  const time = sendTime || "08:00";
+  const [hour, minute] = time.split(":").map(Number);
+  const m = String(minute).padStart(2, "0");
+  const h = String(hour).padStart(2, "0");
+
+  if (frequency === "weekly") {
+    // Default to Monday for weekly if no cron set
+    return `${m} ${h} * * 1`;
+  }
+  return `${m} ${h} * * *`;
+}
+
+/**
+ * Get all cron trigger dates between (lastSent, upToDate].
+ * If lastSent is null, returns only triggers within the last 24h to avoid spam on first enable.
+ */
+function getMissedCronTriggers(
+  cronExpr: string,
+  lastSent: Date | null,
+  upToDate: Date
+): Date[] {
+  try {
+    const startDate = lastSent || new Date(upToDate.getTime() - 24 * 60 * 60 * 1000);
+    const expr = CronExpressionParser.parse(cronExpr, {
+      currentDate: startDate,
+    });
+
+    const triggers: Date[] = [];
+
+    for (const cronDate of expr) {
+      const d = cronDate.toDate();
+      if (d.getTime() > upToDate.getTime()) break;
+      // Skip the exact startDate if it matches (we want triggers AFTER lastSent)
+      if (lastSent && d.getTime() <= lastSent.getTime()) continue;
+      triggers.push(d);
+      // Safety limit
+      if (triggers.length >= 365) break;
+    }
+
+    return triggers;
+  } catch {
+    console.error(`[digest] Invalid cron expression: ${cronExpr}`);
+    return [];
+  }
+}
+
+/**
+ * Get the next upcoming cron trigger strictly after the given date.
+ */
+function getNextCronTrigger(cronExpr: string, after: Date): Date | null {
+  try {
+    const expr = CronExpressionParser.parse(cronExpr, {
+      currentDate: after,
+    });
+    const next = expr.next().toDate();
+    // If next is exactly `after`, get the one after that
+    if (next.getTime() === after.getTime()) {
+      return expr.next().toDate();
+    }
+    return next;
+  } catch {
+    return null;
+  }
 }

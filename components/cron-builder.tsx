@@ -1,0 +1,246 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
+
+interface CronBuilderProps {
+  value: string | null;
+  onChange: (cron: string) => void;
+  disabled?: boolean;
+}
+
+type CronPreset = "daily" | "weekly" | "monthly" | "custom";
+
+const WEEKDAYS = [
+  { value: 1, label: "周一" },
+  { value: 2, label: "周二" },
+  { value: 3, label: "周三" },
+  { value: 4, label: "周四" },
+  { value: 5, label: "周五" },
+  { value: 6, label: "周六" },
+  { value: 0, label: "周日" },
+];
+
+const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+
+function describeCron(cron: string): string {
+  const parts = cron.split(" ");
+  if (parts.length !== 5) return cron;
+
+  const [minute, hour, day, month, weekday] = parts;
+
+  const h = parseInt(hour);
+  const m = parseInt(minute);
+  const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+  if (day === "*" && month === "*" && weekday === "*") {
+    return `每天 ${timeStr}`;
+  }
+  if (day === "*" && month === "*" && /^\d$/.test(weekday)) {
+    const wd = WEEKDAYS.find((w) => w.value === parseInt(weekday));
+    return `每周${wd?.label ?? weekday} ${timeStr}`;
+  }
+  if (/^\d+$/.test(day) && month === "*" && weekday === "*") {
+    return `每月${day}号 ${timeStr}`;
+  }
+  if (day === "*" && month === "*" && weekday === "1-5") {
+    return `工作日 ${timeStr}`;
+  }
+
+  return `${cron} (${timeStr})`;
+}
+
+export default function CronBuilder({ value, onChange, disabled }: CronBuilderProps) {
+  const [mode, setMode] = useState<CronPreset>("daily");
+  const [hour, setHour] = useState(8);
+  const [minute, setMinute] = useState(0);
+  const [weekday, setWeekday] = useState(1);
+  const [monthDay, setMonthDay] = useState(1);
+
+  // Parse existing value on mount
+  useEffect(() => {
+    if (!value) return;
+    const parts = value.split(" ");
+    if (parts.length !== 5) return;
+
+    const [m, h, d, mo, wd] = parts;
+    setHour(parseInt(h) || 8);
+    setMinute(parseInt(m) || 0);
+
+    if (d === "*" && mo === "*" && wd === "*") {
+      setMode("daily");
+    } else if (d === "*" && mo === "*" && /^\d$/.test(wd)) {
+      setMode("weekly");
+      setWeekday(parseInt(wd));
+    } else if (/^\d+$/.test(d) && mo === "*" && wd === "*") {
+      setMode("monthly");
+      setMonthDay(parseInt(d));
+    } else {
+      setMode("custom");
+    }
+  }, [value]);
+
+  // Build cron from state
+  useEffect(() => {
+    const m = String(minute).padStart(2, "0");
+    const h = String(hour).padStart(2, "0");
+
+    let cron = "";
+    switch (mode) {
+      case "daily":
+        cron = `${m} ${h} * * *`;
+        break;
+      case "weekly":
+        cron = `${m} ${h} * * ${weekday}`;
+        break;
+      case "monthly":
+        cron = `${m} ${h} ${monthDay} * *`;
+        break;
+      case "custom":
+        // Keep existing custom value, only update time portion if we can parse it
+        if (value) {
+          const parts = value.split(" ");
+          if (parts.length === 5) {
+            cron = `${m} ${h} ${parts[2]} ${parts[3]} ${parts[4]}`;
+          } else {
+            cron = `${m} ${h} * * *`;
+          }
+        } else {
+          cron = `${m} ${h} * * *`;
+        }
+        break;
+    }
+
+    if (cron && cron !== value) {
+      onChange(cron);
+    }
+  }, [mode, hour, minute, weekday, monthDay]);
+
+  const presets: { key: CronPreset; label: string }[] = [
+    { key: "daily", label: "每天" },
+    { key: "weekly", label: "每周" },
+    { key: "monthly", label: "每月" },
+    { key: "custom", label: "自定义" },
+  ];
+
+  return (
+    <div className={cn("space-y-3", disabled && "opacity-60 pointer-events-none")}>
+      {/* Preset tabs */}
+      <div className="flex gap-1.5">
+        {presets.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => setMode(p.key)}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+              mode === p.key
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted hover:bg-accent"
+            )}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Time picker */}
+      <div className="flex items-center gap-3">
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1">时</label>
+          <select
+            value={hour}
+            onChange={(e) => setHour(Number(e.target.value))}
+            className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer min-w-[64px]"
+          >
+            {Array.from({ length: 24 }, (_, i) => (
+              <option key={i} value={i}>
+                {String(i).padStart(2, "0")}
+              </option>
+            ))}
+          </select>
+        </div>
+        <span className="text-muted-foreground pt-5">:</span>
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1">分</label>
+          <select
+            value={minute}
+            onChange={(e) => setMinute(Number(e.target.value))}
+            className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer min-w-[64px]"
+          >
+            {[0, 15, 30, 45].map((m) => (
+              <option key={m} value={m}>
+                {String(m).padStart(2, "0")}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Weekly selector */}
+      {mode === "weekly" && (
+        <div className="flex gap-1.5 flex-wrap">
+          {WEEKDAYS.map((wd) => (
+            <button
+              key={wd.value}
+              type="button"
+              onClick={() => setWeekday(wd.value)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-sm transition-colors",
+                weekday === wd.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted hover:bg-accent"
+              )}
+            >
+              {wd.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Monthly selector */}
+      {mode === "monthly" && (
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1">日期</label>
+          <select
+            value={monthDay}
+            onChange={(e) => setMonthDay(Number(e.target.value))}
+            className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer"
+          >
+            {MONTH_DAYS.map((d) => (
+              <option key={d} value={d}>
+                {d}号
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Custom cron input */}
+      {mode === "custom" && (
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1">Cron 表达式</label>
+          <input
+            type="text"
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="0 8 * * *"
+            className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none font-mono"
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            格式: 分 时 日 月 周
+          </p>
+        </div>
+      )}
+
+      {/* Description */}
+      {value && (
+        <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+          <span className="font-mono text-xs text-foreground/70">{value}</span>
+          <span className="mx-2">·</span>
+          {describeCron(value)}
+        </div>
+      )}
+    </div>
+  );
+}

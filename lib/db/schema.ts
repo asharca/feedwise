@@ -214,6 +214,8 @@ export const emailSubscriptions = pgTable(
     frequency: varchar("frequency", { length: 10 })
       .$type<"daily" | "weekly">()
       .default("daily"),
+    cronExpression: varchar("cron_expression", { length: 100 }),
+    nextScheduledAt: timestamp("next_scheduled_at"),
     lastSentAt: timestamp("last_sent_at"),
     smtpHost: varchar("smtp_host", { length: 255 }),
     smtpPort: integer("smtp_port").default(587),
@@ -257,4 +259,35 @@ export const emailSubscriptionFeeds = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [unique().on(t.subscriptionId, t.feedId)]
+);
+
+// Track which articles have been sent to each user (prevents duplicates)
+export const emailSentArticles = pgTable(
+  "email_sent_articles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    articleId: uuid("article_id")
+      .references(() => articles.id, { onDelete: "cascade" })
+      .notNull(),
+    sentAt: timestamp("sent_at").defaultNow().notNull(),
+  },
+  (t) => [unique().on(t.userId, t.articleId)]
+);
+
+// Log each digest send attempt for history and catch-up
+export const emailDigestLogs = pgTable(
+  "email_digest_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    sentAt: timestamp("sent_at").defaultNow().notNull(),
+    articleCount: integer("article_count").default(0),
+    status: varchar("status", { length: 20 }).$type<"success" | "failed">().default("success"),
+    errorMessage: text("error_message"),
+  }
 );

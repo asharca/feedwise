@@ -7,6 +7,7 @@ import { ArrowLeft, Sun, Moon, Monitor, Upload, Download, Trash2, RefreshCw, Clo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import CronBuilder from "@/components/cron-builder";
 
 interface Sub {
   id: string;
@@ -22,6 +23,7 @@ interface EmailSettings {
   enabled: boolean;
   sendTime: string;
   frequency: "daily" | "weekly";
+  cronExpression: string | null;
   selectedTags: string[];
   selectedFeeds: string[];
   hasSmtpPass?: boolean;
@@ -535,42 +537,31 @@ export default function SettingsPage() {
 
                 {emailSettings && emailSettings.enabled && (
                   <>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Send time</p>
-                        <p className="text-xs text-muted-foreground">When to send the digest</p>
+                    <div>
+                      <div className="mb-2">
+                        <p className="text-sm font-medium">推送计划</p>
+                        <p className="text-xs text-muted-foreground">选择何时推送邮件摘要</p>
                       </div>
-                      <select
-                        value={emailSettings.sendTime}
-                        onChange={(e) => handleEmailTimeChange(e.target.value)}
+                      <CronBuilder
+                        value={emailSettings.cronExpression}
+                        onChange={async (cron) => {
+                          setEmailSaving(true);
+                          try {
+                            const res = await fetch("/api/settings/email", {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ cronExpression: cron }),
+                            });
+                            const data = await res.json();
+                            if (data.success && data.data) {
+                              setEmailSettings(data.data);
+                            }
+                          } finally {
+                            setEmailSaving(false);
+                          }
+                        }}
                         disabled={emailSaving || emailTesting}
-                        className="text-sm bg-muted rounded-lg px-2 py-1 outline-none cursor-pointer"
-                      >
-                        <option value="06:00">6:00 AM</option>
-                        <option value="07:00">7:00 AM</option>
-                        <option value="08:00">8:00 AM</option>
-                        <option value="09:00">9:00 AM</option>
-                        <option value="10:00">10:00 AM</option>
-                        <option value="12:00">12:00 PM</option>
-                        <option value="18:00">6:00 PM</option>
-                        <option value="20:00">8:00 PM</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Frequency</p>
-                        <p className="text-xs text-muted-foreground">How often to send</p>
-                      </div>
-                      <select
-                        value={emailSettings.frequency}
-                        onChange={(e) => handleFrequencyChange(e.target.value as "daily" | "weekly")}
-                        disabled={emailSaving || emailTesting}
-                        className="text-sm bg-muted rounded-lg px-2 py-1 outline-none cursor-pointer"
-                      >
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                      </select>
+                      />
                     </div>
 
                     <div className="border-t border-border/30 pt-4 mt-4">

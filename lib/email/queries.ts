@@ -1,16 +1,17 @@
-import { eq, and, gte, sql } from "drizzle-orm";
+import { eq, and, gte, lt, sql, not, inArray, exists } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   emailSubscriptions,
   emailSubscriptionTags,
   emailSubscriptionFeeds,
+  emailSentArticles,
+  emailDigestLogs,
   users,
   articles,
   feeds,
   subscriptions,
   tags,
   articleTags,
-  userArticles,
 } from "@/lib/db/schema";
 import type { EmailArticle } from "./sender";
 
@@ -18,6 +19,7 @@ export interface SubscriptionSettings {
   enabled: boolean;
   sendTime: string;
   frequency: "daily" | "weekly";
+  cronExpression: string | null;
   selectedTags: string[];
   selectedFeeds: string[];
   smtpHost?: string | null;
@@ -63,6 +65,7 @@ export async function getSubscriptionSettings(userId: string): Promise<Subscript
     enabled: sub.enabled,
     sendTime: sub.sendTime ?? "08:00",
     frequency: sub.frequency ?? "daily",
+    cronExpression: sub.cronExpression ?? null,
     selectedTags: tagRows.map((r) => r.tagId),
     selectedFeeds: feedRows.map((r) => r.feedId),
     smtpHost: sub.smtpHost,
@@ -72,19 +75,6 @@ export async function getSubscriptionSettings(userId: string): Promise<Subscript
     smtpFrom: sub.smtpFrom,
     emailProvider: sub.emailProvider,
     emailApiKey: sub.emailApiKey,
-  };
-}
-
-export async function getUserSMTPConfig(userId: string): Promise<SMTPConfig | null> {
-  const sub = await getUserSubscription(userId);
-  if (!sub?.smtpHost || !sub?.smtpUser || !sub?.smtpPass) return null;
-
-  return {
-    host: sub.smtpHost,
-    port: sub.smtpPort || 587,
-    user: sub.smtpUser,
-    pass: sub.smtpPass,
-    from: sub.smtpFrom || "Feedwise <noreply@feedwise.app>",
   };
 }
 
@@ -102,6 +92,7 @@ export async function updateSubscriptionSettings(
         enabled: settings.enabled ?? false,
         sendTime: settings.sendTime ?? "08:00",
         frequency: settings.frequency ?? "daily",
+        cronExpression: settings.cronExpression ?? null,
         smtpHost: settings.smtpHost,
         smtpPort: settings.smtpPort ?? 587,
         smtpUser: settings.smtpUser,
@@ -112,7 +103,6 @@ export async function updateSubscriptionSettings(
       })
       .returning();
     await syncSubscriptionEntities(created.id, settings);
-    // Return formatted settings instead of raw database record
     return await getSubscriptionSettings(userId) as SubscriptionSettings;
   }
 
@@ -122,6 +112,7 @@ export async function updateSubscriptionSettings(
       enabled: settings.enabled ?? existing.enabled,
       sendTime: settings.sendTime ?? existing.sendTime,
       frequency: settings.frequency ?? existing.frequency,
+      cronExpression: settings.cronExpression !== undefined ? settings.cronExpression : existing.cronExpression,
       smtpHost: settings.smtpHost !== undefined ? settings.smtpHost : existing.smtpHost,
       smtpPort: settings.smtpPort !== undefined ? settings.smtpPort : existing.smtpPort,
       smtpUser: settings.smtpUser !== undefined ? settings.smtpUser : existing.smtpUser,
@@ -134,8 +125,14 @@ export async function updateSubscriptionSettings(
     .where(eq(emailSubscriptions.id, existing.id));
 
   await syncSubscriptionEntities(existing.id, settings);
-  // Return formatted settings instead of raw database record
   return await getSubscriptionSettings(userId) as SubscriptionSettings;
+}
+
+export async function updateNextScheduledAt(userId: string, nextAt: Date) {
+  await db
+    .update(emailSubscriptions)
+    .set({ nextScheduledAt: nextAt, updatedAt: new Date() })
+    .where(eq(emailSubscriptions.userId, userId));
 }
 
 async function syncSubscriptionEntities(subscriptionId: string, settings: Partial<SubscriptionSettings>) {
@@ -154,7 +151,6 @@ async function syncSubscriptionEntities(subscriptionId: string, settings: Partia
   if (settings.selectedFeeds !== undefined) {
     await db.delete(emailSubscriptionFeeds).where(eq(emailSubscriptionFeeds.subscriptionId, subscriptionId));
     if (settings.selectedFeeds.length > 0) {
-      // Validate that feed IDs exist in feeds table
       const validFeeds = await db
         .select({ id: feeds.id })
         .from(feeds)
@@ -178,10 +174,14 @@ export async function getArticlesForEmail(userId: string, date?: Date): Promise<
   const settings = await getSubscriptionSettings(userId);
   if (!settings) return [];
 
-  const queryDate = date || new Date();
-  queryDate.setHours(0, 0, 0, 0);
+  const targetDate = date ? new Date(date) : new Date();
+  const startOfDay = new Date(targetDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(targetDate);
+  endOfDay.setHours(23, 59, 59, 999);
 
-  let query = db
+  // Build article query with proper date bounds and deduplication
+  const query = db
     .select({
       id: articles.id,
       title: articles.title,
@@ -197,17 +197,58 @@ export async function getArticlesForEmail(userId: string, date?: Date): Promise<
       subscriptions,
       and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, userId))
     )
-    .where(gte(articles.publishedAt, queryDate));
+    .where(
+      and(
+        gte(articles.publishedAt, startOfDay),
+        lt(articles.publishedAt, endOfDay),
+        not(exists(
+          db.select({ one: sql`1` })
+            .from(emailSentArticles)
+            .where(
+              and(
+                eq(emailSentArticles.userId, userId),
+                eq(emailSentArticles.articleId, articles.id)
+              )
+            )
+        ))
+      )
+    );
 
   const rows = await query;
 
+  // Pre-fetch tagged article IDs if tags are selected
+  let taggedArticleIds = new Set<string>();
+  if (settings.selectedTags.length > 0) {
+    const articleIdsWithTags = await db
+      .select({ articleId: articleTags.articleId })
+      .from(articleTags)
+      .where(inArray(articleTags.tagId, settings.selectedTags));
+    taggedArticleIds = new Set(articleIdsWithTags.map((r) => r.articleId));
+  }
+
+  const hasSelectedFeeds = settings.selectedFeeds.length > 0;
+  const hasSelectedTags = settings.selectedTags.length > 0;
+
+  // Nothing selected = include all
+  if (!hasSelectedFeeds && !hasSelectedTags) {
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title ?? "Untitled",
+      url: row.url ?? "",
+      summary: row.summary,
+      feedTitle: row.feedTitle,
+      publishedAt: row.publishedAt,
+    }));
+  }
+
   const filtered = rows.filter((row) => {
-    const hasSelectedTags = settings.selectedTags.length > 0;
-    const hasSelectedFeeds = settings.selectedFeeds.length > 0;
+    const feedMatch = hasSelectedFeeds && settings.selectedFeeds.includes(row.feedId as string);
+    const tagMatch = hasSelectedTags && taggedArticleIds.has(row.id);
 
-    if (!hasSelectedTags && !hasSelectedFeeds) return true;
-    if (hasSelectedFeeds && settings.selectedFeeds.includes(row.feedId as string)) return true;
-
+    // If both feeds and tags are selected, match either (OR)
+    if (hasSelectedFeeds && hasSelectedTags) return feedMatch || tagMatch;
+    if (hasSelectedFeeds) return feedMatch;
+    if (hasSelectedTags) return tagMatch;
     return false;
   });
 
@@ -221,6 +262,42 @@ export async function getArticlesForEmail(userId: string, date?: Date): Promise<
   }));
 }
 
+export async function markArticlesAsSent(userId: string, articleIds: string[]) {
+  if (articleIds.length === 0) return;
+  await db.insert(emailSentArticles).values(
+    articleIds.map((articleId) => ({
+      userId,
+      articleId,
+      sentAt: new Date(),
+    }))
+  ).onConflictDoNothing();
+}
+
+export async function logDigestSend(
+  userId: string,
+  articleCount: number,
+  status: "success" | "failed",
+  errorMessage?: string
+) {
+  await db.insert(emailDigestLogs).values({
+    userId,
+    articleCount,
+    status,
+    errorMessage: errorMessage ?? null,
+    sentAt: new Date(),
+  });
+}
+
+export async function getLastDigestSentDate(userId: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ sentAt: emailDigestLogs.sentAt })
+    .from(emailDigestLogs)
+    .where(and(eq(emailDigestLogs.userId, userId), eq(emailDigestLogs.status, "success")))
+    .orderBy(sql`${emailDigestLogs.sentAt} desc`)
+    .limit(1);
+  return row?.sentAt ?? null;
+}
+
 export async function getAllActiveSubscriptions() {
   return db
     .select({
@@ -228,6 +305,8 @@ export async function getAllActiveSubscriptions() {
       userId: emailSubscriptions.userId,
       sendTime: emailSubscriptions.sendTime,
       frequency: emailSubscriptions.frequency,
+      cronExpression: emailSubscriptions.cronExpression,
+      nextScheduledAt: emailSubscriptions.nextScheduledAt,
       lastSentAt: emailSubscriptions.lastSentAt,
       smtpHost: emailSubscriptions.smtpHost,
       smtpPort: emailSubscriptions.smtpPort,
@@ -249,4 +328,17 @@ export async function markDigestSent(userId: string) {
     .update(emailSubscriptions)
     .set({ lastSentAt: new Date() })
     .where(eq(emailSubscriptions.userId, userId));
+}
+
+export async function getUserSMTPConfig(userId: string): Promise<SMTPConfig | null> {
+  const sub = await getUserSubscription(userId);
+  if (!sub?.smtpHost || !sub?.smtpUser || !sub?.smtpPass) return null;
+
+  return {
+    host: sub.smtpHost,
+    port: sub.smtpPort || 587,
+    user: sub.smtpUser,
+    pass: sub.smtpPass,
+    from: sub.smtpFrom || "Feedwise <noreply@feedwise.app>",
+  };
 }
