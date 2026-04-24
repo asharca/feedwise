@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 interface CronBuilderProps {
@@ -56,12 +56,22 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
   const [minute, setMinute] = useState(0);
   const [weekday, setWeekday] = useState(1);
   const [monthDay, setMonthDay] = useState(1);
+  const [customDraft, setCustomDraft] = useState(value || "");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Parse existing value on mount
+  // Stable onChange reference to avoid unnecessary effect runs
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
+  // Parse existing value on mount / when value changes externally
   useEffect(() => {
     if (!value) return;
     const parts = value.split(" ");
-    if (parts.length !== 5) return;
+    if (parts.length !== 5) {
+      setMode("custom");
+      setCustomDraft(value);
+      return;
+    }
 
     const [m, h, d, mo, wd] = parts;
     setHour(parseInt(h) || 8);
@@ -77,11 +87,14 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
       setMonthDay(parseInt(d));
     } else {
       setMode("custom");
+      setCustomDraft(value);
     }
   }, [value]);
 
-  // Build cron from state
+  // Build cron from state for non-custom modes
   useEffect(() => {
+    if (mode === "custom") return;
+
     const m = String(minute).padStart(2, "0");
     const h = String(hour).padStart(2, "0");
 
@@ -96,25 +109,36 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
       case "monthly":
         cron = `${m} ${h} ${monthDay} * *`;
         break;
-      case "custom":
-        // Keep existing custom value, only update time portion if we can parse it
-        if (value) {
-          const parts = value.split(" ");
-          if (parts.length === 5) {
-            cron = `${m} ${h} ${parts[2]} ${parts[3]} ${parts[4]}`;
-          } else {
-            cron = `${m} ${h} * * *`;
-          }
-        } else {
-          cron = `${m} ${h} * * *`;
-        }
-        break;
     }
 
     if (cron && cron !== value) {
-      onChange(cron);
+      onChangeRef.current(cron);
     }
-  }, [mode, hour, minute, weekday, monthDay]);
+  }, [mode, hour, minute, weekday, monthDay, value]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const handleCustomChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setCustomDraft(newValue);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onChangeRef.current(newValue);
+    }, 600);
+  }, []);
+
+  const handleModeChange = useCallback((newMode: CronPreset) => {
+    if (newMode === "custom") {
+      setCustomDraft(value || "0 8 * * *");
+    }
+    setMode(newMode);
+  }, [value]);
 
   const presets: { key: CronPreset; label: string }[] = [
     { key: "daily", label: "每天" },
@@ -131,7 +155,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
           <button
             key={p.key}
             type="button"
-            onClick={() => setMode(p.key)}
+            onClick={() => handleModeChange(p.key)}
             className={cn(
               "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
               mode === p.key
@@ -222,8 +246,8 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
           <label className="text-xs text-muted-foreground block mb-1">Cron 表达式</label>
           <input
             type="text"
-            value={value || ""}
-            onChange={(e) => onChange(e.target.value)}
+            value={customDraft}
+            onChange={handleCustomChange}
             placeholder="0 8 * * *"
             className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none font-mono"
           />
