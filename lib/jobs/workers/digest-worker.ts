@@ -43,9 +43,12 @@ export async function processDailyDigests() {
         `[digest] User ${sub.userId}: ${missedDates.length} missed trigger(s) for cron "${cronExpr}"`
       );
 
-      // Send a digest for each missed trigger date
-      for (const triggerDate of missedDates) {
-        await sendDigestForDate(sub, triggerDate);
+      // Send a digest for each missed trigger date, passing the previous
+      // trigger as the lower bound so no articles fall between windows.
+      for (let i = 0; i < missedDates.length; i++) {
+        const triggerDate = missedDates[i];
+        const fromDate = i === 0 ? lastSent : missedDates[i - 1];
+        await sendDigestForDate(sub, triggerDate, fromDate);
       }
 
       // Update nextScheduledAt to the upcoming trigger
@@ -60,12 +63,10 @@ export async function processDailyDigests() {
   }
 }
 
-/**
- * Send digest for a specific trigger date.
- */
 async function sendDigestForDate(
   subscription: Awaited<ReturnType<typeof getAllActiveSubscriptions>>[0],
-  date: Date
+  triggerDate: Date,
+  fromDate: Date | null
 ) {
   const email = await getUserEmail(subscription.userId);
   if (!email) {
@@ -73,7 +74,13 @@ async function sendDigestForDate(
     return;
   }
 
-  const articles = await getArticlesForEmail(subscription.userId, date);
+  // Articles created between the previous trigger (exclusive) and this trigger (inclusive)
+  const articles = await getArticlesForEmail(
+    subscription.userId,
+    fromDate ?? undefined,
+    triggerDate
+  );
+  const date = triggerDate;
   const articleIds = articles.map((a) => a.id);
 
   const smtpConfig =

@@ -66,6 +66,7 @@ export default function SettingsPage() {
   const [emailTesting, setEmailTesting] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [smtpPassDraft, setSmtpPassDraft] = useState("");
+  const [pendingCron, setPendingCron] = useState<string | null>(null);
   const [userAccount, setUserAccount] = useState<UserAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -543,25 +544,45 @@ export default function SettingsPage() {
                         <p className="text-xs text-muted-foreground">选择何时推送邮件摘要</p>
                       </div>
                       <CronBuilder
-                        value={emailSettings.cronExpression}
-                        onChange={async (cron) => {
-                          setEmailSaving(true);
-                          try {
-                            const res = await fetch("/api/settings/email", {
-                              method: "PUT",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ cronExpression: cron }),
-                            });
-                            const data = await res.json();
-                            if (data.success && data.data) {
-                              setEmailSettings(data.data);
-                            }
-                          } finally {
-                            setEmailSaving(false);
-                          }
-                        }}
+                        value={pendingCron ?? emailSettings.cronExpression}
+                        onChange={(cron) => setPendingCron(cron)}
                         disabled={emailSaving || emailTesting}
                       />
+                      {pendingCron !== null && pendingCron !== emailSettings.cronExpression && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="rounded-xl"
+                            disabled={emailSaving}
+                            onClick={async () => {
+                              setEmailSaving(true);
+                              try {
+                                const res = await fetch("/api/settings/email", {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ cronExpression: pendingCron }),
+                                });
+                                const data = await res.json();
+                                if (data.success && data.data) {
+                                  setEmailSettings(data.data);
+                                  setPendingCron(null);
+                                }
+                              } finally {
+                                setEmailSaving(false);
+                              }
+                            }}
+                          >
+                            {emailSaving ? "保存中..." : "保存推送计划"}
+                          </Button>
+                          <button
+                            type="button"
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => setPendingCron(null)}
+                          >
+                            取消
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="border-t border-border/30 pt-4 mt-4">

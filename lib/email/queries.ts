@@ -1,4 +1,4 @@
-import { eq, and, gte, lt, sql, not, inArray, exists } from "drizzle-orm";
+import { eq, and, gt, lte, sql, not, inArray, exists } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   emailSubscriptions,
@@ -170,17 +170,22 @@ async function syncSubscriptionEntities(subscriptionId: string, settings: Partia
   }
 }
 
-export async function getArticlesForEmail(userId: string, date?: Date): Promise<EmailArticle[]> {
+export async function getArticlesForEmail(
+  userId: string,
+  fromDate?: Date,
+  toDate?: Date
+): Promise<EmailArticle[]> {
   const settings = await getSubscriptionSettings(userId);
   if (!settings) return [];
 
-  const targetDate = date ? new Date(date) : new Date();
-  const startOfDay = new Date(targetDate);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(targetDate);
-  endOfDay.setHours(23, 59, 59, 999);
+  const upperBound = toDate ?? new Date();
 
-  // Build article query with proper date bounds and deduplication
+  // Use createdAt (when added to DB) so RSS articles with old publishedAt dates are
+  // correctly bucketed by when they actually appeared, not their original pub date.
+  const dateCondition = fromDate
+    ? and(gt(articles.createdAt, fromDate), lte(articles.createdAt, upperBound))
+    : lte(articles.createdAt, upperBound);
+
   const query = db
     .select({
       id: articles.id,
@@ -199,8 +204,7 @@ export async function getArticlesForEmail(userId: string, date?: Date): Promise<
     )
     .where(
       and(
-        gte(articles.publishedAt, startOfDay),
-        lt(articles.publishedAt, endOfDay),
+        dateCondition,
         not(exists(
           db.select({ one: sql`1` })
             .from(emailSentArticles)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   Rss,
@@ -19,6 +19,8 @@ import {
   ChevronRight,
   FolderOpen,
   Compass,
+  Search,
+  X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
@@ -89,6 +91,30 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
 
   const [subs, setSubs] = useState(initialSubs);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+
+  // Search
+  const activeSearch = searchParams.get("search") ?? "";
+  const [searchDraft, setSearchDraft] = useState(activeSearch);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Keep draft in sync when search param changes externally
+  useEffect(() => { setSearchDraft(activeSearch); }, [activeSearch]);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchDraft(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      const p = new URLSearchParams();
+      if (value.trim()) {
+        p.set("search", value.trim());
+      }
+      router.replace(`/reader?${p.toString()}`);
+    }, 400);
+  }, [router]);
+
+  useEffect(() => () => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+  }, []);
 
   // Add feed state
   const [addOpen, setAddOpen] = useState(false);
@@ -333,12 +359,31 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
 
   return (
     <Sidebar className="border-r-0">
-      <SidebarHeader className="px-4 py-4">
-        <div className="flex items-center gap-2">
-          <div className="size-7 rounded-lg bg-primary flex items-center justify-center">
+      <SidebarHeader className="px-3 py-3 space-y-3">
+        <div className="flex items-center gap-2 px-1">
+          <div className="size-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
             <Rss className="size-3.5 text-primary-foreground" />
           </div>
           <span className="font-semibold text-base tracking-tight">Feedwise</span>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={searchDraft}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="搜索文章..."
+            className="w-full text-sm bg-muted rounded-xl pl-8 pr-7 py-1.5 outline-none placeholder:text-muted-foreground/60"
+          />
+          {searchDraft && (
+            <button
+              type="button"
+              onClick={() => handleSearchChange("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
       </SidebarHeader>
 

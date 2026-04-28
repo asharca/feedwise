@@ -22,9 +22,28 @@ interface ArticleListProps {
   onSelect: (id: string) => void;
   onStar: (id: string, starred: boolean) => void;
   compact?: boolean;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
+  searchQuery?: string;
 }
 
-export function ArticleList({ articles, activeId, onSelect, onStar, compact = false }: ArticleListProps) {
+function Highlight({ text, query }: { text: string; query?: string }) {
+  if (!query || !text) return <>{text}</>;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase()
+          ? <mark key={i} className="bg-yellow-200 dark:bg-yellow-500/40 text-inherit rounded-[2px] px-px">{part}</mark>
+          : part
+      )}
+    </>
+  );
+}
+
+export function ArticleList({ articles, activeId, onSelect, onStar, compact = false, hasMore, loadingMore, onLoadMore, searchQuery }: ArticleListProps) {
   if (articles.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-8">
@@ -41,6 +60,7 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
       <div className="overflow-y-auto h-full scrollbar-thin">
         <div className="flex flex-col gap-px p-1.5">
           {articles.map((article) => (
+
             <div
               key={article.id}
               role="button"
@@ -79,7 +99,7 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
                   "text-[12px] leading-snug line-clamp-2",
                   !article.isRead ? "font-semibold" : "font-normal text-foreground/75"
                 )}>
-                  {article.title ?? "(No title)"}
+                  <Highlight text={article.title ?? "(No title)"} query={searchQuery} />
                 </p>
               </div>
               {article.imageUrl && (
@@ -92,6 +112,7 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
             </div>
           ))}
         </div>
+        <LoadMoreButton hasMore={hasMore} loadingMore={loadingMore} onLoadMore={onLoadMore} />
       </div>
     );
   }
@@ -152,11 +173,11 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
                   "text-[13px] leading-snug line-clamp-3 mb-1",
                   !article.isRead ? "font-semibold text-foreground" : "font-normal text-foreground/75"
                 )}>
-                  {article.title ?? "(No title)"}
+                  <Highlight text={article.title ?? "(No title)"} query={searchQuery} />
                 </p>
                 {excerpt && (
                   <p className="text-[11px] text-muted-foreground/65 line-clamp-2 leading-relaxed mt-auto pt-1">
-                    {excerpt}
+                    <Highlight text={excerpt} query={searchQuery} />
                   </p>
                 )}
               </div>
@@ -177,6 +198,27 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
           );
         })}
       </div>
+      <LoadMoreButton hasMore={hasMore} loadingMore={loadingMore} onLoadMore={onLoadMore} />
+    </div>
+  );
+}
+
+function LoadMoreButton({ hasMore, loadingMore, onLoadMore }: {
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
+}) {
+  if (!hasMore) return null;
+  return (
+    <div className="flex justify-center py-4">
+      <button
+        type="button"
+        onClick={onLoadMore}
+        disabled={loadingMore}
+        className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 px-4 py-2 rounded-lg bg-muted hover:bg-accent transition-colors"
+      >
+        {loadingMore ? "加载中..." : "加载更多"}
+      </button>
     </div>
   );
 }

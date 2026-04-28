@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { CronExpressionParser } from "cron-parser";
 import { cn } from "@/lib/utils";
 
 interface CronBuilderProps {
@@ -23,15 +24,38 @@ const WEEKDAYS = [
 
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
+function validateCron(expr: string): string | null {
+  try {
+    CronExpressionParser.parse(expr.trim());
+    return null;
+  } catch {
+    return "无效的 Cron 表达式";
+  }
+}
+
+function formatTimeList(hour: string, minute: string): string {
+  const minutes = minute.includes(",") ? minute.split(",") : [minute];
+  const hours = hour.includes(",") ? hour.split(",") : [hour];
+  const times: string[] = [];
+  for (const h of hours) {
+    for (const m of minutes) {
+      const hh = parseInt(h);
+      const mm = parseInt(m);
+      if (!isNaN(hh) && !isNaN(mm)) {
+        times.push(`${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+      }
+    }
+  }
+  return times.join("、");
+}
+
 function describeCron(cron: string): string {
-  const parts = cron.split(" ");
+  const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return cron;
 
   const [minute, hour, day, month, weekday] = parts;
-
-  const h = parseInt(hour);
-  const m = parseInt(minute);
-  const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const timeStr = formatTimeList(hour, minute);
+  if (!timeStr) return cron;
 
   if (day === "*" && month === "*" && weekday === "*") {
     return `每天 ${timeStr}`;
@@ -40,14 +64,21 @@ function describeCron(cron: string): string {
     const wd = WEEKDAYS.find((w) => w.value === parseInt(weekday));
     return `每周${wd?.label ?? weekday} ${timeStr}`;
   }
-  if (/^\d+$/.test(day) && month === "*" && weekday === "*") {
-    return `每月${day}号 ${timeStr}`;
-  }
   if (day === "*" && month === "*" && weekday === "1-5") {
     return `工作日 ${timeStr}`;
   }
+  if (day === "*" && month === "*" && weekday.includes(",")) {
+    const days = weekday.split(",").map((v) => {
+      const wd = WEEKDAYS.find((w) => w.value === parseInt(v));
+      return wd?.label ?? v;
+    });
+    return `每周${days.join("、")} ${timeStr}`;
+  }
+  if (/^\d+$/.test(day) && month === "*" && weekday === "*") {
+    return `每月${day}号 ${timeStr}`;
+  }
 
-  return `${cron} (${timeStr})`;
+  return cron;
 }
 
 export default function CronBuilder({ value, onChange, disabled }: CronBuilderProps) {
@@ -57,16 +88,28 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
   const [weekday, setWeekday] = useState(1);
   const [monthDay, setMonthDay] = useState(1);
   const [customDraft, setCustomDraft] = useState(value || "");
+  const [customError, setCustomError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Stable onChange reference to avoid unnecessary effect runs
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
-  // Parse existing value on mount / when value changes externally
+  // Track current mode without making it a dep of the parse effect
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+
+  // Parse value on load / external change — but never override user's custom mode
   useEffect(() => {
     if (!value) return;
-    const parts = value.split(" ");
+
+    // User is in custom mode: just keep the draft in sync, don't switch modes
+    if (modeRef.current === "custom") {
+      setCustomDraft(value);
+      return;
+    }
+
+    const parts = value.trim().split(/\s+/);
+    // Only parse well-formed, simple expressions for preset modes
     if (parts.length !== 5) {
       setMode("custom");
       setCustomDraft(value);
@@ -74,6 +117,13 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
     }
 
     const [m, h, d, mo, wd] = parts;
+    // Require plain integers for hour/minute so "8,18" doesn't match "daily"
+    if (!/^\d+$/.test(m) || !/^\d+$/.test(h)) {
+      setMode("custom");
+      setCustomDraft(value);
+      return;
+    }
+
     setHour(parseInt(h) || 8);
     setMinute(parseInt(m) || 0);
 
@@ -91,7 +141,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
     }
   }, [value]);
 
-  // Build cron from state for non-custom modes
+  // Build and emit cron for preset modes
   useEffect(() => {
     if (mode === "custom") return;
 
@@ -100,15 +150,9 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
 
     let cron = "";
     switch (mode) {
-      case "daily":
-        cron = `${m} ${h} * * *`;
-        break;
-      case "weekly":
-        cron = `${m} ${h} * * ${weekday}`;
-        break;
-      case "monthly":
-        cron = `${m} ${h} ${monthDay} * *`;
-        break;
+      case "daily":   cron = `${m} ${h} * * *`; break;
+      case "weekly":  cron = `${m} ${h} * * ${weekday}`; break;
+      case "monthly": cron = `${m} ${h} ${monthDay} * *`; break;
     }
 
     if (cron && cron !== value) {
@@ -116,40 +160,45 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
     }
   }, [mode, hour, minute, weekday, monthDay, value]);
 
-  // Cleanup debounce timer on unmount
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, []);
 
   const handleCustomChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setCustomDraft(newValue);
+    setCustomError(null);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      onChangeRef.current(newValue);
+      const error = validateCron(newValue);
+      if (error) {
+        setCustomError(error);
+      } else {
+        onChangeRef.current(newValue.trim());
+      }
     }, 600);
   }, []);
 
   const handleModeChange = useCallback((newMode: CronPreset) => {
     if (newMode === "custom") {
       setCustomDraft(value || "0 8 * * *");
+      setCustomError(null);
     }
     setMode(newMode);
+    modeRef.current = newMode;
   }, [value]);
 
   const presets: { key: CronPreset; label: string }[] = [
-    { key: "daily", label: "每天" },
-    { key: "weekly", label: "每周" },
+    { key: "daily",   label: "每天" },
+    { key: "weekly",  label: "每周" },
     { key: "monthly", label: "每月" },
-    { key: "custom", label: "自定义" },
+    { key: "custom",  label: "自定义" },
   ];
 
   return (
     <div className={cn("space-y-3", disabled && "opacity-60 pointer-events-none")}>
-      {/* Preset tabs */}
+      {/* Mode tabs */}
       <div className="flex gap-1.5">
         {presets.map((p) => (
           <button
@@ -168,38 +217,36 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
         ))}
       </div>
 
-      {/* Time picker */}
-      <div className="flex items-center gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">时</label>
-          <select
-            value={hour}
-            onChange={(e) => setHour(Number(e.target.value))}
-            className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer min-w-[64px]"
-          >
-            {Array.from({ length: 24 }, (_, i) => (
-              <option key={i} value={i}>
-                {String(i).padStart(2, "0")}
-              </option>
-            ))}
-          </select>
+      {/* Time picker — only for preset modes */}
+      {mode !== "custom" && (
+        <div className="flex items-center gap-3">
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">时</label>
+            <select
+              value={hour}
+              onChange={(e) => setHour(Number(e.target.value))}
+              className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer min-w-[64px]"
+            >
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{String(i).padStart(2, "0")}</option>
+              ))}
+            </select>
+          </div>
+          <span className="text-muted-foreground pt-5">:</span>
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">分</label>
+            <select
+              value={minute}
+              onChange={(e) => setMinute(Number(e.target.value))}
+              className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer min-w-[64px]"
+            >
+              {[0, 15, 30, 45].map((m) => (
+                <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        <span className="text-muted-foreground pt-5">:</span>
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">分</label>
-          <select
-            value={minute}
-            onChange={(e) => setMinute(Number(e.target.value))}
-            className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer min-w-[64px]"
-          >
-            {[0, 15, 30, 45].map((m) => (
-              <option key={m} value={m}>
-                {String(m).padStart(2, "0")}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      )}
 
       {/* Weekly selector */}
       {mode === "weekly" && (
@@ -232,9 +279,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
             className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer"
           >
             {MONTH_DAYS.map((d) => (
-              <option key={d} value={d}>
-                {d}号
-              </option>
+              <option key={d} value={d}>{d}号</option>
             ))}
           </select>
         </div>
@@ -249,16 +294,24 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
             value={customDraft}
             onChange={handleCustomChange}
             placeholder="0 8 * * *"
-            className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none font-mono"
+            className={cn(
+              "w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none font-mono",
+              customError && "ring-1 ring-destructive"
+            )}
+            spellCheck={false}
           />
-          <p className="text-[11px] text-muted-foreground mt-1">
-            格式: 分 时 日 月 周
-          </p>
+          {customError ? (
+            <p className="text-[11px] text-destructive mt-1">{customError}</p>
+          ) : (
+            <p className="text-[11px] text-muted-foreground mt-1">
+              格式：分 时 日 月 周　例：<span className="font-mono">0 8,18 * * *</span>（每天两次）
+            </p>
+          )}
         </div>
       )}
 
-      {/* Description */}
-      {value && (
+      {/* Live description */}
+      {value && !customError && (
         <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
           <span className="font-mono text-xs text-foreground/70">{value}</span>
           <span className="mx-2">·</span>

@@ -32,33 +32,58 @@ function ReaderContent() {
   const feedId = searchParams.get("feedId") ?? undefined;
   const folderId = searchParams.get("folderId") ?? undefined;
   const view = searchParams.get("view") ?? "all";
+  const search = searchParams.get("search") ?? undefined;
 
   const [articleList, setArticleList] = useState<Article[]>([]);
   const [activeArticle, setActiveArticle] = useState<ArticleDetail | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const PAGE_SIZE = 50;
 
-  const showDashboard = view === "all" && !feedId && !folderId;
+  const showDashboard = view === "all" && !feedId && !folderId && !search;
 
-  const fetchArticles = useCallback(async () => {
+  const fetchArticles = useCallback(async (pageOffset: number) => {
     const params = new URLSearchParams();
     if (feedId) params.set("feedId", feedId);
     if (folderId) params.set("folderId", folderId);
     if (view === "unread") params.set("unread", "true");
     if (view === "starred") params.set("starred", "true");
+    if (search) params.set("search", search);
+    params.set("limit", String(PAGE_SIZE));
+    params.set("offset", String(pageOffset));
     const res = await fetch(`/api/articles?${params}`);
     const data = await res.json();
     if (data.success) return data.data as Article[];
     return [];
-  }, [feedId, folderId, view]);
+  }, [feedId, folderId, view, search, PAGE_SIZE]);
 
+  // Reset and reload when filters change
   useEffect(() => {
     if (showDashboard) return;
+    setOffset(0);
+    setHasMore(false);
     startTransition(async () => {
-      const data = await fetchArticles();
+      const data = await fetchArticles(0);
       setArticleList(data);
+      setHasMore(data.length === PAGE_SIZE);
     });
     setActiveArticle(null);
-  }, [fetchArticles, showDashboard]);
+  }, [fetchArticles, showDashboard, PAGE_SIZE]);
+
+  async function handleLoadMore() {
+    const nextOffset = offset + PAGE_SIZE;
+    setLoadingMore(true);
+    try {
+      const data = await fetchArticles(nextOffset);
+      setArticleList((prev) => [...prev, ...data]);
+      setOffset(nextOffset);
+      setHasMore(data.length === PAGE_SIZE);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function handleSelect(id: string) {
     setArticleList((prev) =>
@@ -190,8 +215,9 @@ function ReaderContent() {
   }
 
   // Article list view
-  const viewTitle =
-    feedId && articleList.length > 0
+  const viewTitle = search
+    ? `"${search}"`
+    : feedId && articleList.length > 0
       ? (articleList[0].feedTitle ?? "Feed")
       : folderId
         ? "Category"
@@ -242,6 +268,10 @@ function ReaderContent() {
             onSelect={handleSelect}
             onStar={handleStar}
             compact={!!activeArticle}
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onLoadMore={handleLoadMore}
+            searchQuery={search}
           />
         </div>
       </div>
