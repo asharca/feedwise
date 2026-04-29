@@ -23,7 +23,10 @@ export default async function ReaderLayout({
       <div className="flex h-screen w-full overflow-hidden">
         <Suspense>
           <AppSidebar
-            subscriptions={subscriptions}
+            subscriptions={subscriptions.map((s) => ({
+              ...s,
+              lastFetchError: s.lastFetchError,
+            }))}
             folders={folders.map((f) => ({ id: f.id, name: f.name }))}
           />
         </Suspense>

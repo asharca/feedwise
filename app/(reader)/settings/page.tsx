@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { toast } from "sonner";
 import { ArrowLeft, Sun, Moon, Monitor, Upload, Download, Trash2, RefreshCw, Clock, Mail, BookOpen, Check, User, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -86,8 +87,7 @@ export default function SettingsPage() {
       if (emailData.success) setEmailSettings(emailData.data);
       if (accountData.success) setUserAccount(accountData.data);
       setLoading(false);
-    }).catch((err) => {
-      console.error("Failed to load settings:", err);
+    }).catch(() => {
       setError("Failed to load settings");
       setLoading(false);
     });
@@ -720,14 +720,12 @@ export default function SettingsPage() {
                           const res = await fetch("/api/settings/email/test", { method: "POST" });
                           const data = await res.json();
                           if (data.success) {
-                            // Success - maybe show a success message
-                            console.log("Test email sent successfully:", data.data);
+                            toast.success("测试邮件发送成功");
                           } else {
                             setEmailError(data.error || "Failed to send test email");
                           }
-                        } catch (err) {
+                        } catch {
                           setEmailError("Failed to send test email");
-                          console.error("Test email error:", err);
                         } finally {
                           setEmailTesting(false);
                         }

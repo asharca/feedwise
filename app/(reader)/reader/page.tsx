@@ -6,6 +6,9 @@ import { ArticleList } from "@/components/article/article-list";
 import { ArticleReader } from "@/components/article/article-reader";
 import { NewsDashboard } from "@/components/dashboard/news-dashboard";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CheckCheck, HelpCircle } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface Article {
@@ -40,6 +43,7 @@ function ReaderContent() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const PAGE_SIZE = 50;
 
   const showDashboard = view === "all" && !feedId && !folderId && !search;
@@ -142,6 +146,15 @@ function ReaderContent() {
     });
   }
 
+  async function handleMarkAllRead() {
+    const params = new URLSearchParams();
+    if (feedId) params.set("feedId", feedId);
+    if (folderId) params.set("folderId", folderId);
+    await fetch(`/api/articles/mark-all-read?${params}`, { method: "POST" });
+    setArticleList((prev) => prev.map((a) => ({ ...a, isRead: true })));
+    toast.success("全部已读");
+  }
+
   // Keyboard shortcuts
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -180,6 +193,10 @@ function ReaderContent() {
         }
         case "Escape": {
           if (activeArticle) setActiveArticle(null);
+          break;
+        }
+        case "?": {
+          setShowShortcuts((v) => !v);
           break;
         }
       }
@@ -257,9 +274,29 @@ function ReaderContent() {
         <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border/50">
           <SidebarTrigger className="md:hidden" />
           <h2 className="text-sm font-semibold tracking-tight truncate">{viewTitle}</h2>
-          {isPending && (
-            <div className="ml-auto size-3 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
-          )}
+          <div className="ml-auto flex items-center gap-1">
+            {isPending && (
+              <div className="size-3 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
+            )}
+            {articleList.some((a) => !a.isRead) && (
+              <button
+                type="button"
+                onClick={handleMarkAllRead}
+                title="全部标为已读"
+                className="size-7 inline-flex items-center justify-center rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <CheckCheck className="size-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowShortcuts(true)}
+              title="键盘快捷键 (?)"
+              className="size-7 inline-flex items-center justify-center rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <HelpCircle className="size-3.5" />
+            </button>
+          </div>
         </div>
         <div className="flex-1 min-h-0">
           <ArticleList
@@ -275,6 +312,29 @@ function ReaderContent() {
           />
         </div>
       </div>
+      <Dialog open={showShortcuts} onOpenChange={setShowShortcuts}>
+        <DialogContent className="rounded-2xl max-w-sm">
+          <DialogHeader>
+            <DialogTitle>键盘快捷键</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1.5 text-sm">
+            {[
+              ["j", "下一篇"],
+              ["k", "上一篇"],
+              ["s", "收藏 / 取消收藏"],
+              ["m", "标为已读 / 未读"],
+              ["o", "在新标签打开原文"],
+              ["Esc", "关闭文章"],
+              ["?", "显示快捷键帮助"],
+            ].map(([key, desc]) => (
+              <div key={key} className="flex items-center justify-between">
+                <span className="text-muted-foreground">{desc}</span>
+                <kbd className="px-2 py-0.5 text-xs font-mono bg-muted rounded-md border border-border">{key}</kbd>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { getArticleById, markArticle } from "@/lib/db/queries/articles";
 const PatchSchema = z.object({
   isRead: z.boolean().optional(),
   isStarred: z.boolean().optional(),
+  readProgress: z.number().min(0).max(1).optional(),
 });
 
 export async function GET(

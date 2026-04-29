@@ -1,4 +1,4 @@
-import { eq, and, desc, gte, ilike, or, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, gte, or, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { articles, userArticles, subscriptions, feeds } from "@/lib/db/schema";
 
@@ -58,10 +58,7 @@ export async function getArticles(userId: string, filter: ArticleFilter = {}) {
         starredOnly ? eq(userArticles.isStarred, true) : undefined,
         since ? gte(articles.publishedAt, since) : undefined,
         search
-          ? or(
-              ilike(articles.title, `%${search}%`),
-              ilike(articles.contentText, `%${search}%`)
-            )
+          ? sql`to_tsvector('simple', coalesce(${articles.title}, '') || ' ' || coalesce(${articles.contentText}, '')) @@ plainto_tsquery('simple', ${search})`
           : undefined
       )
     )
@@ -112,7 +109,7 @@ export async function getArticleById(userId: string, articleId: string) {
 export async function markArticle(
   userId: string,
   articleId: string,
-  data: { isRead?: boolean; isStarred?: boolean }
+  data: { isRead?: boolean; isStarred?: boolean; readProgress?: number }
 ) {
   await db
     .insert(userArticles)
@@ -215,8 +212,8 @@ export async function getArticlesGroupedByFolder(userId: string, limit = 6) {
   return result;
 }
 
-export async function markAllRead(userId: string, feedId?: string) {
-  // Get all unread article IDs for this user (optionally scoped to feed)
+export async function markAllRead(userId: string, feedId?: string, folderId?: string) {
+  // Get all unread article IDs for this user (optionally scoped to feed or folder)
   const unread = await db
     .select({ id: articles.id })
     .from(articles)
@@ -237,6 +234,7 @@ export async function markAllRead(userId: string, feedId?: string) {
     .where(
       and(
         feedId ? eq(articles.feedId, feedId) : undefined,
+        folderId ? eq(subscriptions.folderId, folderId) : undefined,
         isNull(userArticles.id)
       )
     );

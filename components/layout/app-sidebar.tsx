@@ -21,6 +21,8 @@ import {
   Compass,
   Search,
   X,
+  AlertTriangle,
+  CheckCheck,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
@@ -39,6 +41,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -47,6 +50,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { signOut } from "@/lib/auth/client";
+import { toast } from "sonner";
 import { cn, proxyImg } from "@/lib/utils";
 
 interface Subscription {
@@ -58,6 +62,7 @@ interface Subscription {
   iconUrl: string | null;
   folderId: string | null;
   unreadCount?: number;
+  lastFetchError?: string | null;
 }
 
 interface Folder {
@@ -134,6 +139,8 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
   const [editUrlValue, setEditUrlValue] = useState("");
   const [editUrlSaving, setEditUrlSaving] = useState(false);
   const [editUrlError, setEditUrlError] = useState("");
+
+  const totalUnread = subs.reduce((sum, s) => sum + (s.unreadCount ?? 0), 0);
 
   // Group subs by folder
   const folderMap = new Map<string, { folder: Folder; subs: Subscription[] }>();
@@ -278,6 +285,14 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
     }
   }
 
+  async function handleMarkFeedAllRead(sub: Subscription) {
+    await fetch(`/api/articles/mark-all-read?feedId=${sub.feedId}`, { method: "POST" });
+    setSubs((prev) =>
+      prev.map((s) => (s.id === sub.id ? { ...s, unreadCount: 0 } : s))
+    );
+    toast.success("全部标为已读");
+  }
+
   async function handleDelete(sub: Subscription) {
     const confirmed = window.confirm(
       `Unsubscribe from "${sub.title ?? sub.feedTitle ?? sub.url}"?`
@@ -316,6 +331,11 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
         >
           <FeedIcon url={sub.iconUrl} name={name} />
           <span className="truncate flex-1 text-sm">{name}</span>
+          {sub.lastFetchError && (
+            <span title={sub.lastFetchError} className="shrink-0">
+              <AlertTriangle className="size-3 text-destructive/70" />
+            </span>
+          )}
           {sub.unreadCount != null && sub.unreadCount > 0 && (
             <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
               {sub.unreadCount}
@@ -331,6 +351,17 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
               <MoreHorizontal className="size-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="rounded-xl">
+              {(sub.unreadCount ?? 0) > 0 && (
+                <>
+                  <DropdownMenuItem
+                    onClick={(e) => { e.stopPropagation(); handleMarkFeedAllRead(sub); }}
+                  >
+                    <CheckCheck className="size-4" />
+                    全部已读
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem
                 onClick={(e) => { e.stopPropagation(); openRename(sub); }}
               >
@@ -401,6 +432,11 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                   >
                     <Icon className={cn("size-4", key === "starred" && activeView === key && "text-yellow-500")} />
                     <span className="flex-1">{label}</span>
+                    {key === "unread" && totalUnread > 0 && (
+                      <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                        {totalUnread}
+                      </span>
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

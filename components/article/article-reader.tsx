@@ -3,7 +3,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import DOMPurify from "dompurify";
-import { ExternalLink, Star, CheckCheck, BookOpen, ArrowLeft } from "lucide-react";
+import { ExternalLink, Star, CheckCheck, BookOpen, ArrowLeft, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 function proxyImagesInHtml(html: string): string {
@@ -68,18 +69,38 @@ function ActionButton({
 export function ArticleReader({ article, onMarkRead, onStar, onBack }: ArticleReaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const progressSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || !article) return;
     const { scrollTop, scrollHeight, clientHeight } = el;
     const max = scrollHeight - clientHeight;
-    setScrollProgress(max > 0 ? scrollTop / max : 0);
-  }, []);
+    const progress = max > 0 ? scrollTop / max : 0;
+    setScrollProgress(progress);
+
+    if (progressSaveRef.current) clearTimeout(progressSaveRef.current);
+    progressSaveRef.current = setTimeout(() => {
+      fetch(`/api/articles/${article.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ readProgress: progress }),
+      }).catch(() => {});
+    }, 1000);
+  }, [article]);
 
   useEffect(() => {
     setScrollProgress(0);
+    return () => {
+      if (progressSaveRef.current) clearTimeout(progressSaveRef.current);
+    };
   }, [article?.id]);
+
+  async function handleCopyUrl() {
+    if (!article?.url) return;
+    await navigator.clipboard.writeText(article.url);
+    toast.success("链接已复制");
+  }
 
   if (!article) {
     return (
@@ -134,15 +155,20 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack }: ArticleRe
         </ActionButton>
 
         {article.url && (
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open original"
-            className="size-8 inline-flex items-center justify-center rounded-xl hover:bg-accent transition-colors"
-          >
-            <ExternalLink className="size-4 text-muted-foreground" />
-          </a>
+          <>
+            <ActionButton title="Copy link" onClick={handleCopyUrl}>
+              <Copy className="size-4 text-muted-foreground" />
+            </ActionButton>
+            <a
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open original"
+              className="size-8 inline-flex items-center justify-center rounded-xl hover:bg-accent transition-colors"
+            >
+              <ExternalLink className="size-4 text-muted-foreground" />
+            </a>
+          </>
         )}
       </div>
 

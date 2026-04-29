@@ -7,7 +7,8 @@ export async function POST(req: Request) {
     const session = await requireSession();
     const { searchParams } = new URL(req.url);
     const feedId = searchParams.get("feedId") ?? undefined;
-    await markAllRead(session.user.id, feedId);
+    const folderId = searchParams.get("folderId") ?? undefined;
+    await markAllRead(session.user.id, feedId, folderId);
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
