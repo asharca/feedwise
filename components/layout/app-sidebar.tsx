@@ -97,6 +97,36 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
   const [subs, setSubs] = useState(initialSubs);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
+  // Sync unread counts when articles are marked read from the reader
+  useEffect(() => {
+    function onDelta(e: Event) {
+      const { feedId, delta } = (e as CustomEvent<{ feedId: string; delta: number }>).detail;
+      setSubs((prev) =>
+        prev.map((s) =>
+          s.feedId === feedId
+            ? { ...s, unreadCount: Math.max(0, (s.unreadCount ?? 0) + delta) }
+            : s
+        )
+      );
+    }
+    function onMarkAll(e: Event) {
+      const { feedId: targetFeedId, folderId: targetFolderId } = (e as CustomEvent<{ feedId?: string; folderId?: string }>).detail;
+      setSubs((prev) =>
+        prev.map((s) => {
+          if (targetFeedId && s.feedId !== targetFeedId) return s;
+          if (targetFolderId && s.folderId !== targetFolderId) return s;
+          return { ...s, unreadCount: 0 };
+        })
+      );
+    }
+    window.addEventListener("feedwise:unread-delta", onDelta);
+    window.addEventListener("feedwise:mark-all-read", onMarkAll);
+    return () => {
+      window.removeEventListener("feedwise:unread-delta", onDelta);
+      window.removeEventListener("feedwise:mark-all-read", onMarkAll);
+    };
+  }, []);
+
   // Search
   const activeSearch = searchParams.get("search") ?? "";
   const [searchDraft, setSearchDraft] = useState(activeSearch);

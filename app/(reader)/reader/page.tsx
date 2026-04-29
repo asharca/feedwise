@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 interface Article {
   id: string;
+  feedId: string;
   feedTitle: string | null;
   feedIconUrl: string | null;
   title: string | null;
@@ -89,10 +90,21 @@ function ReaderContent() {
     }
   }
 
+  function dispatchUnreadDelta(feedId: string, delta: number) {
+    window.dispatchEvent(new CustomEvent("feedwise:unread-delta", { detail: { feedId, delta } }));
+  }
+
+  function dispatchMarkAllRead(targetFeedId?: string, targetFolderId?: string) {
+    window.dispatchEvent(new CustomEvent("feedwise:mark-all-read", { detail: { feedId: targetFeedId, folderId: targetFolderId } }));
+  }
+
   async function handleSelect(id: string) {
+    const article = articleList.find((a) => a.id === id);
+    const wasUnread = article && !article.isRead;
     setArticleList((prev) =>
       prev.map((a) => (a.id === id ? { ...a, isRead: true } : a))
     );
+    if (wasUnread && article) dispatchUnreadDelta(article.feedId, -1);
     fetch(`/api/articles/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -133,11 +145,16 @@ function ReaderContent() {
   }
 
   async function handleMarkRead(id: string, read: boolean) {
+    const article = articleList.find((a) => a.id === id);
+    const wasRead = article?.isRead ?? false;
     setArticleList((prev) =>
       prev.map((a) => (a.id === id ? { ...a, isRead: read } : a))
     );
     if (activeArticle?.id === id) {
       setActiveArticle((prev) => prev ? { ...prev, isRead: read } : prev);
+    }
+    if (article && wasRead !== read) {
+      dispatchUnreadDelta(article.feedId, read ? -1 : 1);
     }
     await fetch(`/api/articles/${id}`, {
       method: "PATCH",
@@ -152,6 +169,7 @@ function ReaderContent() {
     if (folderId) params.set("folderId", folderId);
     await fetch(`/api/articles/mark-all-read?${params}`, { method: "POST" });
     setArticleList((prev) => prev.map((a) => ({ ...a, isRead: true })));
+    dispatchMarkAllRead(feedId, folderId);
     toast.success("全部已读");
   }
 
