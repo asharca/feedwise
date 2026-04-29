@@ -125,7 +125,6 @@ export async function sendDailyDigest(email: DailyDigestEmail): Promise<void> {
                 <td style="padding: 20px 30px; background-color: #f8fafc; border-top: 1px solid #e2e8f0;">
                   <p style="margin: 0; color: #94a3b8; font-size: 12px; text-align: center;">
                     You're receiving this because you subscribed to Feedwise daily digest.
-                    <a href="#" style="color: #2563eb;">Manage preferences</a>
                   </p>
                 </td>
               </tr>
