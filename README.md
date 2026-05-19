@@ -32,6 +32,13 @@ cp .env.example .env
 # Create database tables
 pnpm db:push
 
+# Encryption setup (required) — generate a 32-byte base64 key
+node -e "console.log('ENCRYPTION_KEY=' + require('crypto').randomBytes(32).toString('base64'))" >> .env
+
+# If you have existing rows with plaintext SMTP/LLM secrets, run the
+# one-time migration (idempotent — safe to re-run):
+pnpm db:encrypt-secrets
+
 # Start development server + background workers
 pnpm dev:all
 ```
@@ -51,6 +58,7 @@ Open http://localhost:3000, create an account, and start adding feeds.
 | `pnpm db:push` | Push schema to database |
 | `pnpm db:generate` | Generate migration files |
 | `pnpm db:migrate` | Run migrations |
+| `pnpm db:encrypt-secrets` | One-time encrypt existing plaintext secrets (idempotent) |
 
 ## Deployment (Docker)
 
