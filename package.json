@@ -10,6 +10,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
+    "db:encrypt-secrets": "tsx --env-file=.env drizzle/scripts/encrypt-existing-secrets.ts",
     "worker": "tsx --env-file=.env lib/jobs/start-workers.ts",
     "worker:prod": "tsx lib/jobs/start-workers.ts",
     "dev:all": "concurrently \"pnpm dev\" \"pnpm worker\"",
