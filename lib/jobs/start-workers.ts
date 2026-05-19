@@ -40,6 +40,7 @@ console.log("[workers] Feed worker and scheduler started (interval: 15m), digest
 async function shutdown(signal: string) {
   console.log(`[workers] ${signal} received, shutting down...`);
   clearInterval(schedulerTimer);
+  clearInterval(digestTimer);
   await worker.close();
   console.log("[workers] Shutdown complete");
   process.exit(0);

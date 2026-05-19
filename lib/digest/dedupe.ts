@@ -64,26 +64,32 @@ export function dedupeByTitleSimilarity(
       continue;
     }
     const tokens = tokenize(title);
-    let merged = false;
-    for (const existing of result) {
-      const existingTitle = existing.primary.title?.trim() ?? "";
+    let mergedAt = -1;
+    for (let i = 0; i < result.length; i++) {
+      const existingTitle = result[i].primary.title?.trim() ?? "";
       if (existingTitle === "") continue;
       const existingTokens = tokenize(existingTitle);
       if (jaccard(tokens, existingTokens) >= threshold) {
-        const combined: DigestArticle[] = [
-          existing.primary,
-          ...existing.duplicates,
-          item.primary,
-          ...item.duplicates,
-        ];
-        const newPrimary = pickPrimary(combined);
-        existing.primary = newPrimary;
-        existing.duplicates = combined.filter((c) => c.id !== newPrimary.id);
-        merged = true;
+        mergedAt = i;
         break;
       }
     }
-    if (!merged) result.push(item);
+    if (mergedAt === -1) {
+      result.push(item);
+      continue;
+    }
+    const existing = result[mergedAt];
+    const combined: DigestArticle[] = [
+      existing.primary,
+      ...existing.duplicates,
+      item.primary,
+      ...item.duplicates,
+    ];
+    const newPrimary = pickPrimary(combined);
+    result[mergedAt] = {
+      primary: newPrimary,
+      duplicates: combined.filter((c) => c.id !== newPrimary.id),
+    };
   }
   return result;
 }

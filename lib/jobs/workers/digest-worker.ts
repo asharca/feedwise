@@ -82,10 +82,19 @@ export async function assembleDigestForSubscription(
   articles: DigestArticle[]
 ): Promise<{ digest: OrganizedDigest; allArticleIds: string[] }> {
   const allArticleIds = articles.map((a) => a.id);
-  const llmConfig = await getUserLlmConfig(userId);
 
   const dedupedByUrl = dedupeByCanonicalUrl(articles);
   const deduped = dedupeByTitleSimilarity(dedupedByUrl, 0.85);
+
+  let llmConfig;
+  try {
+    llmConfig = await getUserLlmConfig(userId);
+  } catch (err) {
+    // Decryption failure (e.g. ENCRYPTION_KEY rotated, tampered ciphertext)
+    // is treated as an LLM failure, not "no config" — surface the banner.
+    console.error(`[digest] LLM key decryption failed for user ${userId}:`, err);
+    return { digest: buildFallback(deduped, "llm-failed"), allArticleIds };
+  }
 
   if (!llmConfig) {
     return { digest: buildFallback(deduped, "no-config"), allArticleIds };

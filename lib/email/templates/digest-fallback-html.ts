@@ -1,4 +1,5 @@
 import type { OrganizedDigest, DigestArticle } from "@/lib/digest/types";
+import { safeSummaryHtml } from "./summary-html";
 
 function esc(s: string | null | undefined): string {
   if (s == null) return "";
@@ -26,7 +27,7 @@ function renderArticleBlock(a: DigestArticle): string {
       <details style="margin-top: 8px;">
         <summary style="cursor: pointer; color: #2563eb; font-size: 13px; font-weight: 500;">Click to expand details</summary>
         <div style="margin-top: 8px; color: #444; font-size: 14px; line-height: 1.6;">
-          ${a.summary ?? '<p style="margin:0;color:#666;">No details available.</p>'}
+          ${safeSummaryHtml(a.summary) || '<p style="margin:0;color:#666;">No details available.</p>'}
         </div>
       </details>
     </div>`;

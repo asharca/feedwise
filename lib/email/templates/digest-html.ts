@@ -1,4 +1,5 @@
 import type { OrganizedDigest, DigestArticle, TopicGroup, TopHeadline } from "@/lib/digest/types";
+import { safeSummaryHtml } from "./summary-html";
 
 function esc(s: string | null | undefined): string {
   if (s == null) return "";
@@ -36,7 +37,7 @@ function renderClusterBlock(c: TopicGroup["clusters"][number]): string {
     <div style="margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #eee;">
       <a href="${esc(c.primary.url)}" style="color:#111;text-decoration:none;font-weight:500;font-size:15px;">${esc(c.primary.title)}</a>
       <div style="color:#94a3b8;font-size:12px;margin-top:2px;">${esc(c.primary.feedTitle)} &middot; ${esc(fmtDate(c.primary.publishedAt))}</div>
-      ${c.primary.summary ? `<div style="color:#444;font-size:13px;line-height:1.55;margin-top:6px;">${c.primary.summary}</div>` : ""}
+      ${c.primary.summary ? `<div style="color:#444;font-size:13px;line-height:1.55;margin-top:6px;">${safeSummaryHtml(c.primary.summary)}</div>` : ""}
       ${dupBlock}
     </div>`;
 }
