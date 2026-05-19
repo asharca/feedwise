@@ -43,6 +43,13 @@
       "when": 1776844601534,
       "tag": "0005_eminent_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779196269964,
+      "tag": "0006_handy_nova",
+      "breakpoints": true
     }
   ]
 }

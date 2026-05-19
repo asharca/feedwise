@@ -224,6 +224,10 @@ export const emailSubscriptions = pgTable(
     smtpFrom: varchar("smtp_from", { length: 255 }),
     emailProvider: varchar("email_provider", { length: 20 }),
     emailApiKey: text("email_api_key"),
+    llmEnabled: boolean("llm_enabled").notNull().default(false),
+    llmBaseUrl: varchar("llm_base_url", { length: 500 }),
+    llmApiKey: text("llm_api_key"),
+    llmModel: varchar("llm_model", { length: 100 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   }
