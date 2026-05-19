@@ -57,84 +57,24 @@ export interface EmailArticle {
   publishedAt: Date | null;
 }
 
-export interface DailyDigestEmail {
+export interface DailyDigestSend {
   to: string;
   subject: string;
-  articles: EmailArticle[];
+  html: string;
   smtpConfig?: SMTPConfig | null;
 }
 
-export async function sendDailyDigest(email: DailyDigestEmail): Promise<void> {
+export async function sendDailyDigest(email: DailyDigestSend): Promise<void> {
   const transporter = getEmailTransporter(email.smtpConfig);
   const smtpUser = email.smtpConfig?.user || process.env.SMTP_USER || "";
   const useStrictFrom = requiresStrictEnvelopeFrom(smtpUser);
   const from = useStrictFrom
     ? smtpUser
     : normalizeFromAddress(
-    email.smtpConfig?.from || process.env.SMTP_FROM,
-    smtpUser,
-    "Feedwise <noreply@feedwise.app>"
-  );
-
-  const articlesHtml = email.articles
-    .map(
-      (a) => `
-      <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
-        <h3 style="margin: 0 0 8px 0;">
-          <a href="${a.url}" style="color: #2563eb; text-decoration: none;">${a.title}</a>
-        </h3>
-        <p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">
-          ${a.feedTitle} · ${a.publishedAt ? formatDate(a.publishedAt) : ""}
-        </p>
-        <details style="margin-top: 8px;">
-          <summary style="cursor: pointer; color: #2563eb; font-size: 13px; font-weight: 500; outline: none;">
-            Click to expand details
-          </summary>
-          <div style="margin-top: 8px; color: #444; font-size: 14px; line-height: 1.6;">
-            ${normalizeArticleDetailsHtml(a.summary)}
-          </div>
-        </details>
-      </div>
-    `
-    )
-    .join("");
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-        <tr>
-          <td align="center">
-            <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-              <tr>
-                <td style="padding: 20px 30px; background-color: #1e293b; color: #ffffff;">
-                  <h1 style="margin: 0; font-size: 24px; font-weight: 600;">📰 Today's Feedwise Digest</h1>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding: 30px;">
-                  ${email.articles.length > 0 ? articlesHtml : '<p style="color: #666;">No articles today. Happy reading!</p>'}
-                </td>
-              </tr>
-              <tr>
-                <td style="padding: 20px 30px; background-color: #f8fafc; border-top: 1px solid #e2e8f0;">
-                  <p style="margin: 0; color: #94a3b8; font-size: 12px; text-align: center;">
-                    You're receiving this because you subscribed to Feedwise daily digest.
-                  </p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    </body>
-    </html>
-  `;
+        email.smtpConfig?.from || process.env.SMTP_FROM,
+        smtpUser,
+        "Feedwise <noreply@feedwise.app>"
+      );
 
   await transporter.sendMail({
     from,
@@ -143,7 +83,7 @@ export async function sendDailyDigest(email: DailyDigestEmail): Promise<void> {
       : {}),
     to: email.to,
     subject: email.subject,
-    html,
+    html: email.html,
   });
 }
 
@@ -180,37 +120,3 @@ function normalizeFromAddress(
   return fallback;
 }
 
-function limitEmailImageSize(html: string): string {
-  const imageStyle = "max-width:100%;width:auto;height:auto;max-height:280px;object-fit:contain;display:block;border-radius:8px;margin:8px 0;";
-  return html.replace(/<img\b([^>]*)>/gi, (_match, attrs: string) => {
-    const styleMatch = attrs.match(/\sstyle\s*=\s*(['"])(.*?)\1/i);
-    if (styleMatch) {
-      const mergedStyle = `${styleMatch[2].trim().replace(/;?$/, ";")} ${imageStyle}`;
-      const updatedAttrs = attrs.replace(styleMatch[0], ` style="${mergedStyle}"`);
-      return `<img${updatedAttrs}>`;
-    }
-    return `<img${attrs} style="${imageStyle}">`;
-  });
-}
-
-function normalizeArticleDetailsHtml(summary: string | null): string {
-  if (!summary || summary.trim().length === 0) {
-    return `<p style="margin: 0; color: #666;">No details available for this article.</p>`;
-  }
-
-  // Prevent nested collapses from source content that can hide article titles in some clients.
-  const withoutNativeDisclosure = summary
-    .replace(/<\/?details\b[^>]*>/gi, "")
-    .replace(/<\/?summary\b[^>]*>/gi, "");
-
-  return limitEmailImageSize(withoutNativeDisclosure);
-}
-
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}

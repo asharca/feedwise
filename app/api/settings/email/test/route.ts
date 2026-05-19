@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
 import { getUserEmail, getArticlesForEmail, getUserSMTPConfig } from "@/lib/email/queries";
 import { sendDailyDigest } from "@/lib/email/sender";
+import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
+import { buildFallback } from "@/lib/digest/fallback";
 
 export async function POST() {
   try {
@@ -30,10 +32,16 @@ export async function POST() {
       ? "📰 Your Feedwise Digest - No new articles today"
       : `📰 Your Feedwise Digest - ${articles.length} article${articles.length === 1 ? "" : "s"} today`;
 
+    const digest = buildFallback(
+      articles.map((a) => ({ primary: a, duplicates: [] })),
+      "no-config"
+    );
+    const html = renderFallbackHtml(digest);
+
     await sendDailyDigest({
       to: email,
       subject,
-      articles,
+      html,
       smtpConfig,
     });
 

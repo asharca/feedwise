@@ -15,7 +15,9 @@ export const ClusterResponseSchema = z.object({
 export type Cluster = z.infer<typeof ClusterSchema>;
 export type ClusterResponse = z.infer<typeof ClusterResponseSchema>;
 
-export const clusterResponseJsonSchema = zodToJsonSchema(ClusterResponseSchema, {
-  name: "ClusterResponse",
-  target: "openApi3",
-});
+// zod-to-json-schema's types target Zod 3; Zod 4's schema is still
+// structurally compatible at runtime, so cast away the surface mismatch.
+export const clusterResponseJsonSchema = zodToJsonSchema(
+  ClusterResponseSchema as unknown as Parameters<typeof zodToJsonSchema>[0],
+  { name: "ClusterResponse", target: "openApi3" }
+);
