@@ -14,6 +14,13 @@ import {
   articleTags,
 } from "@/lib/db/schema";
 import type { EmailArticle } from "./sender";
+import { encryptSecret, decryptIfEncrypted } from "@/lib/crypto/secrets";
+
+function encryptIfPresent(value: string | null | undefined): string | null | undefined {
+  if (value == null) return value;
+  if (value === "") return null;
+  return encryptSecret(value);
+}
 
 export interface SubscriptionSettings {
   enabled: boolean;
@@ -71,10 +78,10 @@ export async function getSubscriptionSettings(userId: string): Promise<Subscript
     smtpHost: sub.smtpHost,
     smtpPort: sub.smtpPort,
     smtpUser: sub.smtpUser,
-    smtpPass: sub.smtpPass,
+    smtpPass: decryptIfEncrypted(sub.smtpPass),
     smtpFrom: sub.smtpFrom,
     emailProvider: sub.emailProvider,
-    emailApiKey: sub.emailApiKey,
+    emailApiKey: decryptIfEncrypted(sub.emailApiKey),
   };
 }
 
@@ -96,10 +103,10 @@ export async function updateSubscriptionSettings(
         smtpHost: settings.smtpHost,
         smtpPort: settings.smtpPort ?? 587,
         smtpUser: settings.smtpUser,
-        smtpPass: settings.smtpPass,
+        smtpPass: encryptIfPresent(settings.smtpPass) ?? null,
         smtpFrom: settings.smtpFrom,
         emailProvider: settings.emailProvider,
-        emailApiKey: settings.emailApiKey,
+        emailApiKey: encryptIfPresent(settings.emailApiKey) ?? null,
       })
       .returning();
     await syncSubscriptionEntities(created.id, settings);
@@ -116,10 +123,10 @@ export async function updateSubscriptionSettings(
       smtpHost: settings.smtpHost !== undefined ? settings.smtpHost : existing.smtpHost,
       smtpPort: settings.smtpPort !== undefined ? settings.smtpPort : existing.smtpPort,
       smtpUser: settings.smtpUser !== undefined ? settings.smtpUser : existing.smtpUser,
-      smtpPass: settings.smtpPass !== undefined ? settings.smtpPass : existing.smtpPass,
+      smtpPass: settings.smtpPass !== undefined ? encryptIfPresent(settings.smtpPass) ?? null : existing.smtpPass,
       smtpFrom: settings.smtpFrom !== undefined ? settings.smtpFrom : existing.smtpFrom,
       emailProvider: settings.emailProvider !== undefined ? settings.emailProvider : existing.emailProvider,
-      emailApiKey: settings.emailApiKey !== undefined ? settings.emailApiKey : existing.emailApiKey,
+      emailApiKey: settings.emailApiKey !== undefined ? encryptIfPresent(settings.emailApiKey) ?? null : existing.emailApiKey,
       updatedAt: new Date(),
     })
     .where(eq(emailSubscriptions.id, existing.id));
@@ -303,7 +310,7 @@ export async function getLastDigestSentDate(userId: string): Promise<Date | null
 }
 
 export async function getAllActiveSubscriptions() {
-  return db
+  const rows = await db
     .select({
       id: emailSubscriptions.id,
       userId: emailSubscriptions.userId,
@@ -320,6 +327,7 @@ export async function getAllActiveSubscriptions() {
     })
     .from(emailSubscriptions)
     .where(eq(emailSubscriptions.enabled, true));
+  return rows.map((r) => ({ ...r, smtpPass: decryptIfEncrypted(r.smtpPass) }));
 }
 
 export async function getUserEmail(userId: string): Promise<string | null> {
@@ -342,7 +350,66 @@ export async function getUserSMTPConfig(userId: string): Promise<SMTPConfig | nu
     host: sub.smtpHost,
     port: sub.smtpPort || 587,
     user: sub.smtpUser,
-    pass: sub.smtpPass,
+    pass: decryptIfEncrypted(sub.smtpPass) ?? "",
     from: sub.smtpFrom || "Feedwise <noreply@feedwise.app>",
   };
+}
+
+export interface LlmConfig {
+  enabled: boolean;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+export async function getUserLlmConfig(userId: string): Promise<LlmConfig | null> {
+  const sub = await getUserSubscription(userId);
+  if (!sub || !sub.llmEnabled || !sub.llmBaseUrl || !sub.llmApiKey || !sub.llmModel) {
+    return null;
+  }
+  return {
+    enabled: true,
+    baseUrl: sub.llmBaseUrl,
+    apiKey: decryptIfEncrypted(sub.llmApiKey) ?? "",
+    model: sub.llmModel,
+  };
+}
+
+export interface LlmConfigInput {
+  enabled: boolean;
+  baseUrl: string;
+  apiKey?: string;
+  model: string;
+}
+
+export async function updateUserLlmConfig(userId: string, input: LlmConfigInput): Promise<void> {
+  const existing = await getUserSubscription(userId);
+  const apiKeyToStore =
+    input.apiKey === undefined
+      ? existing?.llmApiKey ?? null
+      : input.apiKey === ""
+        ? null
+        : encryptSecret(input.apiKey);
+
+  if (!existing) {
+    await db.insert(emailSubscriptions).values({
+      userId,
+      enabled: false,
+      llmEnabled: input.enabled,
+      llmBaseUrl: input.baseUrl || null,
+      llmApiKey: apiKeyToStore,
+      llmModel: input.model || null,
+    });
+    return;
+  }
+  await db
+    .update(emailSubscriptions)
+    .set({
+      llmEnabled: input.enabled,
+      llmBaseUrl: input.baseUrl || null,
+      llmApiKey: apiKeyToStore,
+      llmModel: input.model || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(emailSubscriptions.id, existing.id));
 }
