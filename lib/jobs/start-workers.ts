@@ -1,3 +1,6 @@
+import { ensureEncryptionConfigured } from "@/lib/crypto/startup-check";
+ensureEncryptionConfigured();
+
 import { startFeedWorker } from "./workers/feed-worker";
 import { scheduleFeedRefreshes } from "./scheduler";
 import { processDailyDigests } from "./workers/digest-worker";
