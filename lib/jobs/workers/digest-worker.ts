@@ -8,8 +8,17 @@ import {
   logDigestSend,
   updateNextScheduledAt,
   getLastDigestSentDate,
+  getUserLlmConfig,
 } from "@/lib/email/queries";
 import { sendDailyDigest } from "@/lib/email/sender";
+import { dedupeByCanonicalUrl, dedupeByTitleSimilarity } from "@/lib/digest/dedupe";
+import { runClustering } from "@/lib/digest/cluster";
+import { organize } from "@/lib/digest/organize";
+import { buildFallback } from "@/lib/digest/fallback";
+import { callChatCompletion } from "@/lib/digest/llm-client";
+import { renderDigestHtml } from "@/lib/email/templates/digest-html";
+import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
+import type { DigestArticle, OrganizedDigest } from "@/lib/digest/types";
 
 const DEFAULT_CRON = "0 8 * * *"; // Daily at 8:00 AM
 
@@ -63,6 +72,36 @@ export async function processDailyDigests() {
   }
 }
 
+/**
+ * Pure-ish assembly: dedupe + cluster (or fallback) + organize.
+ * Returns the organized digest plus the ORIGINAL article ids to mark as sent.
+ * Exported for unit testing.
+ */
+export async function assembleDigestForSubscription(
+  userId: string,
+  articles: DigestArticle[]
+): Promise<{ digest: OrganizedDigest; allArticleIds: string[] }> {
+  const allArticleIds = articles.map((a) => a.id);
+  const llmConfig = await getUserLlmConfig(userId);
+
+  const dedupedByUrl = dedupeByCanonicalUrl(articles);
+  const deduped = dedupeByTitleSimilarity(dedupedByUrl, 0.85);
+
+  if (!llmConfig) {
+    return { digest: buildFallback(deduped, "no-config"), allArticleIds };
+  }
+
+  try {
+    const client = (input: Parameters<typeof callChatCompletion>[1]) =>
+      callChatCompletion(llmConfig, input);
+    const response = await runClustering(deduped, client);
+    return { digest: organize(deduped, response), allArticleIds };
+  } catch (err) {
+    console.error(`[digest] LLM clustering failed for user ${userId}:`, err);
+    return { digest: buildFallback(deduped, "llm-failed"), allArticleIds };
+  }
+}
+
 async function sendDigestForDate(
   subscription: Awaited<ReturnType<typeof getAllActiveSubscriptions>>[0],
   triggerDate: Date,
@@ -74,14 +113,16 @@ async function sendDigestForDate(
     return;
   }
 
-  // Articles created between the previous trigger (exclusive) and this trigger (inclusive)
   const articles = await getArticlesForEmail(
     subscription.userId,
     fromDate ?? undefined,
     triggerDate
   );
-  const date = triggerDate;
-  const articleIds = articles.map((a) => a.id);
+
+  const { digest, allArticleIds } = await assembleDigestForSubscription(
+    subscription.userId,
+    articles
+  );
 
   const smtpConfig =
     subscription.smtpHost && subscription.smtpUser && subscription.smtpPass
@@ -94,32 +135,27 @@ async function sendDigestForDate(
         }
       : null;
 
-  const dateStr = date.toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
+  const dateStr = triggerDate.toLocaleDateString("en-US", { month: "long", day: "numeric" });
   const subject =
     articles.length === 0
-      ? `📰 Feedwise Digest - ${dateStr} - No new articles`
-      : `📰 Feedwise Digest - ${dateStr} - ${articles.length} article${articles.length === 1 ? "" : "s"}`;
+      ? `Feedwise Digest - ${dateStr} - No new articles`
+      : `Feedwise Digest - ${dateStr} - ${articles.length} article${articles.length === 1 ? "" : "s"}`;
+
+  const html =
+    digest.mode === "clustered" ? renderDigestHtml(digest) : renderFallbackHtml(digest);
 
   try {
-    await sendDailyDigest({
-      to: email,
-      subject,
-      articles,
-      smtpConfig,
-    });
-
-    // Mark articles as sent so they are never duplicated
-    await markArticlesAsSent(subscription.userId, articleIds);
+    await sendDailyDigest({ to: email, subject, html, smtpConfig });
+    await markArticlesAsSent(subscription.userId, allArticleIds);
     await logDigestSend(subscription.userId, articles.length, "success");
-
     console.log(
-      `[digest] Sent digest to ${email} (${articles.length} articles) for ${date.toDateString()}`
+      `[digest] Sent digest to ${email} (${articles.length} articles, mode=${digest.mode}) for ${triggerDate.toDateString()}`
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await logDigestSend(subscription.userId, articles.length, "failed", message);
     console.error(`[digest] Failed to send to ${email}:`, message);
-    throw err; // Re-throw so the outer loop can continue but we know it failed
+    throw err;
   }
 }
 
