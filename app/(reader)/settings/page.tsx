@@ -68,6 +68,13 @@ export default function SettingsPage() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [smtpPassDraft, setSmtpPassDraft] = useState("");
   const [pendingCron, setPendingCron] = useState<string | null>(null);
+  const [llmEnabled, setLlmEnabled] = useState(false);
+  const [llmBaseUrl, setLlmBaseUrl] = useState("");
+  const [llmApiKey, setLlmApiKey] = useState("");
+  const [llmModel, setLlmModel] = useState("");
+  const [llmKeyMask, setLlmKeyMask] = useState("");
+  const [llmSaving, setLlmSaving] = useState(false);
+  const [llmTesting, setLlmTesting] = useState(false);
   const [userAccount, setUserAccount] = useState<UserAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,16 +89,74 @@ export default function SettingsPage() {
       fetch("/api/feeds").then((r) => r.json()).catch(() => ({ success: false })),
       fetch("/api/settings/email").then((r) => r.json()).catch(() => ({ success: false })),
       fetch("/api/settings/account").then((r) => r.json()).catch(() => ({ success: false })),
-    ]).then(([feedsData, emailData, accountData]) => {
+      fetch("/api/email/llm/config").then((r) => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([feedsData, emailData, accountData, llmData]) => {
       if (feedsData.success) setSubs(feedsData.data || []);
       if (emailData.success) setEmailSettings(emailData.data);
       if (accountData.success) setUserAccount(accountData.data);
+      if (llmData) {
+        setLlmEnabled(!!llmData.enabled);
+        setLlmBaseUrl(llmData.baseUrl ?? "");
+        setLlmModel(llmData.model ?? "");
+        setLlmKeyMask(llmData.apiKeyMask ?? "");
+      }
       setLoading(false);
     }).catch(() => {
       setError("Failed to load settings");
       setLoading(false);
     });
   }, []);
+
+  async function saveLlmConfig() {
+    setLlmSaving(true);
+    try {
+      const res = await fetch("/api/email/llm/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled: llmEnabled,
+          baseUrl: llmBaseUrl,
+          apiKey: llmApiKey || undefined,
+          model: llmModel,
+        }),
+      });
+      if (!res.ok) {
+        toast.error("Failed to save LLM config");
+      } else {
+        toast.success("LLM config saved");
+        if (llmApiKey) {
+          const k = llmApiKey;
+          setLlmKeyMask(k.length >= 8 ? `${k.slice(0, 4)}…${k.slice(-4)}` : "•••");
+          setLlmApiKey("");
+        }
+      }
+    } finally {
+      setLlmSaving(false);
+    }
+  }
+
+  async function testLlm() {
+    setLlmTesting(true);
+    try {
+      const res = await fetch("/api/email/llm/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: llmBaseUrl,
+          apiKey: llmApiKey || undefined,
+          model: llmModel,
+        }),
+      });
+      if (res.ok) {
+        toast.success("LLM reachable");
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast.error(`Test failed (${res.status}): ${body.error ?? "unknown"}`);
+      }
+    } finally {
+      setLlmTesting(false);
+    }
+  }
 
   async function handleExportOPML() {
     const res = await fetch("/api/opml/export");
@@ -744,6 +809,78 @@ export default function SettingsPage() {
                 )}
               </>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl border-border/50">
+          <CardHeader>
+            <CardTitle className="text-base">Smart Digest (Beta)</CardTitle>
+            <CardDescription>
+              When on, your digest is grouped by topic and ranked by importance. Uses your own OpenAI-compatible API. Off by default.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={llmEnabled}
+                onChange={(e) => setLlmEnabled(e.target.checked)}
+              />
+              <span>Enable LLM clustering</span>
+            </label>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="block text-xs text-muted-foreground mb-1">API Base URL</span>
+                <input
+                  type="url"
+                  value={llmBaseUrl}
+                  onChange={(e) => setLlmBaseUrl(e.target.value)}
+                  placeholder="https://api.openai.com/v1"
+                  className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-xs text-muted-foreground mb-1">
+                  API Key {llmKeyMask && <span>· stored: {llmKeyMask}</span>}
+                </span>
+                <input
+                  type="password"
+                  value={llmApiKey}
+                  onChange={(e) => setLlmApiKey(e.target.value)}
+                  placeholder={llmKeyMask ? "(unchanged — leave blank to keep)" : "sk-..."}
+                  className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-xs text-muted-foreground mb-1">Model</span>
+                <input
+                  type="text"
+                  value={llmModel}
+                  onChange={(e) => setLlmModel(e.target.value)}
+                  placeholder="gpt-4o-mini"
+                  className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
+                />
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="rounded-xl"
+                onClick={saveLlmConfig}
+                disabled={llmSaving}
+              >
+                {llmSaving ? "Saving..." : "Save"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                onClick={testLlm}
+                disabled={llmTesting || !llmBaseUrl || !llmModel}
+              >
+                {llmTesting ? "Testing..." : "Test"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

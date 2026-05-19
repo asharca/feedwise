@@ -1,7 +1,29 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
-import { updateUserLlmConfig } from "@/lib/email/queries";
+import { getUserLlmConfig, updateUserLlmConfig } from "@/lib/email/queries";
+
+export async function GET() {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const cfg = await getUserLlmConfig(session.user.id);
+  if (!cfg) {
+    return NextResponse.json({
+      enabled: false,
+      baseUrl: "",
+      apiKeyMask: "",
+      model: "",
+    });
+  }
+  const k = cfg.apiKey;
+  const apiKeyMask = k.length >= 8 ? `${k.slice(0, 4)}…${k.slice(-4)}` : "•••";
+  return NextResponse.json({
+    enabled: cfg.enabled,
+    baseUrl: cfg.baseUrl,
+    apiKeyMask,
+    model: cfg.model,
+  });
+}
 
 const InputSchema = z.object({
   enabled: z.boolean(),
