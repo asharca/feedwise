@@ -66,9 +66,6 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
               role="button"
               tabIndex={0}
               onClick={() => onSelect(article.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(article.id); }
-              }}
               className={cn(
                 "group relative flex gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-100",
                 activeId === article.id
@@ -131,12 +128,6 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
               role="button"
               tabIndex={0}
               onClick={() => onSelect(article.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onSelect(article.id);
-                }
-              }}
               className={cn(
                 "group relative flex flex-col rounded-xl overflow-hidden border bg-card",
                 "cursor-pointer transition-all duration-150",

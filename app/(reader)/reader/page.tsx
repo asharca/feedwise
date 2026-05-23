@@ -6,8 +6,7 @@ import { ArticleList } from "@/components/article/article-list";
 import { ArticleReader } from "@/components/article/article-reader";
 import { NewsDashboard } from "@/components/dashboard/news-dashboard";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCheck, HelpCircle } from "lucide-react";
+import { CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +43,6 @@ function ReaderContent() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [showShortcuts, setShowShortcuts] = useState(false);
   const PAGE_SIZE = 50;
 
   const showDashboard = view === "all" && !feedId && !folderId && !search;
@@ -173,56 +171,6 @@ function ReaderContent() {
     toast.success("全部已读");
   }
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      ) return;
-
-      const currentIdx = activeArticle
-        ? articleList.findIndex((a) => a.id === activeArticle.id)
-        : -1;
-
-      switch (e.key) {
-        case "j": {
-          const nextIdx = currentIdx + 1;
-          if (nextIdx < articleList.length) handleSelect(articleList[nextIdx].id);
-          break;
-        }
-        case "k": {
-          const prevIdx = currentIdx - 1;
-          if (prevIdx >= 0) handleSelect(articleList[prevIdx].id);
-          break;
-        }
-        case "s": {
-          if (activeArticle) handleStar(activeArticle.id, !activeArticle.isStarred);
-          break;
-        }
-        case "m": {
-          if (activeArticle) handleMarkRead(activeArticle.id, !activeArticle.isRead);
-          break;
-        }
-        case "o": {
-          if (activeArticle?.url) window.open(activeArticle.url, "_blank");
-          break;
-        }
-        case "Escape": {
-          if (activeArticle) setActiveArticle(null);
-          break;
-        }
-        case "?": {
-          setShowShortcuts((v) => !v);
-          break;
-        }
-      }
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [activeArticle, articleList]);
-
   // Dashboard
   if (showDashboard) {
     if (activeArticle) {
@@ -306,14 +254,6 @@ function ReaderContent() {
                 <CheckCheck className="size-3.5" />
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setShowShortcuts(true)}
-              title="键盘快捷键 (?)"
-              className="size-7 inline-flex items-center justify-center rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-            >
-              <HelpCircle className="size-3.5" />
-            </button>
           </div>
         </div>
         <div className="flex-1 min-h-0">
@@ -330,29 +270,6 @@ function ReaderContent() {
           />
         </div>
       </div>
-      <Dialog open={showShortcuts} onOpenChange={setShowShortcuts}>
-        <DialogContent className="rounded-2xl max-w-sm">
-          <DialogHeader>
-            <DialogTitle>键盘快捷键</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-1.5 text-sm">
-            {[
-              ["j", "下一篇"],
-              ["k", "上一篇"],
-              ["s", "收藏 / 取消收藏"],
-              ["m", "标为已读 / 未读"],
-              ["o", "在新标签打开原文"],
-              ["Esc", "关闭文章"],
-              ["?", "显示快捷键帮助"],
-            ].map(([key, desc]) => (
-              <div key={key} className="flex items-center justify-between">
-                <span className="text-muted-foreground">{desc}</span>
-                <kbd className="px-2 py-0.5 text-xs font-mono bg-muted rounded-md border border-border">{key}</kbd>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
