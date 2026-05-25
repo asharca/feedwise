@@ -97,3 +97,31 @@ export async function callChatCompletion(
     throw new LlmParseError("message.content is not valid JSON", content);
   }
 }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export interface RetryOptions {
+  retries?: number;
+  baseDelayMs?: number;
+}
+
+/** Retry a fn on transient LLM errors (timeout, 429) with exponential backoff. */
+export async function withLlmRetry<T>(
+  fn: () => Promise<T>,
+  opts: RetryOptions = {}
+): Promise<T> {
+  const retries = Math.max(0, opts.retries ?? 2);
+  const baseDelayMs = opts.baseDelayMs ?? 250;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const transient = err instanceof LlmTimeoutError || err instanceof LlmRateLimitError;
+      if (!transient || attempt === retries) throw err;
+      await sleep(baseDelayMs * 2 ** attempt);
+    }
+  }
+  throw lastErr;
+}

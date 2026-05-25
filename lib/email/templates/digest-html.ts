@@ -1,5 +1,8 @@
 import type { OrganizedDigest, DigestArticle, TopicGroup, TopHeadline } from "@/lib/digest/types";
-import { safeSummaryHtml } from "./summary-html";
+import { briefText } from "../brief";
+
+export type LinkFn = (article: DigestArticle) => string;
+const defaultLink: LinkFn = (a) => a.url ?? "";
 
 function esc(s: string | null | undefined): string {
   if (s == null) return "";
@@ -11,59 +14,45 @@ function fmtDate(d: Date | null): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function topicAnchor(topic: string): string {
-  return "topic-" + topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
-function renderHeadline(h: TopHeadline, i: number): string {
-  const num = ["(1)", "(2)", "(3)", "(4)", "(5)"][i] ?? `(${i + 1})`;
+function renderHeadline(h: TopHeadline, i: number, link: LinkFn): string {
+  const num = `(${i + 1})`;
   return `
     <div style="margin-bottom:10px;">
       <span style="color:#94a3b8;font-variant-numeric:tabular-nums;">${num}</span>
-      <a href="#${topicAnchor(h.cluster.topic)}" style="color:#2563eb;text-decoration:none;font-weight:500;">${esc(h.cluster.headline)}</a>
-      <span style="color:#94a3b8;font-size:12px;"> &middot; ${esc(h.cluster.topic)} &middot; ${h.sourceCount} sources &middot; &#9733; ${h.cluster.importance}</span>
+      <a href="${esc(link(h.primaryArticle))}" style="color:#2563eb;text-decoration:none;font-weight:500;">${esc(h.cluster.headline)}</a>
+      <span style="color:#94a3b8;font-size:12px;"> &middot; ${esc(h.cluster.topic)} &middot; ${h.sourceCount} source${h.sourceCount === 1 ? "" : "s"} &middot; &#9733; ${h.cluster.importance}</span>
     </div>`;
 }
 
-function renderClusterBlock(c: TopicGroup["clusters"][number]): string {
-  const dup = c.duplicates.length;
-  const dupBlock = dup > 0
-    ? `<details style="margin-top:6px;"><summary style="cursor:pointer;color:#2563eb;font-size:12px;">+${dup} other source${dup === 1 ? "" : "s"}</summary>
-        <ul style="margin:6px 0 0 16px;padding:0;color:#666;font-size:12px;">
-          ${c.duplicates.map((d) => `<li><a href="${esc(d.url)}" style="color:#2563eb;text-decoration:none;">${esc(d.title)}</a> &middot; ${esc(d.feedTitle)}</li>`).join("")}
-        </ul></details>`
-    : "";
+function renderItem(primary: DigestArticle, dupCount: number, link: LinkFn): string {
+  const brief = briefText(primary.summary);
+  const sources = dupCount > 0 ? ` &middot; ${dupCount + 1} sources` : "";
   return `
-    <div style="margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #eee;">
-      <a href="${esc(c.primary.url)}" style="color:#111;text-decoration:none;font-weight:500;font-size:15px;">${esc(c.primary.title)}</a>
-      <div style="color:#94a3b8;font-size:12px;margin-top:2px;">${esc(c.primary.feedTitle)} &middot; ${esc(fmtDate(c.primary.publishedAt))}</div>
-      ${c.primary.summary ? `<div style="color:#444;font-size:13px;line-height:1.55;margin-top:6px;">${safeSummaryHtml(c.primary.summary)}</div>` : ""}
-      ${dupBlock}
+    <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #eee;">
+      <a href="${esc(link(primary))}" style="color:#111;text-decoration:none;font-weight:500;font-size:15px;">${esc(primary.title)}</a>
+      <div style="color:#94a3b8;font-size:12px;margin-top:2px;">${esc(primary.feedTitle)} &middot; ${esc(fmtDate(primary.publishedAt))}${sources}</div>
+      ${brief ? `<div style="color:#444;font-size:13px;line-height:1.55;margin-top:6px;">${esc(brief)}</div>` : ""}
     </div>`;
 }
 
-function renderTopicGroup(g: TopicGroup): string {
+function renderTopicGroup(g: TopicGroup, link: LinkFn): string {
   return `
-    <div id="${topicAnchor(g.topic)}" style="margin-top:28px;">
+    <div style="margin-top:28px;">
       <h2 style="margin:0 0 12px 0;font-size:16px;color:#111;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">${esc(g.topic)} <span style="color:#94a3b8;font-size:12px;font-weight:normal;">(${g.totalCount})</span></h2>
-      ${g.clusters.map(renderClusterBlock).join("")}
+      ${g.clusters.map((c) => renderItem(c.primary, c.duplicates.length, link)).join("")}
     </div>`;
 }
 
-function renderUngrouped(items: DigestArticle[]): string {
+function renderUngrouped(items: DigestArticle[], link: LinkFn): string {
   if (items.length === 0) return "";
   return `
     <div style="margin-top:28px;">
-      <h2 style="margin:0 0 12px 0;font-size:16px;color:#111;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">Ungrouped <span style="color:#94a3b8;font-size:12px;font-weight:normal;">(${items.length})</span></h2>
-      ${items.map((a) => `
-        <div style="margin-bottom:14px;">
-          <a href="${esc(a.url)}" style="color:#111;text-decoration:none;font-weight:500;font-size:14px;">${esc(a.title)}</a>
-          <div style="color:#94a3b8;font-size:12px;">${esc(a.feedTitle)} &middot; ${esc(fmtDate(a.publishedAt))}</div>
-        </div>`).join("")}
+      <h2 style="margin:0 0 12px 0;font-size:16px;color:#111;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">More <span style="color:#94a3b8;font-size:12px;font-weight:normal;">(${items.length})</span></h2>
+      ${items.map((a) => renderItem(a, 0, link)).join("")}
     </div>`;
 }
 
-export function renderDigestHtml(digest: OrganizedDigest): string {
+export function renderDigestHtml(digest: OrganizedDigest, buildLink: LinkFn = defaultLink): string {
   const dateStr = digest.date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
@@ -76,10 +65,9 @@ export function renderDigestHtml(digest: OrganizedDigest): string {
           <div style="color:#94a3b8;font-size:12px;margin-top:2px;">${esc(dateStr)} &middot; ${digest.totalArticles} articles &middot; ${digest.topicCount} topics</div>
         </td></tr>
         <tr><td style="padding:24px 28px;">
-          <h2 style="margin:0 0 14px 0;font-size:13px;color:#94a3b8;letter-spacing:0.08em;">TOP HEADLINES</h2>
-          ${digest.topHeadlines.map(renderHeadline).join("")}
-          ${digest.topicGroups.map(renderTopicGroup).join("")}
-          ${renderUngrouped(digest.ungrouped)}
+          ${digest.topHeadlines.length > 0 ? `<h2 style="margin:0 0 14px 0;font-size:13px;color:#94a3b8;letter-spacing:0.08em;">TOP STORIES</h2>${digest.topHeadlines.map((h, i) => renderHeadline(h, i, buildLink)).join("")}` : ""}
+          ${digest.topicGroups.map((g) => renderTopicGroup(g, buildLink)).join("")}
+          ${renderUngrouped(digest.ungrouped, buildLink)}
         </td></tr>
         <tr><td style="padding:14px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:12px;text-align:center;">
           Feedwise daily digest.

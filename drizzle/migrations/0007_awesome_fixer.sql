@@ -1,0 +1,1 @@
+ALTER TABLE "email_subscriptions" ADD COLUMN "auto_save_on_click" boolean DEFAULT false NOT NULL;

@@ -1,65 +1,64 @@
 import { describe, it, expect } from "vitest";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
-import type { OrganizedDigest } from "@/lib/digest/types";
+import type { OrganizedDigest, DigestArticle } from "@/lib/digest/types";
 
-const fixture: OrganizedDigest = {
-  date: new Date("2026-05-19T08:00:00Z"),
-  totalArticles: 3,
-  topicCount: 1,
-  topHeadlines: [
-    {
-      cluster: { topic: "AI", headline: "OpenAI ships GPT-5", importance: 9, articleIds: ["a"] },
-      primaryArticle: { id: "a", title: "OpenAI ships GPT-5", url: "https://e.com/a", summary: "<p>x</p>", feedTitle: "Verge", publishedAt: new Date() },
-      sourceCount: 3,
-    },
-  ],
-  topicGroups: [
-    {
-      topic: "AI",
-      totalCount: 3,
+function art(id: string, title: string): DigestArticle {
+  return { id, title, url: `https://e.com/${id}`, summary: `<p>Brief for ${title}</p>`, feedTitle: "Reuters", publishedAt: new Date("2026-05-25T08:00:00Z") };
+}
+
+function digest(): OrganizedDigest {
+  const a = art("a", "Ceasefire talks resume");
+  const b = art("b", "Earthquake hits coast");
+  const cluster = (topic: string, headline: string, importance: number) => ({ topic, headline, importance, articleIds: [] as string[] });
+  return {
+    date: new Date("2026-05-25T08:00:00Z"),
+    totalArticles: 2,
+    topicCount: 1,
+    topHeadlines: [{ cluster: cluster("World", "Ceasefire talks resume", 9), primaryArticle: a, sourceCount: 3 }],
+    topicGroups: [{
+      topic: "World",
+      totalCount: 2,
       clusters: [
-        {
-          cluster: { topic: "AI", headline: "OpenAI ships GPT-5", importance: 9, articleIds: ["a", "b", "c"] },
-          primary: { id: "a", title: "OpenAI ships GPT-5", url: "https://e.com/a", summary: "<p>main</p>", feedTitle: "Verge", publishedAt: new Date() },
-          duplicates: [
-            { id: "b", title: "OpenAI GPT-5 launch", url: "https://e.com/b", summary: null, feedTitle: "HN", publishedAt: null },
-            { id: "c", title: "GPT-5 released today", url: "https://e.com/c", summary: null, feedTitle: "TechCrunch", publishedAt: null },
-          ],
-        },
+        { cluster: cluster("World", "Ceasefire talks resume", 9), primary: a, duplicates: [] },
+        { cluster: cluster("World", "Earthquake hits coast", 8), primary: b, duplicates: [] },
       ],
-    },
-  ],
-  ungrouped: [],
-  mode: "clustered",
-};
+    }],
+    ungrouped: [],
+    mode: "clustered",
+  };
+}
 
-describe("renderDigestHtml", () => {
-  it("renders Top Headlines section with star importance and source count", () => {
-    const html = renderDigestHtml(fixture);
-    expect(html).toMatch(/TOP HEADLINES/i);
-    expect(html).toContain("OpenAI ships GPT-5");
-    expect(html).toContain("3 sources");
-    expect(html).toContain("9");
+describe("renderDigestHtml (layout A)", () => {
+  it("renders multiple event items under a topic", () => {
+    const html = renderDigestHtml(digest());
+    expect(html).toContain("Ceasefire talks resume");
+    expect(html).toContain("Earthquake hits coast");
   });
-
-  it("renders topic groups with totalCount and folded sources", () => {
-    const html = renderDigestHtml(fixture);
-    expect(html).toContain(">AI <");
-    expect(html).toContain("(3)");
-    expect(html).toContain("OpenAI GPT-5 launch");
-    expect(html).toContain("other source");
+  it("contains no expand/collapse markup", () => {
+    const html = renderDigestHtml(digest());
+    expect(html).not.toContain("<details");
+    expect(html).not.toMatch(/other source/i);
   });
-
-  it("renders Ungrouped section only when ungrouped is non-empty", () => {
-    const html = renderDigestHtml(fixture);
-    expect(html).not.toContain("Ungrouped");
-    const withU = renderDigestHtml({
-      ...fixture,
-      ungrouped: [
-        { id: "u", title: "Misc article", url: "https://e.com/u", summary: null, feedTitle: "F", publishedAt: null },
-      ],
-    });
-    expect(withU).toContain("Ungrouped");
-    expect(withU).toContain("Misc article");
+  it("renders the plain-text brief, not raw HTML summary", () => {
+    const html = renderDigestHtml(digest());
+    expect(html).toContain("Brief for Ceasefire talks resume");
+    expect(html).not.toContain("<p>Brief for");
+  });
+  it("uses the injected buildLink for article hrefs", () => {
+    const html = renderDigestHtml(digest(), (a) => `https://app/r?id=${a.id}`);
+    expect(html).toContain('href="https://app/r?id=a"');
+    expect(html).toContain('href="https://app/r?id=b"');
+  });
+  it("defaults links to the article url", () => {
+    const html = renderDigestHtml(digest());
+    expect(html).toContain('href="https://e.com/a"');
+  });
+  it("contains no <img> tags", () => {
+    expect(renderDigestHtml(digest())).not.toContain("<img");
+  });
+  it("omits the TOP STORIES header when there are no headlines", () => {
+    const d = digest();
+    d.topHeadlines = [];
+    expect(renderDigestHtml(d)).not.toContain("TOP STORIES");
   });
 });

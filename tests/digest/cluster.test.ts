@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { runClustering, SYSTEM_PROMPT } from "@/lib/digest/cluster";
 import type { DedupedArticle } from "@/lib/digest/types";
+import { LlmTimeoutError } from "@/lib/digest/llm-client";
 
 function makeDeduped(n: number): DedupedArticle[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -87,5 +88,39 @@ describe("runClustering", () => {
     const topics = new Set(out.clusters.map((c) => c.topic));
     expect(topics.size).toBeLessThanOrEqual(8);
     expect(topics.has("Other")).toBe(true);
+  });
+});
+
+describe("runClustering — event preservation", () => {
+  it("keeps distinct events under one topic as separate clusters", async () => {
+    const deduped = makeDeduped(2);
+    const client = vi.fn().mockResolvedValue({
+      clusters: [
+        { topic: "World", headline: "Ceasefire talks resume", importance: 8, articleIds: [deduped[0].primary.id] },
+        { topic: "World", headline: "Major earthquake hits coast", importance: 7, articleIds: [deduped[1].primary.id] },
+      ],
+    });
+    const out = await runClustering(deduped, client);
+    expect(out.clusters).toHaveLength(2);
+    expect(out.clusters.every((k) => k.topic === "World")).toBe(true);
+  });
+
+  it("retries a transient LLM failure within a batch", async () => {
+    const deduped = makeDeduped(2);
+    const client = vi.fn()
+      .mockRejectedValueOnce(new LlmTimeoutError())
+      .mockResolvedValue({
+        clusters: [{ topic: "X", headline: "h", importance: 5, articleIds: deduped.map((d) => d.primary.id) }],
+      });
+    const out = await runClustering(deduped, client);
+    expect(client).toHaveBeenCalledTimes(2);
+    expect(out.clusters).toHaveLength(1);
+  });
+});
+
+describe("SYSTEM_PROMPT — event vs topic", () => {
+  it("states that a cluster is one event and topic is a shared category", () => {
+    expect(SYSTEM_PROMPT).toMatch(/one event/i);
+    expect(SYSTEM_PROMPT).toMatch(/category/i);
   });
 });

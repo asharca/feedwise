@@ -212,6 +212,15 @@ export async function getArticlesGroupedByFolder(userId: string, limit = 6) {
   return result;
 }
 
+/** Look up an article's destination URL by id (no user scoping). */
+export async function getArticleUrlById(articleId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ url: articles.url })
+    .from(articles)
+    .where(eq(articles.id, articleId));
+  return row?.url ?? null;
+}
+
 export async function markAllRead(userId: string, feedId?: string, folderId?: string) {
   // Get all unread article IDs for this user (optionally scoped to feed or folder)
   const unread = await db
