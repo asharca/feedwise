@@ -18,6 +18,7 @@ import { buildFallback } from "@/lib/digest/fallback";
 import { callChatCompletion } from "@/lib/digest/llm-client";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
+import { signClickToken } from "@/lib/email/click-token";
 import type { DigestArticle, OrganizedDigest } from "@/lib/digest/types";
 
 const DEFAULT_CRON = "0 8 * * *"; // Daily at 8:00 AM
@@ -150,8 +151,16 @@ async function sendDigestForDate(
       ? `Feedwise Digest - ${dateStr} - No new articles`
       : `Feedwise Digest - ${dateStr} - ${articles.length} article${articles.length === 1 ? "" : "s"}`;
 
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+  const buildLink =
+    subscription.autoSaveOnClick && appUrl
+      ? (a: DigestArticle) => `${appUrl}/api/r?t=${signClickToken(subscription.userId, a.id)}`
+      : (a: DigestArticle) => a.url ?? "";
+
   const html =
-    digest.mode === "clustered" ? renderDigestHtml(digest) : renderFallbackHtml(digest);
+    digest.mode === "clustered"
+      ? renderDigestHtml(digest, buildLink)
+      : renderFallbackHtml(digest);
 
   try {
     await sendDailyDigest({ to: email, subject, html, smtpConfig });
