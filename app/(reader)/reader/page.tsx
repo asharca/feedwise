@@ -6,7 +6,7 @@ import { ArticleList } from "@/components/article/article-list";
 import { ArticleReader } from "@/components/article/article-reader";
 import { NewsDashboard } from "@/components/dashboard/news-dashboard";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { CheckCheck } from "lucide-react";
+import { CheckCheck, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -168,7 +168,7 @@ function ReaderContent() {
     await fetch(`/api/articles/mark-all-read?${params}`, { method: "POST" });
     setArticleList((prev) => prev.map((a) => ({ ...a, isRead: true })));
     dispatchMarkAllRead(feedId, folderId);
-    toast.success("全部已读");
+    toast.success("Marked all as read");
   }
 
   // Dashboard
@@ -217,27 +217,12 @@ function ReaderContent() {
 
   return (
     <div className="flex h-full">
-      {/* Reader panel — center/main */}
+      {/* Article list panel — left */}
       <div className={cn(
-        "flex-1 min-w-0 overflow-hidden",
-        !activeArticle && "hidden"
+        "flex flex-col border-r border-border bg-background shrink-0",
+        activeArticle ? "w-80 hidden md:flex" : "w-full md:w-80"
       )}>
-        {activeArticle && (
-          <ArticleReader
-            article={{ ...activeArticle, publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null }}
-            onMarkRead={handleMarkRead}
-            onStar={handleStar}
-            onBack={() => setActiveArticle(null)}
-          />
-        )}
-      </div>
-
-      {/* Article list panel — right */}
-      <div className={cn(
-        "flex flex-col border-l border-border/50 bg-background shrink-0",
-        activeArticle ? "w-72 hidden md:flex" : "w-full border-l-0"
-      )}>
-        <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border/50">
+        <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border">
           <SidebarTrigger className="md:hidden" />
           <h2 className="text-sm font-semibold tracking-tight truncate">{viewTitle}</h2>
           <div className="ml-auto flex items-center gap-1">
@@ -248,8 +233,8 @@ function ReaderContent() {
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                title="全部标为已读"
-                className="size-7 inline-flex items-center justify-center rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+                title="Mark all read"
+                className="size-7 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
               >
                 <CheckCheck className="size-3.5" />
               </button>
@@ -262,13 +247,35 @@ function ReaderContent() {
             activeId={activeArticle?.id}
             onSelect={handleSelect}
             onStar={handleStar}
-            compact={!!activeArticle}
+            compact
             hasMore={hasMore}
             loadingMore={loadingMore}
             onLoadMore={handleLoadMore}
             searchQuery={search}
           />
         </div>
+      </div>
+
+      {/* Reader panel — right */}
+      <div className={cn(
+        "flex-1 min-w-0 overflow-hidden",
+        !activeArticle && "hidden md:block"
+      )}>
+        {activeArticle ? (
+          <ArticleReader
+            article={{ ...activeArticle, publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null }}
+            onMarkRead={handleMarkRead}
+            onStar={handleStar}
+            onBack={() => setActiveArticle(null)}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+            <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
+              <BookOpen className="size-6 text-muted-foreground/40" />
+            </div>
+            <p className="text-sm">Select an article to read</p>
+          </div>
+        )}
       </div>
     </div>
   );
