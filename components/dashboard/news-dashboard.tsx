@@ -51,8 +51,8 @@ function ArticleCard({
         onClick={() => onSelect(article.id)}
         onKeyDown={(e) => { if (e.key === "Enter") onSelect(article.id); }}
         className={cn(
-          "group relative rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg",
-          "bg-card border border-border/50",
+          "group relative rounded-lg overflow-hidden cursor-pointer transition-colors duration-150 hover:border-foreground/20",
+          "bg-card border border-border",
           article.isRead && "opacity-70"
         )}
       >
@@ -83,7 +83,7 @@ function ArticleCard({
             )}
           </div>
           <h3 className={cn(
-            "text-lg font-bold leading-snug mb-2 line-clamp-2 group-hover:text-primary transition-colors",
+            "text-lg font-semibold leading-snug mb-2 line-clamp-2 group-hover:text-primary transition-colors",
             !article.isRead && "text-foreground"
           )}>
             {article.title ?? "(No title)"}
@@ -109,7 +109,7 @@ function ArticleCard({
         onClick={() => onSelect(article.id)}
         onKeyDown={(e) => { if (e.key === "Enter") onSelect(article.id); }}
         className={cn(
-          "group flex gap-3 p-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-accent/50",
+          "group flex gap-3 p-3 rounded-md cursor-pointer transition-colors duration-150 hover:bg-accent/50",
           article.isRead && "opacity-60"
         )}
       >
@@ -152,8 +152,8 @@ function ArticleCard({
       onClick={() => onSelect(article.id)}
       onKeyDown={(e) => { if (e.key === "Enter") onSelect(article.id); }}
       className={cn(
-        "group rounded-xl overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md",
-        "bg-card border border-border/50",
+        "group rounded-md overflow-hidden cursor-pointer transition-colors duration-150 hover:border-foreground/20",
+        "bg-card border border-border",
         article.isRead && "opacity-65"
       )}
     >
@@ -266,7 +266,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
   if (groups.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4 p-8">
-        <div className="size-16 rounded-2xl bg-muted/50 flex items-center justify-center">
+        <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
           <Rss className="size-7 text-muted-foreground/30" />
         </div>
         <div className="text-center space-y-1">
@@ -288,7 +288,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
       <div className="px-4 sm:px-6 py-5 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Today&apos;s News</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Today&apos;s News</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Your personalized news feed
           </p>
