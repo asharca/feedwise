@@ -94,7 +94,7 @@ function RouteCard({ route, onSubscribe }: { route: Route; onSubscribe: (url: st
 
   return (
     <div className={cn(
-      "break-inside-avoid rounded-xl border border-border/50 bg-card transition-all duration-150",
+      "break-inside-avoid rounded-md border border-border/50 bg-card transition-all duration-150",
       expanded && "border-border shadow-sm"
     )}>
       {/* Header row */}
