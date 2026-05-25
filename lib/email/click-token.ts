@@ -1,10 +1,16 @@
 // lib/email/click-token.ts
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-function key(): Buffer {
+// Derive a click-token-specific subkey from ENCRYPTION_KEY so this signing key
+// is domain-separated from the AES key used by lib/crypto/secrets.ts.
+function signingKey(): Buffer {
   const raw = process.env.ENCRYPTION_KEY;
   if (!raw) throw new Error("ENCRYPTION_KEY env var is required for click tokens");
-  return Buffer.from(raw, "base64");
+  const rawKey = Buffer.from(raw, "base64");
+  if (rawKey.length !== 32) {
+    throw new Error(`ENCRYPTION_KEY must decode to 32 bytes (got ${rawKey.length})`);
+  }
+  return createHmac("sha256", rawKey).update("feedwise-click-token-v1").digest();
 }
 
 function b64url(buf: Buffer): string {
@@ -16,7 +22,7 @@ function fromB64url(s: string): Buffer {
 }
 
 function hmac(payload: string): string {
-  return b64url(createHmac("sha256", key()).update(payload).digest());
+  return b64url(createHmac("sha256", signingKey()).update(payload).digest());
 }
 
 /** Tamper-proof token encoding (userId, articleId). No URL is stored. */

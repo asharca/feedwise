@@ -20,6 +20,15 @@ describe("click-token", () => {
     const t = signClickToken("user-1", "id-1");
     expect(verifyClickToken(t.slice(0, -2) + "xx")).toBeNull();
   });
+  it("rejects a correctly-sized but wrong signature", () => {
+    const [payload] = signClickToken("user-1", "id-1").split(".");
+    const otherSig = signClickToken("attacker", "id-1").split(".")[1];
+    expect(verifyClickToken(`${payload}.${otherSig}`)).toBeNull();
+  });
+  it("rejects a token with an empty signature", () => {
+    const [payload] = signClickToken("user-1", "id-1").split(".");
+    expect(verifyClickToken(`${payload}.`)).toBeNull();
+  });
   it("rejects malformed tokens", () => {
     expect(verifyClickToken("garbage")).toBeNull();
     expect(verifyClickToken("")).toBeNull();
