@@ -497,7 +497,7 @@ export default function SettingsPage() {
             smtpPassDraft={smtpPassDraft}
             pendingCron={pendingCron}
             subs={subs}
-            isSMTPConfigValid={isSMTPConfigValid}
+            isSmtpValid={isSMTPConfigValid()}
             onEmailToggle={handleEmailToggle}
             onCronChange={setPendingCron}
             onCronSave={handleCronSave}
@@ -532,8 +532,7 @@ export default function SettingsPage() {
         return (
           <AccountSection
             userAccount={userAccount}
-            onNameChange={setUserAccount}
-            onEmailChange={setUserAccount}
+            onAccountChange={setUserAccount}
             onNameSave={handleNameSave}
             onEmailSave={handleEmailSave}
           />
@@ -571,12 +570,13 @@ export default function SettingsPage() {
 
         <div className="flex gap-6">
           {/* Desktop left rail */}
-          <nav className="hidden md:flex flex-col gap-1 w-44 shrink-0">
+          <nav aria-label="Settings sections" className="hidden md:flex flex-col gap-1 w-44 shrink-0">
             {SECTIONS.map((s) => (
               <button
                 key={s.key}
                 type="button"
                 onClick={() => setActive(s.key)}
+                aria-current={active === s.key ? "page" : undefined}
                 className={cn(
                   "text-left px-3 py-2 rounded-xl text-sm font-medium transition-colors",
                   active === s.key

@@ -12,18 +12,18 @@ interface UserAccount {
   createdAt: string;
 }
 
+import type { Dispatch, SetStateAction } from "react";
+
 interface Props {
   userAccount: UserAccount | null;
-  onNameChange: (updater: (prev: UserAccount | null) => UserAccount | null) => void;
-  onEmailChange: (updater: (prev: UserAccount | null) => UserAccount | null) => void;
+  onAccountChange: Dispatch<SetStateAction<UserAccount | null>>;
   onNameSave: () => void;
   onEmailSave: () => void;
 }
 
 export function AccountSection({
   userAccount,
-  onNameChange,
-  onEmailChange,
+  onAccountChange,
   onNameSave,
   onEmailSave,
 }: Props) {
@@ -61,7 +61,7 @@ export function AccountSection({
                   type="text"
                   placeholder="Enter your name"
                   value={userAccount.name || ""}
-                  onChange={(e) => onNameChange(prev => prev ? { ...prev, name: e.target.value } : null)}
+                  onChange={(e) => onAccountChange(prev => prev ? { ...prev, name: e.target.value } : null)}
                   className="flex-1 text-sm bg-muted rounded-lg px-3 py-2 outline-none"
                 />
                 <Button
@@ -81,7 +81,7 @@ export function AccountSection({
                   type="email"
                   placeholder="Enter your email"
                   value={userAccount.email || ""}
-                  onChange={(e) => onEmailChange(prev => prev ? { ...prev, email: e.target.value } : null)}
+                  onChange={(e) => onAccountChange(prev => prev ? { ...prev, email: e.target.value } : null)}
                   className="flex-1 text-sm bg-muted rounded-lg px-3 py-2 outline-none"
                 />
                 <Button

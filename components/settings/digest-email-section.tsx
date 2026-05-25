@@ -40,7 +40,7 @@ interface Props {
   smtpPassDraft: string;
   pendingCron: string | null;
   subs: Sub[];
-  isSMTPConfigValid: () => boolean;
+  isSmtpValid: boolean;
   onEmailToggle: (enabled: boolean) => void;
   onCronChange: (cron: string) => void;
   onCronSave: () => void;
@@ -62,7 +62,7 @@ export function DigestEmailSection({
   smtpPassDraft,
   pendingCron,
   subs,
-  isSMTPConfigValid,
+  isSmtpValid,
   onEmailToggle,
   onCronChange,
   onCronSave,
@@ -303,7 +303,7 @@ export function DigestEmailSection({
                   disabled={
                     emailSaving ||
                     emailTesting ||
-                    !isSMTPConfigValid() ||
+                    !isSmtpValid ||
                     (!(emailSettings?.hasSmtpPass) && smtpPassDraft.trim().length === 0)
                   }
                 >
