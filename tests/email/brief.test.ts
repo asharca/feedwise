@@ -8,6 +8,12 @@ describe("briefText", () => {
   it("decodes common entities", () => {
     expect(briefText("A &amp; B &lt;ok&gt;")).toBe("A & B <ok>");
   });
+  it("decodes common typographic entities", () => {
+    expect(briefText("Tom &mdash; Jerry&rsquo;s &hellip;")).toBe("Tom — Jerry’s …");
+  });
+  it("drops unrecognized entities instead of leaking them", () => {
+    expect(briefText("A &fakeent; B")).toBe("A B");
+  });
   it("clamps to maxLen with ellipsis", () => {
     expect(briefText("x".repeat(200), 10)).toBe("xxxxxxxxx…");
   });

@@ -1,7 +1,7 @@
 import type { OrganizedDigest, DigestArticle, TopicGroup, TopHeadline } from "@/lib/digest/types";
 import { briefText } from "../brief";
 
-type LinkFn = (article: DigestArticle) => string;
+export type LinkFn = (article: DigestArticle) => string;
 const defaultLink: LinkFn = (a) => a.url ?? "";
 
 function esc(s: string | null | undefined): string {

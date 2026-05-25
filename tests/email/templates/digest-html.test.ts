@@ -56,4 +56,9 @@ describe("renderDigestHtml (layout A)", () => {
   it("contains no <img> tags", () => {
     expect(renderDigestHtml(digest())).not.toContain("<img");
   });
+  it("omits the TOP STORIES header when there are no headlines", () => {
+    const d = digest();
+    d.topHeadlines = [];
+    expect(renderDigestHtml(d)).not.toContain("TOP STORIES");
+  });
 });
