@@ -50,6 +50,7 @@ export function mergeSameEventClusters(
     let mergedAt = -1;
     for (let i = 0; i < out.length; i++) {
       const o = out[i];
+      // O(n*m) membership scan; fine for LLM batch sizes (<=50 clusters, <=150 ids).
       const overlap = cluster.articleIds.some((id) => o.articleIds.includes(id));
       const sameTopic = o.topic.trim().toLowerCase() === cluster.topic.trim().toLowerCase();
       if (overlap || (sameTopic && jaccard(tokenize(o.headline), tokens) >= threshold)) {
@@ -101,6 +102,8 @@ export function foldExtraTopics(clusters: Cluster[], maxTopics = MAX_TOPICS): Cl
   const ranked = Array.from(byTopic.entries())
     .map(([topic, cs]) => ({ topic, maxImp: Math.max(...cs.map((k) => k.importance)) }))
     .sort((a, b) => b.maxImp - a.maxImp);
+  // Keep maxTopics-1 named topics; the relabeled "Other" bucket occupies the
+  // final slot, so the total distinct topic count stays at most maxTopics.
   const keep = new Set(ranked.slice(0, maxTopics - 1).map((x) => x.topic));
   return clusters.map((cluster) =>
     keep.has(cluster.topic) ? cluster : { ...cluster, topic: "Other" }

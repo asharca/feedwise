@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { dedupeArticleAssignments } from "@/lib/digest/consolidate";
-import { mergeSameEventClusters } from "@/lib/digest/consolidate";
-import { normalizeTopics, foldExtraTopics, consolidateClusters } from "@/lib/digest/consolidate";
+import {
+  dedupeArticleAssignments,
+  mergeSameEventClusters,
+  normalizeTopics,
+  foldExtraTopics,
+  consolidateClusters,
+} from "@/lib/digest/consolidate";
 import type { Cluster } from "@/lib/digest/cluster-types";
 
 const c = (over: Partial<Cluster>): Cluster => ({
@@ -26,6 +30,14 @@ describe("dedupeArticleAssignments", () => {
       c({ topic: "B", importance: 2, articleIds: ["x"] }),
     ]);
     expect(out.map((k) => k.topic)).toEqual(["A"]);
+  });
+
+  it("breaks importance ties in favor of the earlier cluster", () => {
+    const out = dedupeArticleAssignments([
+      c({ topic: "First", importance: 5, articleIds: ["x"] }),
+      c({ topic: "Second", importance: 5, articleIds: ["x"] }),
+    ]);
+    expect(out.map((k) => k.topic)).toEqual(["First"]);
   });
 });
 
@@ -67,6 +79,14 @@ describe("normalizeTopics", () => {
       c({ topic: "Ai", articleIds: ["d"] }),
     ]);
     expect(new Set(out.map((k) => k.topic))).toEqual(new Set(["AI"]));
+  });
+
+  it("collapses internal whitespace in multi-word topics", () => {
+    const out = normalizeTopics([
+      c({ topic: "Open  Source", articleIds: ["a"] }),
+      c({ topic: "open source", articleIds: ["b"] }),
+    ]);
+    expect(new Set(out.map((k) => k.topic))).toEqual(new Set(["Open Source"]));
   });
 });
 
