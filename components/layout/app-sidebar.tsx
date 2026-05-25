@@ -628,7 +628,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
             <p className="text-xs text-muted-foreground">One URL per line for batch add</p>
             {addError && <p className="text-destructive text-sm whitespace-pre-line">{addError}</p>}
             <Button type="submit" className="w-full rounded-md" disabled={adding || feedUrl.trim().length === 0}>
-              {adding ? "Adding..." : "Subscribe"}
+              {adding ? "Adding…" : "Subscribe"}
             </Button>
           </form>
         </DialogContent>
@@ -654,7 +654,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
             </div>
             <div className="flex gap-2">
               <Button type="submit" disabled={renaming} className="flex-1 rounded-md">
-                {renaming ? "Saving..." : "Save"}
+                {renaming ? "Saving…" : "Save"}
               </Button>
               <Button
                 type="button"
@@ -694,7 +694,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
             )}
             <div className="flex gap-2">
               <Button type="submit" disabled={editUrlSaving} className="flex-1 rounded-md">
-                {editUrlSaving ? "Saving..." : "Save"}
+                {editUrlSaving ? "Saving…" : "Save"}
               </Button>
               <Button
                 type="button"

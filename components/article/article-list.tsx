@@ -131,10 +131,9 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
               className={cn(
                 "group relative flex flex-col rounded-md overflow-hidden border bg-card",
                 "cursor-pointer transition-colors duration-150",
-                "hover:border-foreground/20",
                 activeId === article.id
                   ? "border-primary"
-                  : "border-border",
+                  : "border-border hover:border-foreground/20",
                 article.isRead && activeId !== article.id && "opacity-55"
               )}
             >
