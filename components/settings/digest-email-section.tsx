@@ -1,8 +1,12 @@
 "use client";
 
-import { Mail, BookOpen, Check } from "lucide-react";
+import { useState } from "react";
+import { Mail, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { SettingRow } from "@/components/settings/setting-row";
+import { SettingsSubTabs, type SettingsSubTab } from "@/components/settings/settings-sub-tabs";
 import { cn } from "@/lib/utils";
 import CronBuilder from "@/components/cron-builder";
 
@@ -74,8 +78,17 @@ export function DigestEmailSection({
   onTestEmail,
   onAutoSaveToggle,
 }: Props) {
+  const [tab, setTab] = useState("general");
+  const enabled = emailSettings?.enabled ?? false;
+  const subTabs: SettingsSubTab[] = [
+    { key: "general", label: "General" },
+    { key: "schedule", label: "Schedule" },
+    { key: "smtp", label: "SMTP" },
+    { key: "feeds", label: "Feeds" },
+  ];
+
   return (
-    <Card className="rounded-2xl border-border/50">
+    <Card className="rounded-lg">
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Mail className="size-4" />
@@ -92,225 +105,198 @@ export function DigestEmailSection({
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Enable email digest</p>
-                <p className="text-xs text-muted-foreground">Receive daily article summary</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onEmailToggle(!(emailSettings?.enabled ?? false))}
-                disabled={emailSaving || emailTesting}
-                className={cn(
-                  "w-11 h-6 rounded-full transition-colors relative",
-                  (emailSettings?.enabled ?? false) ? "bg-primary" : "bg-muted"
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-                    (emailSettings?.enabled ?? false) ? "left-6" : "left-1"
-                  )}
+            {enabled && (
+              <SettingsSubTabs tabs={subTabs} active={tab} onChange={setTab} />
+            )}
+
+            {/* General */}
+            {(tab === "general" || !enabled) && (
+              <div className="divide-y divide-border">
+                <SettingRow
+                  title="Enable email digest"
+                  description="Receive a daily article summary"
+                  control={
+                    <Switch
+                      checked={enabled}
+                      onCheckedChange={onEmailToggle}
+                      disabled={emailSaving || emailTesting}
+                    />
+                  }
                 />
-              </button>
-            </div>
-
-            {emailSettings && emailSettings.enabled && (
-              <>
-                <div>
-                  <div className="mb-2">
-                    <p className="text-sm font-medium">推送计划</p>
-                    <p className="text-xs text-muted-foreground">选择何时推送邮件摘要</p>
-                  </div>
-                  <CronBuilder
-                    value={pendingCron ?? emailSettings.cronExpression}
-                    onChange={onCronChange}
-                    disabled={emailSaving || emailTesting}
-                  />
-                  {pendingCron !== null && pendingCron !== emailSettings.cronExpression && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        className="rounded-xl"
+                {enabled && (
+                  <SettingRow
+                    title="Auto-save on click"
+                    description="Save to starred when opened from email"
+                    control={
+                      <Switch
+                        checked={emailSettings?.autoSaveOnClick ?? false}
+                        onCheckedChange={onAutoSaveToggle}
                         disabled={emailSaving}
-                        onClick={onCronSave}
-                      >
-                        {emailSaving ? "保存中..." : "保存推送计划"}
-                      </Button>
-                      <button
-                        type="button"
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                        onClick={onCronCancel}
-                      >
-                        取消
-                      </button>
-                    </div>
-                  )}
-                </div>
+                      />
+                    }
+                  />
+                )}
+              </div>
+            )}
 
-                <div className="border-t border-border/30 pt-4 mt-4">
-                  <p className="text-sm font-medium mb-3">SMTP Configuration</p>
-                  {emailError && (
-                    <div className="mb-3 p-2 bg-destructive/10 text-destructive text-sm rounded-lg">
-                      {emailError}
-                    </div>
-                  )}
-                  <div className="grid gap-3">
-                    <div>
-                      <label htmlFor="smtp-host" className="text-xs text-muted-foreground block mb-1">SMTP Host</label>
-                      <input
-                        id="smtp-host"
-                        type="text"
-                        placeholder="smtp.gmail.com"
-                        value={emailSettings.smtpHost || ""}
-                        onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpHost: e.target.value } : null)}
-                        onBlur={(e) => onSMTPChange("smtpHost", e.target.value)}
-                        disabled={emailSaving || emailTesting}
-                        className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label htmlFor="smtp-port" className="text-xs text-muted-foreground block mb-1">Port</label>
-                        <input
-                          id="smtp-port"
-                          type="number"
-                          placeholder="587"
-                          value={emailSettings.smtpPort || ""}
-                          onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpPort: parseInt(e.target.value) || 587 } : null)}
-                          onBlur={(e) => onSMTPChange("smtpPort", parseInt(e.target.value) || 587)}
-                          disabled={emailSaving || emailTesting}
-                          className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="smtp-from" className="text-xs text-muted-foreground block mb-1">From Name</label>
-                        <input
-                          id="smtp-from"
-                          type="text"
-                          placeholder="Feedwise"
-                          value={emailSettings.smtpFrom || ""}
-                          onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpFrom: e.target.value } : null)}
-                          onBlur={(e) => onSMTPChange("smtpFrom", e.target.value)}
-                          disabled={emailSaving || emailTesting}
-                          className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label htmlFor="smtp-user" className="text-xs text-muted-foreground block mb-1">Username / Email</label>
-                      <input
-                        id="smtp-user"
-                        type="text"
-                        placeholder="your-email@gmail.com"
-                        value={emailSettings.smtpUser || ""}
-                        onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpUser: e.target.value } : null)}
-                        onBlur={(e) => onSMTPChange("smtpUser", e.target.value)}
-                        disabled={emailSaving || emailTesting}
-                        className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="smtp-pass" className="text-xs text-muted-foreground block mb-1">Password / App Password</label>
-                      <input
-                        id="smtp-pass"
-                        type="password"
-                        placeholder="Enter password"
-                        value={smtpPassDraft}
-                        onChange={(e) => onSmtpPassDraftChange(e.target.value)}
-                        onBlur={(e) => {
-                          if (e.target.value) onSMTPChange("smtpPass", e.target.value);
-                        }}
-                        disabled={emailSaving || emailTesting}
-                        className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                      />
-                      {emailSettings?.hasSmtpPass && (
-                        <p className="mt-1 text-[11px] text-muted-foreground">SMTP password is saved.</p>
-                      )}
-                    </div>
+            {/* Schedule */}
+            {enabled && tab === "schedule" && (
+              <div className="pt-1">
+                <CronBuilder
+                  value={pendingCron ?? emailSettings!.cronExpression}
+                  onChange={onCronChange}
+                  disabled={emailSaving || emailTesting}
+                />
+                {pendingCron !== null && pendingCron !== emailSettings!.cronExpression && (
+                  <div className="flex items-center gap-2 mt-3">
+                    <Button size="sm" className="rounded-md" disabled={emailSaving} onClick={onCronSave}>
+                      {emailSaving ? "Saving…" : "Save schedule"}
+                    </Button>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      onClick={onCronCancel}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SMTP */}
+            {enabled && tab === "smtp" && (
+              <div className="space-y-3 pt-1">
+                {emailError && (
+                  <div className="p-2 bg-destructive/10 text-destructive text-sm rounded-md">
+                    {emailError}
+                  </div>
+                )}
+                <div>
+                  <label htmlFor="smtp-host" className="text-xs text-muted-foreground block mb-1">SMTP Host</label>
+                  <input
+                    id="smtp-host"
+                    type="text"
+                    placeholder="smtp.gmail.com"
+                    value={emailSettings!.smtpHost || ""}
+                    onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpHost: e.target.value } : null)}
+                    onBlur={(e) => onSMTPChange("smtpHost", e.target.value)}
+                    disabled={emailSaving || emailTesting}
+                    className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="smtp-port" className="text-xs text-muted-foreground block mb-1">Port</label>
+                    <input
+                      id="smtp-port"
+                      type="number"
+                      placeholder="587"
+                      value={emailSettings!.smtpPort || ""}
+                      onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpPort: parseInt(e.target.value) || 587 } : null)}
+                      onBlur={(e) => onSMTPChange("smtpPort", parseInt(e.target.value) || 587)}
+                      disabled={emailSaving || emailTesting}
+                      className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="smtp-from" className="text-xs text-muted-foreground block mb-1">From Name</label>
+                    <input
+                      id="smtp-from"
+                      type="text"
+                      placeholder="Feedwise"
+                      value={emailSettings!.smtpFrom || ""}
+                      onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpFrom: e.target.value } : null)}
+                      onBlur={(e) => onSMTPChange("smtpFrom", e.target.value)}
+                      disabled={emailSaving || emailTesting}
+                      className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                    />
                   </div>
                 </div>
+                <div>
+                  <label htmlFor="smtp-user" className="text-xs text-muted-foreground block mb-1">Username / Email</label>
+                  <input
+                    id="smtp-user"
+                    type="text"
+                    placeholder="your-email@gmail.com"
+                    value={emailSettings!.smtpUser || ""}
+                    onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpUser: e.target.value } : null)}
+                    onBlur={(e) => onSMTPChange("smtpUser", e.target.value)}
+                    disabled={emailSaving || emailTesting}
+                    className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="smtp-pass" className="text-xs text-muted-foreground block mb-1">Password / App Password</label>
+                  <input
+                    id="smtp-pass"
+                    type="password"
+                    placeholder="Enter password"
+                    value={smtpPassDraft}
+                    onChange={(e) => onSmtpPassDraftChange(e.target.value)}
+                    onBlur={(e) => { if (e.target.value) onSMTPChange("smtpPass", e.target.value); }}
+                    disabled={emailSaving || emailTesting}
+                    className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                  />
+                  {emailSettings!.hasSmtpPass && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">SMTP password is saved.</p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full rounded-md"
+                  onClick={onTestEmail}
+                  disabled={
+                    emailSaving || emailTesting || !isSmtpValid ||
+                    (!emailSettings!.hasSmtpPass && smtpPassDraft.trim().length === 0)
+                  }
+                >
+                  <Mail className="size-4 mr-2" />
+                  {emailTesting ? "Sending…" : "Send Test Email"}
+                </Button>
+              </div>
+            )}
 
-                {subs.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium mb-2 flex items-center gap-1">
-                      <BookOpen className="size-4" />
-                      Select feeds to notify
-                    </p>
-                    <div className="border border-border/50 rounded-lg divide-y divide-border/50 max-h-48 overflow-y-auto">
-                      {subs.map((sub) => (
+            {/* Feeds */}
+            {enabled && tab === "feeds" && (
+              subs.length > 0 ? (
+                <div className="pt-1">
+                  <div className="border border-border rounded-md divide-y divide-border max-h-80 overflow-y-auto scrollbar-thin">
+                    {subs.map((sub) => {
+                      const checked = (emailSettings!.selectedFeeds || []).includes(sub.feedId);
+                      return (
                         <button
                           type="button"
                           key={sub.id}
                           onClick={() => onFeedToggle(sub.feedId)}
                           disabled={emailSaving || emailTesting}
-                          aria-checked={(emailSettings.selectedFeeds || []).includes(sub.feedId)}
+                          aria-checked={checked}
                           role="checkbox"
                           className="w-full text-left flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent/30 disabled:opacity-60"
                         >
                           <div className={cn(
                             "w-4 h-4 rounded border flex items-center justify-center shrink-0",
-                            (emailSettings.selectedFeeds || []).includes(sub.feedId)
-                              ? "bg-primary border-primary"
-                              : "border-muted-foreground"
+                            checked ? "bg-primary border-primary" : "border-muted-foreground"
                           )}>
-                            {(emailSettings.selectedFeeds || []).includes(sub.feedId) && (
-                              <Check className="size-3 text-primary-foreground" />
-                            )}
+                            {checked && <Check className="size-3 text-primary-foreground" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm truncate">{sub.title ?? sub.feedTitle ?? sub.url}</p>
                           </div>
                         </button>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      {(emailSettings.selectedFeeds || []).length === 0
-                        ? "All feeds will be included"
-                        : `${(emailSettings.selectedFeeds || []).length} feed(s) selected`}
-                    </p>
+                      );
+                    })}
                   </div>
-                )}
-
-                <div className="flex items-center justify-between border-t border-border/30 pt-4 mt-4">
-                  <div>
-                    <p className="text-sm font-medium">点击文章时自动收藏</p>
-                    <p className="text-xs text-muted-foreground">在邮件中点开文章后自动加入收藏夹</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onAutoSaveToggle(!(emailSettings?.autoSaveOnClick ?? false))}
-                    disabled={emailSaving}
-                    className={cn(
-                      "w-11 h-6 rounded-full transition-colors relative",
-                      (emailSettings?.autoSaveOnClick ?? false) ? "bg-primary" : "bg-muted"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-                        (emailSettings?.autoSaveOnClick ?? false) ? "left-6" : "left-1"
-                      )}
-                    />
-                  </button>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {(emailSettings!.selectedFeeds || []).length === 0
+                      ? "All feeds will be included"
+                      : `${(emailSettings!.selectedFeeds || []).length} feed(s) selected`}
+                  </p>
                 </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full rounded-xl"
-                  onClick={onTestEmail}
-                  disabled={
-                    emailSaving ||
-                    emailTesting ||
-                    !isSmtpValid ||
-                    (!(emailSettings?.hasSmtpPass) && smtpPassDraft.trim().length === 0)
-                  }
-                >
-                  <Mail className="size-4 mr-2" />
-                  {emailTesting ? "Sending..." : "Send Test Email"}
-                </Button>
-              </>
+              ) : (
+                <p className="text-sm text-muted-foreground pt-2">No feeds to choose from yet.</p>
+              )
             )}
           </>
         )}
