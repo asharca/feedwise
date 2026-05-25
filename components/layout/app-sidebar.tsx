@@ -320,7 +320,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
     setSubs((prev) =>
       prev.map((s) => (s.id === sub.id ? { ...s, unreadCount: 0 } : s))
     );
-    toast.success("全部标为已读");
+    toast.success("Marked all as read");
   }
 
   async function handleDelete(sub: Subscription) {
@@ -357,7 +357,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
         <SidebarMenuButton
           isActive={activeFeedId === sub.feedId}
           onClick={() => navigate({ feedId: sub.feedId, folderId: null, view: "all" })}
-          className="group rounded-xl h-8 transition-all duration-150"
+          className="group rounded-md h-8 transition-all duration-150"
         >
           <FeedIcon url={sub.iconUrl} name={name} />
           <span className="truncate flex-1 text-sm">{name}</span>
@@ -380,14 +380,14 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
             >
               <MoreHorizontal className="size-3.5" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="rounded-xl">
+            <DropdownMenuContent align="end" className="rounded-md">
               {(sub.unreadCount ?? 0) > 0 && (
                 <>
                   <DropdownMenuItem
                     onClick={(e) => { e.stopPropagation(); handleMarkFeedAllRead(sub); }}
                   >
                     <CheckCheck className="size-4" />
-                    全部已读
+                    Mark all read
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
@@ -422,7 +422,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
     <Sidebar className="border-r-0">
       <SidebarHeader className="px-3 py-3 space-y-3">
         <div className="flex items-center gap-2 px-1">
-          <div className="size-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
+          <div className="size-7 rounded-md bg-primary flex items-center justify-center shrink-0">
             <Rss className="size-3.5 text-primary-foreground" />
           </div>
           <span className="font-semibold text-base tracking-tight">Feedwise</span>
@@ -433,8 +433,8 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
             type="text"
             value={searchDraft}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="搜索文章..."
-            className="w-full text-sm bg-muted rounded-xl pl-8 pr-7 py-1.5 outline-none placeholder:text-muted-foreground/60"
+            placeholder="Search articles…"
+            className="w-full text-sm bg-muted rounded-md pl-8 pr-7 py-1.5 outline-none border border-transparent focus:border-border placeholder:text-muted-foreground/60"
           />
           {searchDraft && (
             <button
@@ -458,7 +458,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                   <SidebarMenuButton
                     isActive={activeView === key && !activeFeedId && !activeFolderId && pathname === "/reader"}
                     onClick={() => { router.replace(`/reader?view=${key}`); }}
-                    className="rounded-xl h-9 transition-all duration-150"
+                    className="rounded-md h-9 transition-all duration-150"
                   >
                     <Icon className={cn("size-4", key === "starred" && activeView === key && "text-yellow-500")} />
                     <span className="flex-1">{label}</span>
@@ -475,7 +475,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                   <SidebarMenuButton
                     isActive={pathname === href}
                     onClick={() => router.push(href)}
-                    className="rounded-xl h-9 transition-all duration-150"
+                    className="rounded-md h-9 transition-all duration-150"
                   >
                     <Icon className="size-4" />
                     <span className="flex-1">{label}</span>
@@ -567,7 +567,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     onClick={() => setAddOpen(true)}
-                    className="rounded-xl h-9 transition-all duration-150 text-muted-foreground"
+                    className="rounded-md h-9 transition-all duration-150 text-muted-foreground"
                   >
                     <Plus className="size-4" />
                     <span className="flex-1">Add Feed</span>
@@ -584,7 +584,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 rounded-xl"
+            className="size-8 rounded-md"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
             <Sun className="size-4 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
@@ -593,7 +593,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 rounded-xl"
+            className="size-8 rounded-md"
             onClick={() => router.push("/settings")}
           >
             <Settings className="size-4" />
@@ -602,7 +602,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 rounded-xl text-muted-foreground"
+            className="size-8 rounded-md text-muted-foreground"
             onClick={() => signOut().then(() => router.push("/login"))}
           >
             <LogOut className="size-4" />
@@ -612,7 +612,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
 
       {/* Add Feed dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-lg">
           <DialogHeader>
             <DialogTitle>Add Feed</DialogTitle>
           </DialogHeader>
@@ -623,11 +623,11 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
               onChange={(e) => setFeedUrl(e.target.value)}
               rows={4}
               autoFocus
-              className="rounded-xl resize-none text-sm"
+              className="rounded-md resize-none text-sm"
             />
             <p className="text-xs text-muted-foreground">One URL per line for batch add</p>
             {addError && <p className="text-destructive text-sm whitespace-pre-line">{addError}</p>}
-            <Button type="submit" className="w-full rounded-xl" disabled={adding || feedUrl.trim().length === 0}>
+            <Button type="submit" className="w-full rounded-md" disabled={adding || feedUrl.trim().length === 0}>
               {adding ? "Adding..." : "Subscribe"}
             </Button>
           </form>
@@ -636,7 +636,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
 
       {/* Rename dialog */}
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-lg">
           <DialogHeader>
             <DialogTitle>Rename Feed</DialogTitle>
           </DialogHeader>
@@ -649,17 +649,17 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                 onChange={(e) => setRenameName(e.target.value)}
                 placeholder={renameTarget?.feedTitle ?? "Feed name"}
                 autoFocus
-                className="rounded-xl"
+                className="rounded-md"
               />
             </div>
             <div className="flex gap-2">
-              <Button type="submit" disabled={renaming} className="flex-1 rounded-xl">
+              <Button type="submit" disabled={renaming} className="flex-1 rounded-md">
                 {renaming ? "Saving..." : "Save"}
               </Button>
               <Button
                 type="button"
                 variant="ghost"
-                className="rounded-xl"
+                className="rounded-md"
                 onClick={() => setRenameOpen(false)}
               >
                 Cancel
@@ -671,7 +671,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
 
       {/* Edit URL dialog */}
       <Dialog open={editUrlOpen} onOpenChange={setEditUrlOpen}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-lg">
           <DialogHeader>
             <DialogTitle>Edit Feed URL</DialogTitle>
           </DialogHeader>
@@ -686,20 +686,20 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                 type="url"
                 required
                 autoFocus
-                className="rounded-xl"
+                className="rounded-md"
               />
             </div>
             {editUrlError && (
               <p className="text-destructive text-sm">{editUrlError}</p>
             )}
             <div className="flex gap-2">
-              <Button type="submit" disabled={editUrlSaving} className="flex-1 rounded-xl">
+              <Button type="submit" disabled={editUrlSaving} className="flex-1 rounded-md">
                 {editUrlSaving ? "Saving..." : "Save"}
               </Button>
               <Button
                 type="button"
                 variant="ghost"
-                className="rounded-xl"
+                className="rounded-md"
                 onClick={() => setEditUrlOpen(false)}
               >
                 Cancel
