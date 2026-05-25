@@ -8,6 +8,12 @@ describe("formatTimeList", () => {
   it("joins multiple hours with comma", () => {
     expect(formatTimeList("8,18", "0")).toBe("08:00, 18:00");
   });
+  it("produces the cross-product of multiple hours and minutes", () => {
+    expect(formatTimeList("8,18", "0,30")).toBe("08:00, 08:30, 18:00, 18:30");
+  });
+  it("returns empty string for non-numeric input", () => {
+    expect(formatTimeList("x", "y")).toBe("");
+  });
 });
 
 describe("describeCron", () => {

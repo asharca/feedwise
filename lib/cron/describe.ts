@@ -1,4 +1,4 @@
-const WEEKDAY_NAMES: Record<number, string> = {
+const WEEKDAY_NAMES: Readonly<Record<number, string>> = {
   0: "Sunday",
   1: "Monday",
   2: "Tuesday",
@@ -38,7 +38,7 @@ export function describeCron(cron: string): string {
   if (day === "*" && month === "*" && weekday === "1-5") {
     return `Weekdays at ${timeStr}`;
   }
-  if (day === "*" && month === "*" && /^\d$/.test(weekday)) {
+  if (day === "*" && month === "*" && /^\d+$/.test(weekday)) {
     return `Every ${WEEKDAY_NAMES[parseInt(weekday)] ?? weekday} at ${timeStr}`;
   }
   if (day === "*" && month === "*" && weekday.includes(",")) {
