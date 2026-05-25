@@ -4,11 +4,15 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { ArrowLeft, Sun, Moon, Monitor, Upload, Download, Trash2, RefreshCw, Clock, Mail, BookOpen, Check, User, Calendar } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeft } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import CronBuilder from "@/components/cron-builder";
+import { AppearanceSection } from "@/components/settings/appearance-section";
+import { FeedsSection } from "@/components/settings/feeds-section";
+import { DigestEmailSection } from "@/components/settings/digest-email-section";
+import { SmartDigestSection } from "@/components/settings/smart-digest-section";
+import { AccountSection } from "@/components/settings/account-section";
 
 interface Sub {
   id: string;
@@ -32,12 +36,7 @@ interface EmailSettings {
   smtpPort?: number | null;
   smtpUser?: string | null;
   smtpFrom?: string | null;
-}
-
-interface TagItem {
-  id: string;
-  name: string;
-  color: string | null;
+  autoSaveOnClick?: boolean;
 }
 
 interface UserAccount {
@@ -48,15 +47,20 @@ interface UserAccount {
   createdAt: string;
 }
 
-const themes = [
-  { key: "light", label: "Light", icon: Sun },
-  { key: "dark", label: "Dark", icon: Moon },
-  { key: "system", label: "System", icon: Monitor },
+const SECTIONS = [
+  { key: "appearance", label: "Appearance" },
+  { key: "feeds", label: "Feeds" },
+  { key: "digest", label: "Digest Email" },
+  { key: "smart", label: "Smart Digest" },
+  { key: "account", label: "Account" },
 ] as const;
+
+type SectionKey = (typeof SECTIONS)[number]["key"];
 
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const [active, setActive] = useState<SectionKey>("appearance");
   const [subs, setSubs] = useState<Sub[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -219,12 +223,10 @@ export default function SettingsPage() {
     const { smtpHost, smtpPort, smtpUser } = emailSettings;
     if (!smtpHost || !smtpUser) return false;
 
-    // Basic host validation
     const hostRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$/;
     const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
     if (!hostRegex.test(smtpHost) && !ipRegex.test(smtpHost)) return false;
 
-    // Port validation
     if (smtpPort && (smtpPort < 1 || smtpPort > 65535)) return false;
 
     return true;
@@ -247,35 +249,16 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleEmailTimeChange(sendTime: string) {
+  async function handleAutoSaveToggle(autoSaveOnClick: boolean) {
     setEmailSaving(true);
     try {
       const res = await fetch("/api/settings/email", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sendTime }),
+        body: JSON.stringify({ autoSaveOnClick }),
       });
       const data = await res.json();
-      if (data.success && data.data) {
-        setEmailSettings(data.data);
-      }
-    } finally {
-      setEmailSaving(false);
-    }
-  }
-
-  async function handleFrequencyChange(frequency: "daily" | "weekly") {
-    setEmailSaving(true);
-    try {
-      const res = await fetch("/api/settings/email", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ frequency }),
-      });
-      const data = await res.json();
-      if (data.success && data.data) {
-        setEmailSettings(data.data);
-      }
+      if (data.success && data.data) setEmailSettings(data.data);
     } finally {
       setEmailSaving(false);
     }
@@ -312,12 +295,10 @@ export default function SettingsPage() {
       ? currentSelectedFeeds.filter((id) => id !== feedId)
       : [...currentSelectedFeeds, feedId];
 
-    // Store the original state for potential rollback
     const originalSelectedFeeds = [...currentSelectedFeeds];
 
-    // Optimistically update UI
     setEmailSettings(prev => {
-      if (!prev) return prev; // Don't update if prev is null
+      if (!prev) return prev;
       return { ...prev, selectedFeeds: newSelectedFeeds };
     });
 
@@ -332,7 +313,6 @@ export default function SettingsPage() {
       if (data.success && data.data) {
         setEmailSettings(data.data);
       } else {
-        // Revert on error
         setEmailSettings(prev => {
           if (!prev) return prev;
           return { ...prev, selectedFeeds: originalSelectedFeeds };
@@ -340,7 +320,6 @@ export default function SettingsPage() {
         setEmailError(data.error || "Failed to update");
       }
     } catch (err) {
-      // Revert on error
       setEmailSettings(prev => {
         if (!prev) return prev;
         return { ...prev, selectedFeeds: originalSelectedFeeds };
@@ -353,9 +332,7 @@ export default function SettingsPage() {
   async function handleSMTPChange(field: string, value: string | number) {
     setEmailError(null);
 
-    // Basic validation
     if (field === "smtpHost" && value && typeof value === "string") {
-      // Check if it's a valid hostname/IP
       const hostRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$/;
       const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
       if (!hostRegex.test(value) && !ipRegex.test(value)) {
@@ -395,6 +372,62 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleCronSave() {
+    setEmailSaving(true);
+    try {
+      const res = await fetch("/api/settings/email", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cronExpression: pendingCron }),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setEmailSettings(data.data);
+        setPendingCron(null);
+      }
+    } finally {
+      setEmailSaving(false);
+    }
+  }
+
+  async function handleTestEmail() {
+    setEmailTesting(true);
+    setEmailError(null);
+    try {
+      const res = await fetch("/api/settings/email/test", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("测试邮件发送成功");
+      } else {
+        setEmailError(data.error || "Failed to send test email");
+      }
+    } catch {
+      setEmailError("Failed to send test email");
+    } finally {
+      setEmailTesting(false);
+    }
+  }
+
+  async function handleNameSave() {
+    await fetch("/api/settings/account", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: userAccount?.name }),
+    });
+  }
+
+  async function handleEmailSave() {
+    const res = await fetch("/api/settings/account", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userAccount?.email }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      alert(data.error || "Failed to update email");
+    }
+  }
+
   if (error) {
     return (
       <div className="h-full overflow-y-auto scrollbar-thin">
@@ -431,548 +464,137 @@ export default function SettingsPage() {
     );
   }
 
+  function renderActiveSection() {
+    switch (active) {
+      case "appearance":
+        return (
+          <AppearanceSection
+            theme={theme}
+            mounted={mounted}
+            onSelect={setTheme}
+          />
+        );
+      case "feeds":
+        return (
+          <FeedsSection
+            subs={subs}
+            syncing={syncing}
+            onSyncAll={handleSyncAll}
+            onImportOPML={handleImportOPML}
+            onExportOPML={handleExportOPML}
+            onIntervalChange={handleIntervalChange}
+            onDeleteFeed={handleDeleteFeed}
+          />
+        );
+      case "digest":
+        return (
+          <DigestEmailSection
+            loading={loading}
+            emailSettings={emailSettings}
+            emailSaving={emailSaving}
+            emailTesting={emailTesting}
+            emailError={emailError}
+            smtpPassDraft={smtpPassDraft}
+            pendingCron={pendingCron}
+            subs={subs}
+            isSMTPConfigValid={isSMTPConfigValid}
+            onEmailToggle={handleEmailToggle}
+            onCronChange={setPendingCron}
+            onCronSave={handleCronSave}
+            onCronCancel={() => setPendingCron(null)}
+            onSMTPChange={handleSMTPChange}
+            onSmtpPassDraftChange={setSmtpPassDraft}
+            onEmailSettingsChange={setEmailSettings}
+            onFeedToggle={handleFeedToggle}
+            onTestEmail={handleTestEmail}
+            onAutoSaveToggle={handleAutoSaveToggle}
+          />
+        );
+      case "smart":
+        return (
+          <SmartDigestSection
+            llmEnabled={llmEnabled}
+            llmBaseUrl={llmBaseUrl}
+            llmApiKey={llmApiKey}
+            llmModel={llmModel}
+            llmKeyMask={llmKeyMask}
+            llmSaving={llmSaving}
+            llmTesting={llmTesting}
+            onLlmEnabledChange={setLlmEnabled}
+            onLlmBaseUrlChange={setLlmBaseUrl}
+            onLlmApiKeyChange={setLlmApiKey}
+            onLlmModelChange={setLlmModel}
+            onSave={saveLlmConfig}
+            onTest={testLlm}
+          />
+        );
+      case "account":
+        return (
+          <AccountSection
+            userAccount={userAccount}
+            onNameChange={setUserAccount}
+            onEmailChange={setUserAccount}
+            onNameSave={handleNameSave}
+            onEmailSave={handleEmailSave}
+          />
+        );
+    }
+  }
+
   return (
     <div className="h-full overflow-y-auto scrollbar-thin">
-    <div className="max-w-2xl mx-auto p-6 sm:p-8">
-      <div className="flex items-center gap-3 mb-8">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8 rounded-xl"
-          onClick={() => router.push("/reader")}
-        >
-          <ArrowLeft className="size-4" />
-        </Button>
-        <h1 className="text-xl font-bold tracking-tight">Settings</h1>
-      </div>
+      <div className="max-w-4xl mx-auto p-6 sm:p-8">
+        <div className="flex items-center gap-3 mb-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-xl"
+            onClick={() => router.push("/reader")}
+          >
+            <ArrowLeft className="size-4" />
+          </Button>
+          <h1 className="text-xl font-bold tracking-tight">Settings</h1>
+        </div>
 
-      <div className="space-y-6">
-        <Card className="rounded-2xl border-border/50">
-          <CardHeader>
-            <CardTitle className="text-base">Appearance</CardTitle>
-            <CardDescription>Choose your preferred theme</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
-              {themes.map(({ key, label, icon: Icon }) => (
-                <button
-                  type="button"
-                  key={key}
-                  onClick={() => setTheme(key)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150",
-                    mounted && theme === key
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "bg-muted hover:bg-accent"
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Mobile section picker */}
+        <div className="md:hidden mb-4">
+          <select
+            value={active}
+            onChange={(e) => setActive(e.target.value as SectionKey)}
+            className="w-full text-sm bg-muted rounded-xl px-3 py-2 outline-none cursor-pointer"
+          >
+            {SECTIONS.map((s) => (
+              <option key={s.key} value={s.key}>{s.label}</option>
+            ))}
+          </select>
+        </div>
 
-        <Card className="rounded-2xl border-border/50">
-          <CardHeader>
-            <CardTitle className="text-base">Feed Management</CardTitle>
-            <CardDescription>Manage your RSS subscriptions</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-xl"
-                onClick={handleSyncAll}
-                disabled={syncing}
-              >
-                <RefreshCw className={cn("size-4", syncing && "animate-spin")} />
-                {syncing ? "Syncing..." : "Sync All"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-xl"
-                onClick={handleImportOPML}
-              >
-                <Download className="size-4" />
-                Import OPML
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-xl"
-                onClick={handleExportOPML}
-              >
-                <Upload className="size-4" />
-                Export OPML
-              </Button>
-            </div>
-
-            {subs.length > 0 && (
-              <div className="border border-border/50 rounded-xl divide-y divide-border/50 overflow-hidden">
-                {subs.map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent/30 transition-colors"
-                  >
-                    {sub.iconUrl ? (
-                      <img src={sub.iconUrl} alt="" className="size-4 rounded-sm shrink-0" />
-                    ) : (
-                      <span className="size-4 rounded-sm bg-muted shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {sub.title ?? sub.feedTitle ?? sub.url}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground truncate">{sub.url}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Clock className="size-3 text-muted-foreground" />
-                      <select
-                        value={sub.fetchIntervalMinutes ?? 60}
-                        onChange={(e) => handleIntervalChange(sub, Number(e.target.value))}
-                        className="text-xs bg-muted rounded-lg px-1.5 py-1 outline-none cursor-pointer"
-                      >
-                        <option value={5}>5m</option>
-                        <option value={15}>15m</option>
-                        <option value={30}>30m</option>
-                        <option value={60}>1h</option>
-                        <option value={120}>2h</option>
-                        <option value={360}>6h</option>
-                        <option value={720}>12h</option>
-                        <option value={1440}>24h</option>
-                      </select>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 rounded-lg shrink-0 text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteFeed(sub)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-border/50">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Mail className="size-4" />
-              Daily Digest
-            </CardTitle>
-            <CardDescription>Get your articles delivered to your inbox</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loading ? (
-              <div className="space-y-4">
-                <div className="h-6 bg-muted rounded animate-pulse" />
-                <div className="h-10 bg-muted rounded animate-pulse" />
-                <div className="h-32 bg-muted rounded animate-pulse" />
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Enable email digest</p>
-                    <p className="text-xs text-muted-foreground">Receive daily article summary</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleEmailToggle(!(emailSettings?.enabled ?? false))}
-                    disabled={emailSaving || emailTesting}
-                    className={cn(
-                      "w-11 h-6 rounded-full transition-colors relative",
-                      (emailSettings?.enabled ?? false) ? "bg-primary" : "bg-muted"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-                        (emailSettings?.enabled ?? false) ? "left-6" : "left-1"
-                      )}
-                    />
-                  </button>
-                </div>
-
-                {emailSettings && emailSettings.enabled && (
-                  <>
-                    <div>
-                      <div className="mb-2">
-                        <p className="text-sm font-medium">推送计划</p>
-                        <p className="text-xs text-muted-foreground">选择何时推送邮件摘要</p>
-                      </div>
-                      <CronBuilder
-                        value={pendingCron ?? emailSettings.cronExpression}
-                        onChange={(cron) => setPendingCron(cron)}
-                        disabled={emailSaving || emailTesting}
-                      />
-                      {pendingCron !== null && pendingCron !== emailSettings.cronExpression && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            className="rounded-xl"
-                            disabled={emailSaving}
-                            onClick={async () => {
-                              setEmailSaving(true);
-                              try {
-                                const res = await fetch("/api/settings/email", {
-                                  method: "PUT",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ cronExpression: pendingCron }),
-                                });
-                                const data = await res.json();
-                                if (data.success && data.data) {
-                                  setEmailSettings(data.data);
-                                  setPendingCron(null);
-                                }
-                              } finally {
-                                setEmailSaving(false);
-                              }
-                            }}
-                          >
-                            {emailSaving ? "保存中..." : "保存推送计划"}
-                          </Button>
-                          <button
-                            type="button"
-                            className="text-xs text-muted-foreground hover:text-foreground"
-                            onClick={() => setPendingCron(null)}
-                          >
-                            取消
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="border-t border-border/30 pt-4 mt-4">
-                      <p className="text-sm font-medium mb-3">SMTP Configuration</p>
-                      {emailError && (
-                        <div className="mb-3 p-2 bg-destructive/10 text-destructive text-sm rounded-lg">
-                          {emailError}
-                        </div>
-                      )}
-                      <div className="grid gap-3">
-                        <div>
-                          <label htmlFor="smtp-host" className="text-xs text-muted-foreground block mb-1">SMTP Host</label>
-                          <input
-                            id="smtp-host"
-                            type="text"
-                            placeholder="smtp.gmail.com"
-                            value={emailSettings.smtpHost || ""}
-                            onChange={(e) => setEmailSettings(prev => prev ? { ...prev, smtpHost: e.target.value } : null)}
-                            onBlur={(e) => handleSMTPChange("smtpHost", e.target.value)}
-                            disabled={emailSaving || emailTesting}
-                            className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label htmlFor="smtp-port" className="text-xs text-muted-foreground block mb-1">Port</label>
-                            <input
-                              id="smtp-port"
-                              type="number"
-                              placeholder="587"
-                              value={emailSettings.smtpPort || ""}
-                              onChange={(e) => setEmailSettings(prev => prev ? { ...prev, smtpPort: parseInt(e.target.value) || 587 } : null)}
-                              onBlur={(e) => handleSMTPChange("smtpPort", parseInt(e.target.value) || 587)}
-                              disabled={emailSaving || emailTesting}
-                              className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                            />
-                          </div>
-                          <div>
-                            <label htmlFor="smtp-from" className="text-xs text-muted-foreground block mb-1">From Name</label>
-                            <input
-                              id="smtp-from"
-                              type="text"
-                              placeholder="Feedwise"
-                              value={emailSettings.smtpFrom || ""}
-                              onChange={(e) => setEmailSettings(prev => prev ? { ...prev, smtpFrom: e.target.value } : null)}
-                              onBlur={(e) => handleSMTPChange("smtpFrom", e.target.value)}
-                              disabled={emailSaving || emailTesting}
-                              className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label htmlFor="smtp-user" className="text-xs text-muted-foreground block mb-1">Username / Email</label>
-                          <input
-                            id="smtp-user"
-                            type="text"
-                            placeholder="your-email@gmail.com"
-                            value={emailSettings.smtpUser || ""}
-                            onChange={(e) => setEmailSettings(prev => prev ? { ...prev, smtpUser: e.target.value } : null)}
-                            onBlur={(e) => handleSMTPChange("smtpUser", e.target.value)}
-                            disabled={emailSaving || emailTesting}
-                            className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor="smtp-pass" className="text-xs text-muted-foreground block mb-1">Password / App Password</label>
-                          <input
-                            id="smtp-pass"
-                            type="password"
-                            placeholder="Enter password"
-                            value={smtpPassDraft}
-                            onChange={(e) => setSmtpPassDraft(e.target.value)}
-                            onBlur={(e) => {
-                              if (e.target.value) handleSMTPChange("smtpPass", e.target.value);
-                            }}
-                            disabled={emailSaving || emailTesting}
-                            className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                          />
-                          {emailSettings?.hasSmtpPass && (
-                            <p className="mt-1 text-[11px] text-muted-foreground">SMTP password is saved.</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {subs.length > 0 && (
-                      <div>
-                        <p className="text-sm font-medium mb-2 flex items-center gap-1">
-                          <BookOpen className="size-4" />
-                          Select feeds to notify
-                        </p>
-                        <div className="border border-border/50 rounded-lg divide-y divide-border/50 max-h-48 overflow-y-auto">
-                          {subs.map((sub) => (
-                            <button
-                              type="button"
-                              key={sub.id}
-                              onClick={() => handleFeedToggle(sub.feedId)}
-                              disabled={emailSaving || emailTesting}
-                              aria-checked={(emailSettings.selectedFeeds || []).includes(sub.feedId)}
-                              role="checkbox"
-                              className="w-full text-left flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent/30 disabled:opacity-60"
-                            >
-                              <div className={cn(
-                                "w-4 h-4 rounded border flex items-center justify-center shrink-0",
-                                (emailSettings.selectedFeeds || []).includes(sub.feedId)
-                                  ? "bg-primary border-primary"
-                                  : "border-muted-foreground"
-                              )}>
-                                {(emailSettings.selectedFeeds || []).includes(sub.feedId) && (
-                                  <Check className="size-3 text-primary-foreground" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm truncate">{sub.title ?? sub.feedTitle ?? sub.url}</p>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          {(emailSettings.selectedFeeds || []).length === 0
-                            ? "All feeds will be included"
-                            : `${(emailSettings.selectedFeeds || []).length} feed(s) selected`}
-                        </p>
-                      </div>
-                    )}
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full rounded-xl"
-                      onClick={async () => {
-                        setEmailTesting(true);
-                        setEmailError(null);
-                        try {
-                          const res = await fetch("/api/settings/email/test", { method: "POST" });
-                          const data = await res.json();
-                          if (data.success) {
-                            toast.success("测试邮件发送成功");
-                          } else {
-                            setEmailError(data.error || "Failed to send test email");
-                          }
-                        } catch {
-                          setEmailError("Failed to send test email");
-                        } finally {
-                          setEmailTesting(false);
-                        }
-                      }}
-                      disabled={
-                        emailSaving ||
-                        emailTesting ||
-                        !isSMTPConfigValid() ||
-                        (!(emailSettings?.hasSmtpPass) && smtpPassDraft.trim().length === 0)
-                      }
-                    >
-                      <Mail className="size-4 mr-2" />
-                      {emailTesting ? "Sending..." : "Send Test Email"}
-                    </Button>
-                  </>
+        <div className="flex gap-6">
+          {/* Desktop left rail */}
+          <nav className="hidden md:flex flex-col gap-1 w-44 shrink-0">
+            {SECTIONS.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setActive(s.key)}
+                className={cn(
+                  "text-left px-3 py-2 rounded-xl text-sm font-medium transition-colors",
+                  active === s.key
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                 )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-border/50">
-          <CardHeader>
-            <CardTitle className="text-base">Smart Digest (Beta)</CardTitle>
-            <CardDescription>
-              When on, your digest is grouped by topic and ranked by importance. Uses your own OpenAI-compatible API. Off by default.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={llmEnabled}
-                onChange={(e) => setLlmEnabled(e.target.checked)}
-              />
-              <span>Enable LLM clustering</span>
-            </label>
-            <div className="space-y-3">
-              <label className="block">
-                <span className="block text-xs text-muted-foreground mb-1">API Base URL</span>
-                <input
-                  type="url"
-                  value={llmBaseUrl}
-                  onChange={(e) => setLlmBaseUrl(e.target.value)}
-                  placeholder="https://api.openai.com/v1"
-                  className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="block text-xs text-muted-foreground mb-1">
-                  API Key {llmKeyMask && <span>· stored: {llmKeyMask}</span>}
-                </span>
-                <input
-                  type="password"
-                  value={llmApiKey}
-                  onChange={(e) => setLlmApiKey(e.target.value)}
-                  placeholder={llmKeyMask ? "(unchanged — leave blank to keep)" : "sk-..."}
-                  className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="block text-xs text-muted-foreground mb-1">Model</span>
-                <input
-                  type="text"
-                  value={llmModel}
-                  onChange={(e) => setLlmModel(e.target.value)}
-                  placeholder="gpt-4o-mini"
-                  className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                />
-              </label>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="rounded-xl"
-                onClick={saveLlmConfig}
-                disabled={llmSaving}
               >
-                {llmSaving ? "Saving..." : "Save"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-xl"
-                onClick={testLlm}
-                disabled={llmTesting || !llmBaseUrl || !llmModel}
-              >
-                {llmTesting ? "Testing..." : "Test"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                {s.label}
+              </button>
+            ))}
+          </nav>
 
-        <Card className="rounded-2xl border-border/50">
-          <CardHeader>
-            <CardTitle className="text-base">Account</CardTitle>
-            <CardDescription>Your account details</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {userAccount ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  {userAccount.image ? (
-                    <img src={userAccount.image} alt="" className="w-12 h-12 rounded-full" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                      <User className="size-6 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-sm font-medium">{userAccount.name || "Unnamed User"}</p>
-                    <p className="text-xs text-muted-foreground">{userAccount.email}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Calendar className="size-3" />
-                  <span>Joined {new Date(userAccount.createdAt).toLocaleDateString()}</span>
-                </div>
-                <div className="pt-2 border-t border-border/30">
-                  <label htmlFor="user-name" className="text-xs text-muted-foreground block mb-1">Display Name</label>
-                  <div className="flex gap-2">
-                    <input
-                      id="user-name"
-                      type="text"
-                      placeholder="Enter your name"
-                      value={userAccount.name || ""}
-                      onChange={(e) => setUserAccount(prev => prev ? { ...prev, name: e.target.value } : null)}
-                      className="flex-1 text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                    />
-                    <Button
-                      size="sm"
-                      className="rounded-xl"
-                      onClick={async () => {
-                        await fetch("/api/settings/account", {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ name: userAccount.name }),
-                        });
-                      }}
-                    >
-                      Save
-                    </Button>
-                  </div>
-                </div>
-                <div className="pt-2 border-t border-border/30">
-                  <label htmlFor="user-email" className="text-xs text-muted-foreground block mb-1">Email</label>
-                  <div className="flex gap-2">
-                    <input
-                      id="user-email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={userAccount.email || ""}
-                      onChange={(e) => setUserAccount(prev => prev ? { ...prev, email: e.target.value } : null)}
-                      className="flex-1 text-sm bg-muted rounded-lg px-3 py-2 outline-none"
-                    />
-                    <Button
-                      size="sm"
-                      className="rounded-xl"
-                      onClick={async () => {
-                        const res = await fetch("/api/settings/account", {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ email: userAccount.email }),
-                        });
-                        const data = await res.json();
-                        if (!data.success) {
-                          alert(data.error || "Failed to update email");
-                        }
-                      }}
-                    >
-                      Save
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            )}
-          </CardContent>
-        </Card>
+          {/* Section pane */}
+          <div className="flex-1 min-w-0">
+            {renderActiveSection()}
+          </div>
+        </div>
       </div>
-    </div>
     </div>
   );
 }
