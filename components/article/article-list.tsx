@@ -47,7 +47,7 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
   if (articles.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-8">
-        <div className="size-14 rounded-2xl bg-muted/60 flex items-center justify-center">
+        <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
           <Inbox className="size-6 text-muted-foreground/40" />
         </div>
         <p className="text-sm">No articles</p>
@@ -129,12 +129,12 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
               tabIndex={0}
               onClick={() => onSelect(article.id)}
               className={cn(
-                "group relative flex flex-col rounded-xl overflow-hidden border bg-card",
-                "cursor-pointer transition-all duration-150",
-                "hover:shadow-md hover:border-border/80 hover:-translate-y-0.5",
+                "group relative flex flex-col rounded-md overflow-hidden border bg-card",
+                "cursor-pointer transition-colors duration-150",
+                "hover:border-foreground/20",
                 activeId === article.id
-                  ? "border-primary/40 ring-1 ring-primary/30 shadow-sm"
-                  : "border-border/50",
+                  ? "border-primary"
+                  : "border-border",
                 article.isRead && activeId !== article.id && "opacity-55"
               )}
             >
@@ -208,7 +208,7 @@ function LoadMoreButton({ hasMore, loadingMore, onLoadMore }: {
         disabled={loadingMore}
         className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 px-4 py-2 rounded-lg bg-muted hover:bg-accent transition-colors"
       >
-        {loadingMore ? "加载中..." : "加载更多"}
+        {loadingMore ? "Loading…" : "Load more"}
       </button>
     </div>
   );
