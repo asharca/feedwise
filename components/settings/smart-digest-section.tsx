@@ -2,6 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { SettingRow } from "@/components/settings/setting-row";
 
 interface Props {
   llmEnabled: boolean;
@@ -35,7 +37,7 @@ export function SmartDigestSection({
   onTest,
 }: Props) {
   return (
-    <Card className="rounded-2xl border-border/50">
+    <Card className="rounded-lg">
       <CardHeader>
         <CardTitle className="text-base">Smart Digest (Beta)</CardTitle>
         <CardDescription>
@@ -43,14 +45,13 @@ export function SmartDigestSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={llmEnabled}
-            onChange={(e) => onLlmEnabledChange(e.target.checked)}
+        <div className="divide-y divide-border">
+          <SettingRow
+            title="Enable LLM clustering"
+            description="Group and rank articles before sending"
+            control={<Switch checked={llmEnabled} onCheckedChange={onLlmEnabledChange} />}
           />
-          <span>Enable LLM clustering</span>
-        </label>
+        </div>
         <div className="space-y-3">
           <label className="block">
             <span className="block text-xs text-muted-foreground mb-1">API Base URL</span>
@@ -59,7 +60,7 @@ export function SmartDigestSection({
               value={llmBaseUrl}
               onChange={(e) => onLlmBaseUrlChange(e.target.value)}
               placeholder="https://api.openai.com/v1"
-              className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
+              className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
             />
           </label>
           <label className="block">
@@ -71,7 +72,7 @@ export function SmartDigestSection({
               value={llmApiKey}
               onChange={(e) => onLlmApiKeyChange(e.target.value)}
               placeholder={llmKeyMask ? "(unchanged — leave blank to keep)" : "sk-..."}
-              className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
+              className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
             />
           </label>
           <label className="block">
@@ -81,27 +82,22 @@ export function SmartDigestSection({
               value={llmModel}
               onChange={(e) => onLlmModelChange(e.target.value)}
               placeholder="gpt-4o-mini"
-              className="w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none"
+              className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
             />
           </label>
         </div>
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            className="rounded-xl"
-            onClick={onSave}
-            disabled={llmSaving}
-          >
-            {llmSaving ? "Saving..." : "Save"}
+          <Button size="sm" className="rounded-md" onClick={onSave} disabled={llmSaving}>
+            {llmSaving ? "Saving…" : "Save"}
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="rounded-xl"
+            className="rounded-md"
             onClick={onTest}
             disabled={llmTesting || !llmBaseUrl || !llmModel}
           >
-            {llmTesting ? "Testing..." : "Test"}
+            {llmTesting ? "Testing…" : "Test"}
           </Button>
         </div>
       </CardContent>
