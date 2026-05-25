@@ -54,11 +54,11 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="flex flex-col items-center gap-3">
-          <div className="size-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
+          <div className="size-11 rounded-lg bg-primary flex items-center justify-center">
             <Rss className="size-6 text-primary-foreground" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-bold tracking-tight">Create account</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Create account</h1>
             <p className="text-sm text-muted-foreground mt-1">Start reading your feeds</p>
           </div>
         </div>
@@ -72,7 +72,7 @@ export default function RegisterPage() {
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
               autoFocus
-              className="rounded-xl h-10"
+              className="rounded-md h-10"
             />
           </div>
           <div className="space-y-1.5">
@@ -83,7 +83,7 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="rounded-xl h-10"
+              className="rounded-md h-10"
             />
           </div>
           <div className="space-y-1.5">
@@ -94,7 +94,7 @@ export default function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="rounded-xl h-10"
+              className="rounded-md h-10"
             />
           </div>
           <div className="space-y-1.5">
@@ -105,7 +105,7 @@ export default function RegisterPage() {
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               required
-              className="rounded-xl h-10"
+              className="rounded-md h-10"
             />
           </div>
           <div className="space-y-1.5">
@@ -117,11 +117,11 @@ export default function RegisterPage() {
               onChange={(e) => setCode(e.target.value)}
               placeholder="Enter code"
               required
-              className="rounded-xl h-10"
+              className="rounded-md h-10"
             />
           </div>
           {error && <p className="text-destructive text-sm">{error}</p>}
-          <Button type="submit" className="w-full rounded-xl h-10" disabled={loading}>
+          <Button type="submit" className="w-full rounded-md h-10" disabled={loading}>
             {loading ? "Creating account..." : "Create account"}
           </Button>
         </form>
