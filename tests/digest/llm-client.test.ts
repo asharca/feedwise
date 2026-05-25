@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   callChatCompletion,
+  withLlmRetry,
   LlmTimeoutError,
   LlmRateLimitError,
   LlmHttpError,
   LlmParseError,
 } from "@/lib/digest/llm-client";
-import { withLlmRetry } from "@/lib/digest/llm-client";
 
 const CONFIG = {
   baseUrl: "https://api.example.com/v1",

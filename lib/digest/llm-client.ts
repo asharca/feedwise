@@ -110,7 +110,7 @@ export async function withLlmRetry<T>(
   fn: () => Promise<T>,
   opts: RetryOptions = {}
 ): Promise<T> {
-  const retries = opts.retries ?? 2;
+  const retries = Math.max(0, opts.retries ?? 2);
   const baseDelayMs = opts.baseDelayMs ?? 250;
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
