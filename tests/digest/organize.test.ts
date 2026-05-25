@@ -4,6 +4,13 @@ import { organize } from "@/lib/digest/organize";
 import type { DedupedArticle } from "@/lib/digest/types";
 import type { ClusterResponse } from "@/lib/digest/cluster-types";
 
+function ded(id: string, title: string): DedupedArticle {
+  return {
+    primary: { id, title, url: `https://e.com/${id}`, summary: `s ${title}`, feedTitle: "feed", publishedAt: new Date("2026-05-25T00:00:00Z") },
+    duplicates: [],
+  };
+}
+
 const uuid = (n: number) =>
   `f47ac10b-58cc-4372-a567-${String(n).padStart(12, "0")}`;
 
@@ -89,5 +96,23 @@ describe("organize", () => {
     const deduped = [art(uuid(1))];
     const out = organize(deduped, { clusters: [{ topic: "T", headline: "h", importance: 5, articleIds: [uuid(1)] }] });
     expect(out.mode).toBe("clustered");
+  });
+});
+
+describe("organize — multiple events per topic", () => {
+  it("renders each event as its own cluster within a topic group", () => {
+    const a = "11111111-1111-4111-a111-000000000001";
+    const b = "11111111-1111-4111-a111-000000000002";
+    const deduped = [ded(a, "Ceasefire talks resume"), ded(b, "Earthquake hits coast")];
+    const response = {
+      clusters: [
+        { topic: "World", headline: "Ceasefire talks resume", importance: 9, articleIds: [a] },
+        { topic: "World", headline: "Earthquake hits coast", importance: 8, articleIds: [b] },
+      ],
+    };
+    const digest = organize(deduped, response);
+    const world = digest.topicGroups.find((g) => g.topic === "World")!;
+    expect(world.clusters).toHaveLength(2); // two distinct events, NOT one + duplicate
+    expect(world.clusters.every((cl) => cl.duplicates.length === 0)).toBe(true);
   });
 });
