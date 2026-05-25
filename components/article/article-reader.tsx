@@ -57,7 +57,7 @@ function ActionButton({
       onClick={onClick}
       title={title}
       className={cn(
-        "size-8 inline-flex items-center justify-center rounded-xl hover:bg-accent transition-colors",
+        "size-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors",
         className
       )}
     >
@@ -99,13 +99,13 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack }: ArticleRe
   async function handleCopyUrl() {
     if (!article?.url) return;
     await navigator.clipboard.writeText(article.url);
-    toast.success("链接已复制");
+    toast.success("Link copied");
   }
 
   if (!article) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
-        <div className="size-16 rounded-2xl bg-muted/50 flex items-center justify-center">
+        <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
           <BookOpen className="size-7 text-muted-foreground/30" />
         </div>
         <p className="text-sm">Select an article to read</p>
@@ -164,7 +164,7 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack }: ArticleRe
               target="_blank"
               rel="noopener noreferrer"
               title="Open original"
-              className="size-8 inline-flex items-center justify-center rounded-xl hover:bg-accent transition-colors"
+              className="size-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
             >
               <ExternalLink className="size-4 text-muted-foreground" />
             </a>
@@ -205,7 +205,7 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack }: ArticleRe
           </div>
 
           {/* Title */}
-          <h1 className="text-2xl sm:text-3xl font-bold leading-tight tracking-tight mb-8">
+          <h1 className="text-2xl sm:text-3xl font-semibold leading-tight tracking-tight mb-8">
             {article.title}
           </h1>
 
