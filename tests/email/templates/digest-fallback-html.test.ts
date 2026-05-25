@@ -28,4 +28,14 @@ describe("renderFallbackHtml", () => {
     const html = renderFallbackHtml({ ...fixture, mode: "fallback-llm-failed" });
     expect(html).toContain("Topic clustering unavailable");
   });
+
+  it("uses the injected buildLink for article hrefs", () => {
+    const html = renderFallbackHtml(fixture, (a) => `https://app/r?id=${a.id}`);
+    expect(html).toContain('href="https://app/r?id=a"');
+    expect(html).toContain('href="https://app/r?id=b"');
+  });
+
+  it("defaults links to the article url", () => {
+    expect(renderFallbackHtml(fixture)).toContain('href="https://e.com/a"');
+  });
 });

@@ -1,5 +1,8 @@
 import type { OrganizedDigest, DigestArticle } from "@/lib/digest/types";
+import type { LinkFn } from "./digest-html";
 import { safeSummaryHtml } from "./summary-html";
+
+const defaultLink: LinkFn = (a) => a.url ?? "";
 
 function esc(s: string | null | undefined): string {
   if (s == null) return "";
@@ -15,11 +18,11 @@ function fmtDate(d: Date | null): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function renderArticleBlock(a: DigestArticle): string {
+function renderArticleBlock(a: DigestArticle, link: LinkFn): string {
   return `
     <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
       <h3 style="margin: 0 0 8px 0;">
-        <a href="${esc(a.url)}" style="color: #2563eb; text-decoration: none;">${esc(a.title)}</a>
+        <a href="${esc(link(a))}" style="color: #2563eb; text-decoration: none;">${esc(a.title)}</a>
       </h3>
       <p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">
         ${esc(a.feedTitle)} &middot; ${esc(fmtDate(a.publishedAt))}
@@ -33,11 +36,11 @@ function renderArticleBlock(a: DigestArticle): string {
     </div>`;
 }
 
-export function renderFallbackHtml(digest: OrganizedDigest): string {
+export function renderFallbackHtml(digest: OrganizedDigest, buildLink: LinkFn = defaultLink): string {
   const banner = digest.mode === "fallback-llm-failed"
     ? `<p style="color:#94a3b8;font-size:12px;margin:0 0 12px 0;">Topic clustering unavailable for this digest.</p>`
     : "";
-  const articles = digest.ungrouped.map(renderArticleBlock).join("");
+  const articles = digest.ungrouped.map((a) => renderArticleBlock(a, buildLink)).join("");
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,sans-serif;">

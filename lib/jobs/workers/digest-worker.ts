@@ -160,7 +160,7 @@ async function sendDigestForDate(
   const html =
     digest.mode === "clustered"
       ? renderDigestHtml(digest, buildLink)
-      : renderFallbackHtml(digest);
+      : renderFallbackHtml(digest, buildLink);
 
   try {
     await sendDailyDigest({ to: email, subject, html, smtpConfig });
