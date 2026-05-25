@@ -14,6 +14,8 @@ interface SegmentedProps<T extends string> {
   onChange: (value: T) => void;
   disabled?: boolean;
   className?: string;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
 }
 
 function Segmented<T extends string>({
@@ -22,15 +24,17 @@ function Segmented<T extends string>({
   onChange,
   disabled,
   className,
+  ...aria
 }: SegmentedProps<T>) {
   return (
     <div
-      role="tablist"
+      role="group"
       data-slot="segmented"
       className={cn(
         "inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5",
         className
       )}
+      {...aria}
     >
       {options.map((opt) => {
         const active = value === opt.value;
@@ -38,13 +42,12 @@ function Segmented<T extends string>({
           <button
             key={opt.value}
             type="button"
-            role="tab"
-            aria-selected={active}
+            aria-pressed={active}
             disabled={disabled}
             onClick={() => onChange(opt.value)}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1 text-sm font-medium transition-colors outline-none",
-              "focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50",
+              "focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed",
               active
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
