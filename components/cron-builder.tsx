@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { CronExpressionParser } from "cron-parser";
 import { cn } from "@/lib/utils";
+import { describeCron, formatTimeList } from "@/lib/cron/describe";
 
 interface CronBuilderProps {
   value: string | null;
@@ -13,13 +14,13 @@ interface CronBuilderProps {
 type CronPreset = "daily" | "weekly" | "monthly" | "custom";
 
 const WEEKDAYS = [
-  { value: 1, label: "周一" },
-  { value: 2, label: "周二" },
-  { value: 3, label: "周三" },
-  { value: 4, label: "周四" },
-  { value: 5, label: "周五" },
-  { value: 6, label: "周六" },
-  { value: 0, label: "周日" },
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 0, label: "Sun" },
 ];
 
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
@@ -29,56 +30,8 @@ function validateCron(expr: string): string | null {
     CronExpressionParser.parse(expr.trim());
     return null;
   } catch {
-    return "无效的 Cron 表达式";
+    return "Invalid cron expression";
   }
-}
-
-function formatTimeList(hour: string, minute: string): string {
-  const minutes = minute.includes(",") ? minute.split(",") : [minute];
-  const hours = hour.includes(",") ? hour.split(",") : [hour];
-  const times: string[] = [];
-  for (const h of hours) {
-    for (const m of minutes) {
-      const hh = parseInt(h);
-      const mm = parseInt(m);
-      if (!isNaN(hh) && !isNaN(mm)) {
-        times.push(`${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
-      }
-    }
-  }
-  return times.join("、");
-}
-
-function describeCron(cron: string): string {
-  const parts = cron.trim().split(/\s+/);
-  if (parts.length !== 5) return cron;
-
-  const [minute, hour, day, month, weekday] = parts;
-  const timeStr = formatTimeList(hour, minute);
-  if (!timeStr) return cron;
-
-  if (day === "*" && month === "*" && weekday === "*") {
-    return `每天 ${timeStr}`;
-  }
-  if (day === "*" && month === "*" && /^\d$/.test(weekday)) {
-    const wd = WEEKDAYS.find((w) => w.value === parseInt(weekday));
-    return `每周${wd?.label ?? weekday} ${timeStr}`;
-  }
-  if (day === "*" && month === "*" && weekday === "1-5") {
-    return `工作日 ${timeStr}`;
-  }
-  if (day === "*" && month === "*" && weekday.includes(",")) {
-    const days = weekday.split(",").map((v) => {
-      const wd = WEEKDAYS.find((w) => w.value === parseInt(v));
-      return wd?.label ?? v;
-    });
-    return `每周${days.join("、")} ${timeStr}`;
-  }
-  if (/^\d+$/.test(day) && month === "*" && weekday === "*") {
-    return `每月${day}号 ${timeStr}`;
-  }
-
-  return cron;
 }
 
 export default function CronBuilder({ value, onChange, disabled }: CronBuilderProps) {
@@ -190,10 +143,10 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
   }, [value]);
 
   const presets: { key: CronPreset; label: string }[] = [
-    { key: "daily",   label: "每天" },
-    { key: "weekly",  label: "每周" },
-    { key: "monthly", label: "每月" },
-    { key: "custom",  label: "自定义" },
+    { key: "daily",   label: "Daily" },
+    { key: "weekly",  label: "Weekly" },
+    { key: "monthly", label: "Monthly" },
+    { key: "custom",  label: "Custom" },
   ];
 
   return (
@@ -221,7 +174,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
       {mode !== "custom" && (
         <div className="flex items-center gap-3">
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">时</label>
+            <label className="text-xs text-muted-foreground block mb-1">Hour</label>
             <select
               value={hour}
               onChange={(e) => setHour(Number(e.target.value))}
@@ -234,7 +187,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
           </div>
           <span className="text-muted-foreground pt-5">:</span>
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">分</label>
+            <label className="text-xs text-muted-foreground block mb-1">Minute</label>
             <select
               value={minute}
               onChange={(e) => setMinute(Number(e.target.value))}
@@ -272,14 +225,14 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
       {/* Monthly selector */}
       {mode === "monthly" && (
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">日期</label>
+          <label className="text-xs text-muted-foreground block mb-1">Day</label>
           <select
             value={monthDay}
             onChange={(e) => setMonthDay(Number(e.target.value))}
             className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer"
           >
             {MONTH_DAYS.map((d) => (
-              <option key={d} value={d}>{d}号</option>
+              <option key={d} value={d}>{d}</option>
             ))}
           </select>
         </div>
@@ -288,7 +241,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
       {/* Custom cron input */}
       {mode === "custom" && (
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">Cron 表达式</label>
+          <label className="text-xs text-muted-foreground block mb-1">Cron expression</label>
           <input
             type="text"
             value={customDraft}
@@ -304,7 +257,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
             <p className="text-[11px] text-destructive mt-1">{customError}</p>
           ) : (
             <p className="text-[11px] text-muted-foreground mt-1">
-              格式：分 时 日 月 周　例：<span className="font-mono">0 8,18 * * *</span>（每天两次）
+              Format: min hour day month weekday — e.g. <span className="font-mono">0 8,18 * * *</span> (twice daily)
             </p>
           )}
         </div>
