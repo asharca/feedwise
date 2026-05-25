@@ -6,6 +6,7 @@ import {
   LlmHttpError,
   LlmParseError,
 } from "@/lib/digest/llm-client";
+import { withLlmRetry } from "@/lib/digest/llm-client";
 
 const CONFIG = {
   baseUrl: "https://api.example.com/v1",
@@ -92,5 +93,29 @@ describe("callChatCompletion", () => {
     await expect(
       callChatCompletion(CONFIG, { system: "", user: "", jsonSchema: { name: "X", schema: {} } })
     ).rejects.toBeInstanceOf(LlmParseError);
+  });
+});
+
+describe("withLlmRetry", () => {
+  it("retries transient errors then succeeds", async () => {
+    const fn = vi.fn()
+      .mockRejectedValueOnce(new LlmTimeoutError())
+      .mockRejectedValueOnce(new LlmRateLimitError())
+      .mockResolvedValue("ok");
+    const out = await withLlmRetry(fn, { retries: 2, baseDelayMs: 0 });
+    expect(out).toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry non-transient errors", async () => {
+    const fn = vi.fn().mockRejectedValue(new LlmHttpError(400, "bad"));
+    await expect(withLlmRetry(fn, { retries: 2, baseDelayMs: 0 })).rejects.toBeInstanceOf(LlmHttpError);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws after exhausting retries", async () => {
+    const fn = vi.fn().mockRejectedValue(new LlmTimeoutError());
+    await expect(withLlmRetry(fn, { retries: 1, baseDelayMs: 0 })).rejects.toBeInstanceOf(LlmTimeoutError);
+    expect(fn).toHaveBeenCalledTimes(2);
   });
 });
