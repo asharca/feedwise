@@ -35,7 +35,7 @@ export function FeedsSection({
   onDeleteFeed,
 }: Props) {
   return (
-    <Card className="rounded-2xl border-border/50">
+    <Card className="rounded-lg">
       <CardHeader>
         <CardTitle className="text-base">Feed Management</CardTitle>
         <CardDescription>Manage your RSS subscriptions</CardDescription>
@@ -45,7 +45,7 @@ export function FeedsSection({
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl"
+            className="rounded-md"
             onClick={onSyncAll}
             disabled={syncing}
           >
@@ -55,7 +55,7 @@ export function FeedsSection({
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl"
+            className="rounded-md"
             onClick={onImportOPML}
           >
             <Download className="size-4" />
@@ -64,7 +64,7 @@ export function FeedsSection({
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl"
+            className="rounded-md"
             onClick={onExportOPML}
           >
             <Upload className="size-4" />
@@ -73,7 +73,7 @@ export function FeedsSection({
         </div>
 
         {subs.length > 0 && (
-          <div className="border border-border/50 rounded-xl divide-y divide-border/50 overflow-hidden">
+          <div className="border border-border rounded-md divide-y divide-border overflow-y-auto scrollbar-thin max-h-96">
             {subs.map((sub) => (
               <div
                 key={sub.id}
