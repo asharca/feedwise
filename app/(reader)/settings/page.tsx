@@ -397,7 +397,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/settings/email/test", { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        toast.success("测试邮件发送成功");
+        toast.success("Test email sent");
       } else {
         setEmailError(data.error || "Failed to send test email");
       }
@@ -436,14 +436,14 @@ export default function SettingsPage() {
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 rounded-xl"
+              className="size-8 rounded-md"
               onClick={() => router.push("/reader")}
             >
               <ArrowLeft className="size-4" />
             </Button>
-            <h1 className="text-xl font-bold tracking-tight">Settings</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
           </div>
-          <Card className="rounded-2xl border-border/50">
+          <Card className="rounded-lg">
             <CardContent className="p-6">
               <div className="text-center text-destructive">
                 <p className="text-sm font-medium">Failed to load settings</p>
@@ -547,12 +547,12 @@ export default function SettingsPage() {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 rounded-xl"
+            className="size-8 rounded-md"
             onClick={() => router.push("/reader")}
           >
             <ArrowLeft className="size-4" />
           </Button>
-          <h1 className="text-xl font-bold tracking-tight">Settings</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
         </div>
 
         {/* Mobile section picker */}
@@ -560,7 +560,7 @@ export default function SettingsPage() {
           <select
             value={active}
             onChange={(e) => setActive(e.target.value as SectionKey)}
-            className="w-full text-sm bg-muted rounded-xl px-3 py-2 outline-none cursor-pointer"
+            className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none cursor-pointer"
           >
             {SECTIONS.map((s) => (
               <option key={s.key} value={s.key}>{s.label}</option>
@@ -578,7 +578,7 @@ export default function SettingsPage() {
                 onClick={() => setActive(s.key)}
                 aria-current={active === s.key ? "page" : undefined}
                 className={cn(
-                  "text-left px-3 py-2 rounded-xl text-sm font-medium transition-colors",
+                  "text-left px-3 py-2 rounded-md text-sm font-medium transition-colors",
                   active === s.key
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
