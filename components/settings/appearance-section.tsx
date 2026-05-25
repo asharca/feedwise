@@ -2,13 +2,14 @@
 
 import { Sun, Moon, Monitor } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { Segmented, type SegmentedOption } from "@/components/ui/segmented";
+import { SettingRow } from "@/components/settings/setting-row";
 
-const themes = [
-  { key: "light", label: "Light", icon: Sun },
-  { key: "dark", label: "Dark", icon: Moon },
-  { key: "system", label: "System", icon: Monitor },
-] as const;
+const themeOptions: SegmentedOption<string>[] = [
+  { value: "light", label: <span className="inline-flex items-center gap-1.5"><Sun className="size-3.5" />Light</span> },
+  { value: "dark", label: <span className="inline-flex items-center gap-1.5"><Moon className="size-3.5" />Dark</span> },
+  { value: "system", label: <span className="inline-flex items-center gap-1.5"><Monitor className="size-3.5" />System</span> },
+];
 
 interface Props {
   theme?: string;
@@ -18,30 +19,23 @@ interface Props {
 
 export function AppearanceSection({ theme, mounted, onSelect }: Props) {
   return (
-    <Card className="rounded-2xl border-border/50">
+    <Card className="rounded-lg">
       <CardHeader>
         <CardTitle className="text-base">Appearance</CardTitle>
         <CardDescription>Choose your preferred theme</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="flex gap-2">
-          {themes.map(({ key, label, icon: Icon }) => (
-            <button
-              type="button"
-              key={key}
-              onClick={() => onSelect(key)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150",
-                mounted && theme === key
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-muted hover:bg-accent"
-              )}
-            >
-              <Icon className="size-4" />
-              {label}
-            </button>
-          ))}
-        </div>
+      <CardContent className="divide-y divide-border">
+        <SettingRow
+          title="Theme"
+          description="Light, dark, or follow your system"
+          control={
+            <Segmented
+              value={mounted ? (theme ?? "system") : "system"}
+              options={themeOptions}
+              onChange={onSelect}
+            />
+          }
+        />
       </CardContent>
     </Card>
   );
