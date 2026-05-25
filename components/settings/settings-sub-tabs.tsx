@@ -11,11 +11,13 @@ interface SettingsSubTabsProps {
   tabs: SettingsSubTab[];
   active: string;
   onChange: (key: string) => void;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
 }
 
-function SettingsSubTabs({ tabs, active, onChange }: SettingsSubTabsProps) {
+function SettingsSubTabs({ tabs, active, onChange, ...aria }: SettingsSubTabsProps) {
   return (
-    <div role="tablist" className="flex items-center gap-1 border-b border-border">
+    <div role="tablist" className="flex items-center gap-1 border-b border-border" {...aria}>
       {tabs.map((t) => (
         <button
           key={t.key}
@@ -24,7 +26,7 @@ function SettingsSubTabs({ tabs, active, onChange }: SettingsSubTabsProps) {
           aria-selected={active === t.key}
           onClick={() => onChange(t.key)}
           className={cn(
-            "relative px-3 py-2 text-sm font-medium transition-colors -mb-px border-b-2",
+            "relative px-3 py-2 text-sm font-medium transition-colors -mb-px border-b-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
             active === t.key
               ? "border-primary text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"

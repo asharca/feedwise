@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/** A settings row: label/description on the left, a control on the right. Provide either `control` or `children`, not both. */
 interface SettingRowProps {
   title: React.ReactNode;
   description?: React.ReactNode;
