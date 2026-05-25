@@ -72,3 +72,44 @@ export function mergeSameEventClusters(
   }
   return out;
 }
+
+/** Canonicalize topic labels (trim, collapse whitespace, case-insensitive) so
+ * grouping is robust. Events are never merged here — only the topic string changes. */
+export function normalizeTopics(clusters: Cluster[]): Cluster[] {
+  const canonical = new Map<string, string>();
+  return clusters.map((cluster) => {
+    const display = cluster.topic.trim().replace(/\s+/g, " ");
+    const key = display.toLowerCase();
+    const existing = canonical.get(key);
+    if (existing) return { ...cluster, topic: existing };
+    canonical.set(key, display);
+    return { ...cluster, topic: display };
+  });
+}
+
+/** Cap distinct topics at maxTopics. Overflow clusters keep their identity but get
+ * topic "Other" (separate event clusters, NOT merged into one). */
+export function foldExtraTopics(clusters: Cluster[], maxTopics = MAX_TOPICS): Cluster[] {
+  const byTopic = new Map<string, Cluster[]>();
+  for (const cluster of clusters) {
+    const arr = byTopic.get(cluster.topic);
+    if (arr) arr.push(cluster);
+    else byTopic.set(cluster.topic, [cluster]);
+  }
+  if (byTopic.size <= maxTopics) return clusters;
+
+  const ranked = Array.from(byTopic.entries())
+    .map(([topic, cs]) => ({ topic, maxImp: Math.max(...cs.map((k) => k.importance)) }))
+    .sort((a, b) => b.maxImp - a.maxImp);
+  const keep = new Set(ranked.slice(0, maxTopics - 1).map((x) => x.topic));
+  return clusters.map((cluster) =>
+    keep.has(cluster.topic) ? cluster : { ...cluster, topic: "Other" }
+  );
+}
+
+/** Full post-LLM pipeline. */
+export function consolidateClusters(clusters: Cluster[]): Cluster[] {
+  return foldExtraTopics(
+    normalizeTopics(dedupeArticleAssignments(mergeSameEventClusters(clusters)))
+  );
+}

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { dedupeArticleAssignments } from "@/lib/digest/consolidate";
 import { mergeSameEventClusters } from "@/lib/digest/consolidate";
+import { normalizeTopics, foldExtraTopics, consolidateClusters } from "@/lib/digest/consolidate";
 import type { Cluster } from "@/lib/digest/cluster-types";
 
 const c = (over: Partial<Cluster>): Cluster => ({
@@ -55,5 +56,48 @@ describe("mergeSameEventClusters", () => {
     ]);
     expect(out).toHaveLength(1);
     expect(out[0].articleIds.sort()).toEqual(["x", "y"]);
+  });
+});
+
+describe("normalizeTopics", () => {
+  it("unifies case/whitespace variants to one display label (first-seen casing)", () => {
+    const out = normalizeTopics([
+      c({ topic: "AI", articleIds: ["a"] }),
+      c({ topic: "  ai ", articleIds: ["b"] }),
+      c({ topic: "Ai", articleIds: ["d"] }),
+    ]);
+    expect(new Set(out.map((k) => k.topic))).toEqual(new Set(["AI"]));
+  });
+});
+
+describe("foldExtraTopics", () => {
+  it("relabels overflow topics to 'Other' but keeps clusters separate", () => {
+    const clusters = Array.from({ length: 10 }, (_, i) =>
+      c({ topic: `T${i}`, importance: 10 - i, articleIds: [`a${i}`] })
+    );
+    const out = foldExtraTopics(clusters, 8);
+    const topics = new Set(out.map((k) => k.topic));
+    expect(topics.size).toBeLessThanOrEqual(8);
+    expect(topics.has("Other")).toBe(true);
+    // overflow stays as separate event clusters, not one merged blob
+    expect(out.filter((k) => k.topic === "Other").length).toBe(3);
+  });
+
+  it("is a no-op when topics <= max", () => {
+    const clusters = [c({ topic: "A", articleIds: ["a"] }), c({ topic: "B", articleIds: ["b"] })];
+    expect(foldExtraTopics(clusters, 8)).toEqual(clusters);
+  });
+});
+
+describe("consolidateClusters", () => {
+  it("runs merge -> dedupe -> normalize -> fold end to end", () => {
+    const out = consolidateClusters([
+      c({ topic: "World", headline: "Quake hits coast", importance: 8, articleIds: ["a"] }),
+      c({ topic: "world", headline: "Quake hits the coast", importance: 6, articleIds: ["b"] }),
+      c({ topic: "Tech", headline: "New chip launches", importance: 7, articleIds: ["c"] }),
+    ]);
+    // first two merge (same event), Tech stays
+    expect(out).toHaveLength(2);
+    expect(new Set(out.map((k) => k.topic))).toEqual(new Set(["World", "Tech"]));
   });
 });
