@@ -228,6 +228,7 @@ export const emailSubscriptions = pgTable(
     llmBaseUrl: varchar("llm_base_url", { length: 500 }),
     llmApiKey: text("llm_api_key"),
     llmModel: varchar("llm_model", { length: 100 }),
+    autoSaveOnClick: boolean("auto_save_on_click").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   }

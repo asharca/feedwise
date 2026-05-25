@@ -36,6 +36,7 @@ export interface SubscriptionSettings {
   smtpFrom?: string | null;
   emailProvider?: string | null;
   emailApiKey?: string | null;
+  autoSaveOnClick?: boolean;
 }
 
 export interface SMTPConfig {
@@ -82,6 +83,7 @@ export async function getSubscriptionSettings(userId: string): Promise<Subscript
     smtpFrom: sub.smtpFrom,
     emailProvider: sub.emailProvider,
     emailApiKey: decryptIfEncrypted(sub.emailApiKey),
+    autoSaveOnClick: sub.autoSaveOnClick ?? false,
   };
 }
 
@@ -107,6 +109,7 @@ export async function updateSubscriptionSettings(
         smtpFrom: settings.smtpFrom,
         emailProvider: settings.emailProvider,
         emailApiKey: encryptIfPresent(settings.emailApiKey) ?? null,
+        autoSaveOnClick: settings.autoSaveOnClick ?? false,
       })
       .returning();
     await syncSubscriptionEntities(created.id, settings);
@@ -127,6 +130,7 @@ export async function updateSubscriptionSettings(
       smtpFrom: settings.smtpFrom !== undefined ? settings.smtpFrom : existing.smtpFrom,
       emailProvider: settings.emailProvider !== undefined ? settings.emailProvider : existing.emailProvider,
       emailApiKey: settings.emailApiKey !== undefined ? encryptIfPresent(settings.emailApiKey) ?? null : existing.emailApiKey,
+      autoSaveOnClick: settings.autoSaveOnClick ?? existing.autoSaveOnClick,
       updatedAt: new Date(),
     })
     .where(eq(emailSubscriptions.id, existing.id));
@@ -324,6 +328,7 @@ export async function getAllActiveSubscriptions() {
       smtpUser: emailSubscriptions.smtpUser,
       smtpPass: emailSubscriptions.smtpPass,
       smtpFrom: emailSubscriptions.smtpFrom,
+      autoSaveOnClick: emailSubscriptions.autoSaveOnClick,
     })
     .from(emailSubscriptions)
     .where(eq(emailSubscriptions.enabled, true));

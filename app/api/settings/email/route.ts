@@ -18,6 +18,7 @@ const updateSchema = z.object({
   smtpFrom: z.string().optional(),
   emailProvider: z.string().optional(),
   emailApiKey: z.string().optional(),
+  autoSaveOnClick: z.boolean().optional(),
 });
 
 function sanitizeSettings(
