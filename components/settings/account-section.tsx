@@ -28,7 +28,7 @@ export function AccountSection({
   onEmailSave,
 }: Props) {
   return (
-    <Card className="rounded-2xl border-border/50">
+    <Card className="rounded-lg">
       <CardHeader>
         <CardTitle className="text-base">Account</CardTitle>
         <CardDescription>Your account details</CardDescription>
@@ -53,7 +53,7 @@ export function AccountSection({
               <Calendar className="size-3" />
               <span>Joined {new Date(userAccount.createdAt).toLocaleDateString()}</span>
             </div>
-            <div className="pt-2 border-t border-border/30">
+            <div className="pt-2 border-t border-border">
               <label htmlFor="user-name" className="text-xs text-muted-foreground block mb-1">Display Name</label>
               <div className="flex gap-2">
                 <input
@@ -66,14 +66,14 @@ export function AccountSection({
                 />
                 <Button
                   size="sm"
-                  className="rounded-xl"
+                  className="rounded-md"
                   onClick={onNameSave}
                 >
                   Save
                 </Button>
               </div>
             </div>
-            <div className="pt-2 border-t border-border/30">
+            <div className="pt-2 border-t border-border">
               <label htmlFor="user-email" className="text-xs text-muted-foreground block mb-1">Email</label>
               <div className="flex gap-2">
                 <input
@@ -86,7 +86,7 @@ export function AccountSection({
                 />
                 <Button
                   size="sm"
-                  className="rounded-xl"
+                  className="rounded-md"
                   onClick={onEmailSave}
                 >
                   Save
