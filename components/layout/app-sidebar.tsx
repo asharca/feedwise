@@ -339,7 +339,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
     if (url) {
       return (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={proxyImg(url)} alt="" className="size-4 rounded-sm shrink-0" />
+        <img src={proxyImg(url)} alt="" loading="lazy" decoding="async" className="size-4 rounded-sm shrink-0" />
       );
     }
     const letter = (name || "?")[0].toUpperCase();

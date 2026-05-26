@@ -61,6 +61,8 @@ function ArticleCard({
           <img
             src={proxyImg(article.imageUrl)}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="w-full h-48 object-cover"
           />
         )}
@@ -68,7 +70,7 @@ function ArticleCard({
           <div className="flex items-center gap-1.5 mb-2">
             {article.feedIconUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={proxyImg(article.feedIconUrl)} alt="" className="size-3.5 rounded-sm" />
+              <img src={proxyImg(article.feedIconUrl)} alt="" loading="lazy" decoding="async" className="size-3.5 rounded-sm" />
             )}
             <span className="text-[11px] text-muted-foreground font-medium">
               {article.feedTitle}
@@ -137,6 +139,8 @@ function ArticleCard({
           <img
             src={proxyImg(article.imageUrl)}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="size-12 rounded-lg object-cover shrink-0"
           />
         )}
@@ -162,6 +166,8 @@ function ArticleCard({
         <img
           src={proxyImg(article.imageUrl)}
           alt=""
+          loading="lazy"
+          decoding="async"
           className="w-full h-32 object-cover"
         />
       )}

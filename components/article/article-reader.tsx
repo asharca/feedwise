@@ -11,7 +11,7 @@ function proxyImagesInHtml(html: string): string {
   return html.replace(
     /(<img\b[^>]*?\ssrc=)(["'])(https?:\/\/[^"']+)\2/gi,
     (_, prefix, quote, url) =>
-      `${prefix}${quote}/api/image-proxy?url=${encodeURIComponent(url)}${quote}`
+      `${prefix}${quote}/api/image-proxy?url=${encodeURIComponent(url)}${quote} loading="lazy" decoding="async"`
   );
 }
 

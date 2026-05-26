@@ -81,7 +81,7 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
                 <div className="flex items-center gap-1 mb-0.5">
                   {article.feedIconUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={proxyImg(article.feedIconUrl)} alt="" className="size-3 rounded-sm shrink-0" />
+                    <img src={proxyImg(article.feedIconUrl)} alt="" loading="lazy" decoding="async" className="size-3 rounded-sm shrink-0" />
                   )}
                   <span className="text-[10px] text-muted-foreground/70 truncate">
                     {article.feedTitle ?? "Unknown"}
@@ -101,7 +101,7 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
               </div>
               {article.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={proxyImg(article.imageUrl)} alt="" className="size-10 rounded-md object-cover shrink-0 self-center" />
+                <img src={proxyImg(article.imageUrl)} alt="" loading="lazy" decoding="async" className="size-10 rounded-md object-cover shrink-0 self-center" />
               )}
               {article.isStarred && (
                 <Star className="absolute top-2 right-2 size-2.5 fill-yellow-400 text-yellow-400" />
@@ -139,13 +139,13 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
             >
               {article.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={proxyImg(article.imageUrl)} alt="" className="w-full h-32 object-cover shrink-0" />
+                <img src={proxyImg(article.imageUrl)} alt="" loading="lazy" decoding="async" className="w-full h-32 object-cover shrink-0" />
               )}
               <div className="flex flex-col flex-1 p-3">
                 <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
                   {article.feedIconUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={proxyImg(article.feedIconUrl)} alt="" className="size-3 rounded-sm shrink-0" />
+                    <img src={proxyImg(article.feedIconUrl)} alt="" loading="lazy" decoding="async" className="size-3 rounded-sm shrink-0" />
                   )}
                   <span className="text-[10px] text-muted-foreground/80 font-medium truncate">
                     {article.feedTitle ?? "Unknown"}

@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "::1"];
 
+// 1x1 transparent GIF — returned when upstream fails so browsers don't retry
+const TRANSPARENT_GIF = Buffer.from(
+  "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+  "base64"
+);
+
+function placeholderResponse(upstreamStatus: number) {
+  return new NextResponse(TRANSPARENT_GIF, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/gif",
+      "Cache-Control": "public, max-age=300",
+      "X-Proxy-Status": String(upstreamStatus),
+    },
+  });
+}
+
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   if (!url) {
@@ -23,27 +40,31 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
+  // Forward real client headers instead of hard-coding fake browser headers
+  const headers: Record<string, string> = {
+    "User-Agent":
+      req.headers.get("user-agent") ??
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    Accept:
+      req.headers.get("accept") ??
+      "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    "Accept-Language": req.headers.get("accept-language") ?? "en-US,en;q=0.9",
+    Referer: req.headers.get("referer") ?? `${parsed.protocol}//${parsed.host}/`,
+  };
+
+  const cookie = req.headers.get("cookie");
+  if (cookie) headers["Cookie"] = cookie;
+
   try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        "Referer": `${parsed.protocol}//${parsed.host}/`,
-        "Sec-Fetch-Dest": "image",
-        "Sec-Fetch-Mode": "no-cors",
-        "Sec-Fetch-Site": "same-site",
-      },
-    });
+    const res = await fetch(url, { headers });
 
     if (!res.ok) {
-      return new NextResponse(`Upstream error: ${res.status}`, { status: 502 });
+      return placeholderResponse(res.status);
     }
 
     const contentType = res.headers.get("content-type") ?? "image/jpeg";
     if (!contentType.startsWith("image/")) {
-      return new NextResponse("Not an image", { status: 400 });
+      return placeholderResponse(415);
     }
 
     const body = await res.arrayBuffer();
@@ -53,10 +74,7 @@ export async function GET(req: NextRequest) {
         "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
       },
     });
-  } catch (err) {
-    return new NextResponse(
-      err instanceof Error ? err.message : "Failed to fetch image",
-      { status: 502 }
-    );
+  } catch (_err) {
+    return placeholderResponse(502);
   }
 }
