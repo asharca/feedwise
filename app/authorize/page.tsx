@@ -81,7 +81,7 @@ function AuthorizeForm() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
-      <Card className="w-full max-w-md rounded-2xl border-border/50">
+      <Card className="w-full max-w-md rounded-lg border-border">
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Authorize MCP Access</CardTitle>
           <CardDescription>
@@ -89,7 +89,7 @@ function AuthorizeForm() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-xl bg-muted p-3 text-sm space-y-1">
+          <div className="rounded-md bg-muted p-3 text-sm space-y-1">
             <p><span className="text-muted-foreground">Client:</span> {clientId.slice(0, 8)}...</p>
             <p><span className="text-muted-foreground">Redirect:</span> {redirectUri}</p>
           </div>
@@ -102,13 +102,13 @@ function AuthorizeForm() {
           <div className="flex gap-3">
             <Button
               variant="outline"
-              className="flex-1 rounded-xl"
+              className="flex-1 rounded-md"
               onClick={() => window.close()}
             >
               Deny
             </Button>
             <Button
-              className="flex-1 rounded-xl"
+              className="flex-1 rounded-md"
               onClick={handleApprove}
               disabled={loading}
             >

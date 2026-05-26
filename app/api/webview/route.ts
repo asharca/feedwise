@@ -137,7 +137,7 @@ export async function GET(req: NextRequest) {
   if (!res.ok) {
     return new NextResponse(
       `<html><body style="font-family:sans-serif;padding:2rem;color:#888">
-        <p>无法加载页面（${res.status}）</p>
+        <p>Failed to load page (${res.status})</p>
         <p style="font-size:12px">${url}</p>
       </body></html>`,
       { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", ...CORS } }

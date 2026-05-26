@@ -65,7 +65,7 @@ export async function POST() {
       } else if (err.message.includes("EAUTH")) {
         errorMessage = "SMTP authentication failed. Please check your username and password.";
       } else if (err.message.includes("Mail from address must be same as authorization user")) {
-        errorMessage = "QQ 邮箱要求发件人必须与 SMTP 用户一致。请把 Username/Email 与发件地址都设置为同一个 QQ 邮箱。";
+        errorMessage = "QQ Mail requires the sender address to match the SMTP username. Please set both to the same QQ email address.";
       } else if (err.message.includes("ETIMEDOUT")) {
         errorMessage = "SMTP connection timed out. Please check your SMTP server settings.";
       } else {
