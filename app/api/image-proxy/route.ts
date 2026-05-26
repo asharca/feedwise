@@ -40,7 +40,8 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
-  // Forward real client headers instead of hard-coding fake browser headers
+  // Forward a minimal set of client headers.
+  // Do NOT send Referer: many CDNs block requests with a foreign Referer.
   const headers: Record<string, string> = {
     "User-Agent":
       req.headers.get("user-agent") ??
@@ -49,11 +50,7 @@ export async function GET(req: NextRequest) {
       req.headers.get("accept") ??
       "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
     "Accept-Language": req.headers.get("accept-language") ?? "en-US,en;q=0.9",
-    Referer: req.headers.get("referer") ?? `${parsed.protocol}//${parsed.host}/`,
   };
-
-  const cookie = req.headers.get("cookie");
-  if (cookie) headers["Cookie"] = cookie;
 
   try {
     const res = await fetch(url, { headers });
