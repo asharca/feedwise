@@ -375,10 +375,17 @@ export async function getUserLlmConfig(userId: string): Promise<LlmConfig | null
   if (!sub || !sub.llmEnabled || !sub.llmBaseUrl || !sub.llmApiKey || !sub.llmModel) {
     return null;
   }
+  let apiKey = "";
+  try {
+    apiKey = decryptIfEncrypted(sub.llmApiKey) ?? "";
+  } catch {
+    // Decryption failed (key rotated or corrupted) — surface as no config
+    return null;
+  }
   return {
     enabled: true,
     baseUrl: sub.llmBaseUrl,
-    apiKey: decryptIfEncrypted(sub.llmApiKey) ?? "",
+    apiKey,
     model: sub.llmModel,
     format: (sub.llmFormat as LlmFormat) ?? "openai",
   };
