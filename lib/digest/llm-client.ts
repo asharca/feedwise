@@ -135,11 +135,12 @@ export async function callChatCompletion(
     throw new LlmHttpError(res.status, text);
   }
 
+  const responseText = await res.text();
   let json: unknown;
   try {
-    json = await res.json();
+    json = JSON.parse(responseText);
   } catch {
-    throw new LlmParseError("Response body is not JSON", "");
+    throw new LlmParseError("Response body is not JSON", responseText.slice(0, 500));
   }
 
   const content = format === "anthropic" ? parseAnthropicResponse(json) : parseOpenAiResponse(json);

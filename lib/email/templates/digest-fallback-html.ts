@@ -27,12 +27,9 @@ function renderArticleBlock(a: DigestArticle, link: LinkFn): string {
       <p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">
         ${esc(a.feedTitle)} &middot; ${esc(fmtDate(a.publishedAt))}
       </p>
-      <details style="margin-top: 8px;">
-        <summary style="cursor: pointer; color: #2563eb; font-size: 13px; font-weight: 500;">Click to expand details</summary>
-        <div style="margin-top: 8px; color: #444; font-size: 14px; line-height: 1.6;">
-          ${safeSummaryHtml(a.summary) || '<p style="margin:0;color:#666;">No details available.</p>'}
-        </div>
-      </details>
+      <div style="margin-top: 8px; color: #444; font-size: 14px; line-height: 1.6;">
+        ${safeSummaryHtml(a.summary) || '<p style="margin:0;color:#666;">No details available.</p>'}
+      </div>
     </div>`;
 }
 
