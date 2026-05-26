@@ -76,6 +76,7 @@ export default function SettingsPage() {
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
   const [llmApiKey, setLlmApiKey] = useState("");
   const [llmModel, setLlmModel] = useState("");
+  const [llmFormat, setLlmFormat] = useState<"openai" | "anthropic">("openai");
   const [llmKeyMask, setLlmKeyMask] = useState("");
   const [llmSaving, setLlmSaving] = useState(false);
   const [llmTesting, setLlmTesting] = useState(false);
@@ -102,6 +103,7 @@ export default function SettingsPage() {
         setLlmEnabled(!!llmData.enabled);
         setLlmBaseUrl(llmData.baseUrl ?? "");
         setLlmModel(llmData.model ?? "");
+        setLlmFormat(llmData.format ?? "openai");
         setLlmKeyMask(llmData.apiKeyMask ?? "");
       }
       setLoading(false);
@@ -122,6 +124,7 @@ export default function SettingsPage() {
           baseUrl: llmBaseUrl,
           apiKey: llmApiKey || undefined,
           model: llmModel,
+          format: llmFormat,
         }),
       });
       if (!res.ok) {
@@ -149,6 +152,7 @@ export default function SettingsPage() {
           baseUrl: llmBaseUrl,
           apiKey: llmApiKey || undefined,
           model: llmModel,
+          format: llmFormat,
         }),
       });
       if (res.ok) {
@@ -517,6 +521,7 @@ export default function SettingsPage() {
             llmBaseUrl={llmBaseUrl}
             llmApiKey={llmApiKey}
             llmModel={llmModel}
+            llmFormat={llmFormat}
             llmKeyMask={llmKeyMask}
             llmSaving={llmSaving}
             llmTesting={llmTesting}
@@ -524,6 +529,7 @@ export default function SettingsPage() {
             onLlmBaseUrlChange={setLlmBaseUrl}
             onLlmApiKeyChange={setLlmApiKey}
             onLlmModelChange={setLlmModel}
+            onLlmFormatChange={setLlmFormat}
             onSave={saveLlmConfig}
             onTest={testLlm}
           />

@@ -1,0 +1,1 @@
+ALTER TABLE "email_subscriptions" ADD COLUMN "llm_format" varchar(20) DEFAULT 'openai';

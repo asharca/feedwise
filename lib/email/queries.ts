@@ -360,11 +360,14 @@ export async function getUserSMTPConfig(userId: string): Promise<SMTPConfig | nu
   };
 }
 
+export type LlmFormat = "openai" | "anthropic";
+
 export interface LlmConfig {
   enabled: boolean;
   baseUrl: string;
   apiKey: string;
   model: string;
+  format: LlmFormat;
 }
 
 export async function getUserLlmConfig(userId: string): Promise<LlmConfig | null> {
@@ -377,6 +380,7 @@ export async function getUserLlmConfig(userId: string): Promise<LlmConfig | null
     baseUrl: sub.llmBaseUrl,
     apiKey: decryptIfEncrypted(sub.llmApiKey) ?? "",
     model: sub.llmModel,
+    format: (sub.llmFormat as LlmFormat) ?? "openai",
   };
 }
 
@@ -385,6 +389,7 @@ export interface LlmConfigInput {
   baseUrl: string;
   apiKey?: string;
   model: string;
+  format?: LlmFormat;
 }
 
 export async function updateUserLlmConfig(userId: string, input: LlmConfigInput): Promise<void> {
@@ -404,6 +409,7 @@ export async function updateUserLlmConfig(userId: string, input: LlmConfigInput)
       llmBaseUrl: input.baseUrl || null,
       llmApiKey: apiKeyToStore,
       llmModel: input.model || null,
+      llmFormat: input.format ?? "openai",
     });
     return;
   }
@@ -414,6 +420,7 @@ export async function updateUserLlmConfig(userId: string, input: LlmConfigInput)
       llmBaseUrl: input.baseUrl || null,
       llmApiKey: apiKeyToStore,
       llmModel: input.model || null,
+      llmFormat: input.format ?? existing.llmFormat ?? "openai",
       updatedAt: new Date(),
     })
     .where(eq(emailSubscriptions.id, existing.id));

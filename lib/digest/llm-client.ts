@@ -25,10 +25,13 @@ export class LlmParseError extends Error {
   }
 }
 
+export type LlmFormat = "openai" | "anthropic";
+
 export interface LlmClientConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  format: LlmFormat;
 }
 
 export interface ChatCompletionInput {
@@ -37,12 +40,8 @@ export interface ChatCompletionInput {
   jsonSchema: { name: string; schema: unknown };
 }
 
-export async function callChatCompletion(
-  config: LlmClientConfig,
-  input: ChatCompletionInput
-): Promise<unknown> {
-  const url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`;
-  const body = {
+function buildOpenAiBody(config: LlmClientConfig, input: ChatCompletionInput) {
+  return {
     model: config.model,
     messages: [
       { role: "system", content: input.system },
@@ -54,6 +53,64 @@ export async function callChatCompletion(
     },
     temperature: 0.2,
   };
+}
+
+function buildAnthropicBody(config: LlmClientConfig, input: ChatCompletionInput) {
+  const system = `${input.system}\n\nYou must respond with valid JSON matching this schema:\n${JSON.stringify(input.jsonSchema.schema)}`;
+  return {
+    model: config.model,
+    max_tokens: 4096,
+    system,
+    messages: [{ role: "user", content: input.user }],
+    temperature: 0.2,
+  };
+}
+
+function parseOpenAiResponse(json: unknown): string {
+  const typed = json as { choices?: Array<{ message?: { content?: string } }> };
+  const content = typed.choices?.[0]?.message?.content;
+  if (typeof content !== "string") {
+    throw new LlmParseError("Missing message.content", JSON.stringify(json));
+  }
+  return content;
+}
+
+function parseAnthropicResponse(json: unknown): string {
+  const typed = json as { content?: Array<{ type?: string; text?: string }> };
+  const block = typed.content?.[0];
+  if (block?.type !== "text" || typeof block.text !== "string") {
+    throw new LlmParseError("Missing content[0].text", JSON.stringify(json));
+  }
+  return block.text;
+}
+
+export async function callChatCompletion(
+  config: LlmClientConfig,
+  input: ChatCompletionInput
+): Promise<unknown> {
+  const format = config.format ?? "openai";
+  const baseUrl = config.baseUrl.replace(/\/$/, "");
+
+  let url: string;
+  let body: unknown;
+  let headers: Record<string, string>;
+
+  if (format === "anthropic") {
+    url = `${baseUrl}/messages`;
+    body = buildAnthropicBody(config, input);
+    headers = {
+      "Content-Type": "application/json",
+      "x-api-key": config.apiKey,
+      "anthropic-version": "2023-06-01",
+    };
+  } else {
+    url = `${baseUrl}/chat/completions`;
+    body = buildOpenAiBody(config, input);
+    headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.apiKey}`,
+    };
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -61,10 +118,7 @@ export async function callChatCompletion(
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
+      headers,
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -81,16 +135,14 @@ export async function callChatCompletion(
     throw new LlmHttpError(res.status, text);
   }
 
-  let json: { choices?: Array<{ message?: { content?: string } }> };
+  let json: unknown;
   try {
-    json = (await res.json()) as typeof json;
+    json = await res.json();
   } catch {
     throw new LlmParseError("Response body is not JSON", "");
   }
-  const content = json.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
-    throw new LlmParseError("Missing message.content", JSON.stringify(json));
-  }
+
+  const content = format === "anthropic" ? parseAnthropicResponse(json) : parseOpenAiResponse(json);
   try {
     return JSON.parse(content);
   } catch {

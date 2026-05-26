@@ -4,12 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { SettingRow } from "@/components/settings/setting-row";
+import { Segmented } from "@/components/ui/segmented";
 
 interface Props {
   llmEnabled: boolean;
   llmBaseUrl: string;
   llmApiKey: string;
   llmModel: string;
+  llmFormat: "openai" | "anthropic";
   llmKeyMask: string;
   llmSaving: boolean;
   llmTesting: boolean;
@@ -17,6 +19,7 @@ interface Props {
   onLlmBaseUrlChange: (value: string) => void;
   onLlmApiKeyChange: (value: string) => void;
   onLlmModelChange: (value: string) => void;
+  onLlmFormatChange: (value: "openai" | "anthropic") => void;
   onSave: () => void;
   onTest: () => void;
 }
@@ -26,6 +29,7 @@ export function SmartDigestSection({
   llmBaseUrl,
   llmApiKey,
   llmModel,
+  llmFormat,
   llmKeyMask,
   llmSaving,
   llmTesting,
@@ -33,6 +37,7 @@ export function SmartDigestSection({
   onLlmBaseUrlChange,
   onLlmApiKeyChange,
   onLlmModelChange,
+  onLlmFormatChange,
   onSave,
   onTest,
 }: Props) {
@@ -41,7 +46,7 @@ export function SmartDigestSection({
       <CardHeader>
         <CardTitle className="text-base">Smart Digest (Beta)</CardTitle>
         <CardDescription>
-          When on, your digest is grouped by topic and ranked by importance. Uses your own OpenAI-compatible API. Off by default.
+          When on, your digest is grouped by topic and ranked by importance. Uses your own API. Off by default.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -54,12 +59,24 @@ export function SmartDigestSection({
         </div>
         <div className="space-y-3">
           <label className="block">
+            <span className="block text-xs text-muted-foreground mb-1">API Format</span>
+            <Segmented
+              options={[
+                { value: "openai", label: "OpenAI" },
+                { value: "anthropic", label: "Anthropic" },
+              ]}
+              value={llmFormat}
+              onChange={onLlmFormatChange}
+              aria-label="API format"
+            />
+          </label>
+          <label className="block">
             <span className="block text-xs text-muted-foreground mb-1">API Base URL</span>
             <input
               type="url"
               value={llmBaseUrl}
               onChange={(e) => onLlmBaseUrlChange(e.target.value)}
-              placeholder="https://api.openai.com/v1"
+              placeholder={llmFormat === "anthropic" ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"}
               className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
             />
           </label>
@@ -71,7 +88,7 @@ export function SmartDigestSection({
               type="password"
               value={llmApiKey}
               onChange={(e) => onLlmApiKeyChange(e.target.value)}
-              placeholder={llmKeyMask ? "(unchanged — leave blank to keep)" : "sk-..."}
+              placeholder={llmKeyMask ? "(unchanged — leave blank to keep)" : llmFormat === "anthropic" ? "sk-ant-..." : "sk-..."}
               className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
             />
           </label>
@@ -81,7 +98,7 @@ export function SmartDigestSection({
               type="text"
               value={llmModel}
               onChange={(e) => onLlmModelChange(e.target.value)}
-              placeholder="gpt-4o-mini"
+              placeholder={llmFormat === "anthropic" ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini"}
               className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
             />
           </label>

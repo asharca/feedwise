@@ -13,6 +13,7 @@ export async function GET() {
       baseUrl: "",
       apiKeyMask: "",
       model: "",
+      format: "openai",
     });
   }
   const k = cfg.apiKey;
@@ -22,6 +23,7 @@ export async function GET() {
     baseUrl: cfg.baseUrl,
     apiKeyMask,
     model: cfg.model,
+    format: cfg.format,
   });
 }
 
@@ -30,6 +32,7 @@ const InputSchema = z.object({
   baseUrl: z.string().url().or(z.literal("")),
   apiKey: z.string().optional(),
   model: z.string().max(100),
+  format: z.enum(["openai", "anthropic"]).optional(),
 });
 
 export async function PUT(req: Request) {

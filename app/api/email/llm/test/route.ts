@@ -8,6 +8,7 @@ const InputSchema = z.object({
   baseUrl: z.string().url(),
   apiKey: z.string().optional(),
   model: z.string().min(1),
+  format: z.enum(["openai", "anthropic"]).optional(),
 });
 
 export async function POST(req: Request) {
@@ -31,7 +32,12 @@ export async function POST(req: Request) {
 
   try {
     const reply = await callChatCompletion(
-      { baseUrl: parsed.data.baseUrl, apiKey, model: parsed.data.model },
+      {
+        baseUrl: parsed.data.baseUrl,
+        apiKey,
+        model: parsed.data.model,
+        format: parsed.data.format ?? "openai",
+      },
       {
         system: "You are a test ping. Reply with valid JSON only.",
         user: 'Reply with JSON {"ok": true}',

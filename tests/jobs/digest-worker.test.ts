@@ -44,6 +44,7 @@ describe("assembleDigestForSubscription", () => {
       baseUrl: "https://api.x",
       apiKey: "sk",
       model: "m",
+      format: "openai",
     });
     const articles = [art(1), art(2)];
     vi.mocked(runClustering).mockResolvedValue({
@@ -67,6 +68,7 @@ describe("assembleDigestForSubscription", () => {
       baseUrl: "https://api.x",
       apiKey: "sk",
       model: "m",
+      format: "openai",
     });
     vi.mocked(runClustering).mockRejectedValue(new Error("boom"));
     const articles = [art(1)];

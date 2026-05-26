@@ -57,6 +57,13 @@
       "when": 1779695741965,
       "tag": "0007_awesome_fixer",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779783374950,
+      "tag": "0008_chunky_secret_warriors",
+      "breakpoints": true
     }
   ]
 }
