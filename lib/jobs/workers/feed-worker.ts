@@ -1,9 +1,10 @@
 import { Worker } from "bullmq";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getConnection } from "@/lib/jobs/queue";
 import { db } from "@/lib/db";
 import { feeds, articles } from "@/lib/db/schema";
 import { parseFeed } from "@/lib/feeds/parser";
+import { classifyError, humanMessage } from "@/lib/feeds/feed-error";
 
 export function startFeedWorker() {
   const worker = new Worker(
@@ -23,6 +24,8 @@ export function startFeedWorker() {
             iconUrl: parsed.iconUrl ?? undefined,
             lastFetchedAt: new Date(),
             lastFetchError: null,
+            errorCode: null,
+            consecutiveFailures: 0,
           })
           .where(eq(feeds.id, feedId));
 
@@ -45,13 +48,22 @@ export function startFeedWorker() {
             }))
           )
           .onConflictDoNothing();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+      } catch (rawError) {
+        const feedError = classifyError(rawError);
+        const message = humanMessage(feedError.code, feedError.httpStatus);
+
         await db
           .update(feeds)
-          .set({ lastFetchError: message, lastFetchedAt: new Date() })
+          .set({
+            lastFetchError: message,
+            errorCode: feedError.code,
+            lastFetchedAt: new Date(),
+            consecutiveFailures: sql`${feeds.consecutiveFailures} + 1`,
+          })
           .where(eq(feeds.id, feedId));
-        throw error;
+
+        // Re-throw so BullMQ records the failure / retries per job options
+        throw feedError;
       }
     },
     { connection: getConnection(), concurrency: 5 }

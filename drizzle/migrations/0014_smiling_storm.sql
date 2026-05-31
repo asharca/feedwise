@@ -1,0 +1,1 @@
+ALTER TABLE "email_subscriptions" ADD COLUMN "mark_read_on_click" boolean DEFAULT true NOT NULL;

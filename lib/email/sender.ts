@@ -48,13 +48,23 @@ export function getUserSMTPConfig(userId: string): SMTPConfig | null {
   return null;
 }
 
+export interface EmailArticleTag {
+  id: string;
+  name: string;
+}
+
 export interface EmailArticle {
   id: string;
   title: string;
   url: string;
   summary: string | null;
+  /** LLM-generated summary; when null the article is excluded from digests. */
+  aiSummary: string | null;
+  importance: "high" | "med" | "low" | null;
   feedTitle: string | null;
+  feedId: string;
   publishedAt: Date | null;
+  tags: EmailArticleTag[];
 }
 
 export interface DailyDigestSend {

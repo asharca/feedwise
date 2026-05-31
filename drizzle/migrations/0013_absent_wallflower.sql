@@ -1,0 +1,1 @@
+ALTER TABLE "email_subscriptions" ADD COLUMN "auto_tag" boolean DEFAULT false NOT NULL;

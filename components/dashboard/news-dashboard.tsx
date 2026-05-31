@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-import { Star, ChevronRight, Rss } from "lucide-react";
+import { Star, Rss, CircleDot, AlertTriangle, BookOpen, Sparkles, Tag } from "lucide-react";
+import { ChartsPanel } from "@/components/dashboard/charts-panel";
 import { cn, proxyImg } from "@/lib/utils";
 
 interface Article {
@@ -14,10 +15,16 @@ interface Article {
   summary: string | null;
   imageUrl: string | null;
   publishedAt: string | null;
+  createdAt: string | null;
   isRead: boolean;
   isStarred: boolean;
+  importance?: "high" | "med" | "low" | null;
   folderId: string | null;
   folderName: string | null;
+}
+
+function displayedAt(article: { publishedAt: string | null; createdAt: string | null }): string | null {
+  return article.publishedAt ?? article.createdAt;
 }
 
 interface ArticleGroup {
@@ -75,11 +82,11 @@ function ArticleCard({
             <span className="text-[11px] text-muted-foreground font-medium">
               {article.feedTitle}
             </span>
-            {article.publishedAt && (
+            {displayedAt(article) && (
               <>
                 <span className="text-[11px] text-muted-foreground/50">&middot;</span>
                 <span className="text-[11px] text-muted-foreground/70">
-                  {formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(displayedAt(article)!), { addSuffix: true })}
                 </span>
               </>
             )}
@@ -118,11 +125,11 @@ function ArticleCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="text-[10px] text-muted-foreground truncate">{article.feedTitle}</span>
-            {article.publishedAt && (
+            {displayedAt(article) && (
               <>
                 <span className="text-[10px] text-muted-foreground/50">&middot;</span>
                 <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                  {formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(displayedAt(article)!), { addSuffix: true })}
                 </span>
               </>
             )}
@@ -176,11 +183,11 @@ function ArticleCard({
           <span className="text-[10px] text-muted-foreground font-medium truncate">
             {article.feedTitle}
           </span>
-          {article.publishedAt && (
+          {displayedAt(article) && (
             <>
               <span className="text-[10px] text-muted-foreground/50">&middot;</span>
               <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                {formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })}
+                {formatDistanceToNow(new Date(displayedAt(article)!), { addSuffix: true })}
               </span>
             </>
           )}
@@ -201,65 +208,98 @@ function ArticleCard({
   );
 }
 
-function CategorySection({
-  group,
-  onSelectArticle,
-  onViewCategory,
+
+interface Stats {
+  subscriptions: number;
+  failingFeeds: number;
+  unread: number;
+  newToday: number;
+  readThisWeek: number;
+  tags: number;
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  sublabel,
+  sublabelTone,
+  href,
+  onNav,
 }: {
-  group: ArticleGroup;
-  onSelectArticle: (id: string) => void;
-  onViewCategory: (folderId: string) => void;
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  sublabel?: string;
+  sublabelTone?: "warn";
+  href?: string;
+  onNav?: (href: string) => void;
 }) {
-  if (group.articles.length === 0) return null;
-
-  const [hero, ...rest] = group.articles;
-
+  const clickable = Boolean(href);
+  const Wrapper: React.ElementType = clickable ? "button" : "div";
+  const wrapperProps = clickable
+    ? {
+        type: "button" as const,
+        onClick: () => (href && onNav ? onNav(href) : undefined),
+      }
+    : {};
   return (
-    <section className="space-y-2.5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{group.folderName}</h2>
-        {group.folderId && (
-          <button
-            type="button"
-            onClick={() => onViewCategory(group.folderId!)}
-            className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-          >
-            View all
-            <ChevronRight className="size-3" />
-          </button>
-        )}
+    <Wrapper
+      {...wrapperProps}
+      className={cn(
+        "rounded-lg border border-border bg-card px-3.5 py-3 text-left transition-colors",
+        clickable && "hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
+      )}
+    >
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+        {icon}
+        {label}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
-        <ArticleCard article={hero} size="hero" onSelect={onSelectArticle} />
-        {rest.slice(0, 3).map((article) => (
-          <ArticleCard key={article.id} article={article} size="normal" onSelect={onSelectArticle} />
-        ))}
+      <div className="mt-1 text-2xl font-semibold tabular-nums leading-none">
+        {value}
       </div>
-    </section>
+      {sublabel && (
+        <div
+          className={cn(
+            "mt-1 text-[11px]",
+            sublabelTone === "warn" ? "text-destructive" : "text-muted-foreground/70"
+          )}
+        >
+          {sublabelTone === "warn" && (
+            <AlertTriangle className="inline size-3 mr-1 -mt-0.5 align-middle" />
+          )}
+          {sublabel}
+        </div>
+      )}
+    </Wrapper>
   );
 }
 
 export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
   const router = useRouter();
   const [groups, setGroups] = useState<ArticleGroup[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/articles/grouped");
-        const data = await res.json();
-        if (data.success) setGroups(data.data);
+        const [groupedRes, statsRes] = await Promise.all([
+          fetch("/api/articles/grouped"),
+          fetch("/api/dashboard/stats"),
+        ]);
+        const [groupedData, statsData] = await Promise.all([
+          groupedRes.json(),
+          statsRes.json(),
+        ]);
+        if (groupedData.success) setGroups(groupedData.data);
+        if (statsData.success) setStats(statsData.data);
       } finally {
         setLoading(false);
       }
     }
     load();
   }, []);
-
-  function handleViewCategory(folderId: string) {
-    router.replace(`/reader?folderId=${folderId}&view=all`);
-  }
 
   if (loading) {
     return (
@@ -285,9 +325,20 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
     );
   }
 
-  // Featured: take the first article from the first group as the hero
-  const allArticles = groups.flatMap((g) => g.articles);
-  const featured = allArticles.slice(0, 3);
+  // Recommended: top of the chronological list, biased by importance so high-
+  // importance articles surface even if they aren't the freshest.
+  const importanceRank = (i: Article["importance"] | undefined | null) =>
+    i === "high" ? 0 : i === "med" ? 1 : 2;
+  const recommended = groups
+    .flatMap((g) => g.articles)
+    .slice()
+    .sort((a, b) => {
+      const diff = importanceRank(a.importance) - importanceRank(b.importance);
+      if (diff !== 0) return diff;
+      // tie-break: original chronological order (already sorted by date desc upstream)
+      return 0;
+    })
+    .slice(0, 9);
 
   return (
     <div className="h-full overflow-y-auto scrollbar-thin">
@@ -300,12 +351,62 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
           </p>
         </div>
 
-        {/* Featured stories */}
-        {featured.length > 0 && (
+        {/* Charts (own date range) */}
+        <ChartsPanel />
+
+        {/* Stats row */}
+        {stats && (
+          <section>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
+              <StatCard
+                icon={<CircleDot className="size-3.5" />}
+                label="Unread"
+                value={stats.unread}
+                href={stats.unread > 0 ? "/reader?view=unread" : undefined}
+                onNav={(href) => router.push(href)}
+              />
+              <StatCard
+                icon={<Sparkles className="size-3.5" />}
+                label="New today"
+                value={stats.newToday}
+                sublabel={stats.newToday > 0 ? "last 24 hours" : "all caught up"}
+              />
+              <StatCard
+                icon={<BookOpen className="size-3.5" />}
+                label="Read this week"
+                value={stats.readThisWeek}
+                sublabel="last 7 days"
+              />
+              <StatCard
+                icon={<Rss className="size-3.5" />}
+                label="Feeds"
+                value={stats.subscriptions}
+                sublabel={
+                  stats.failingFeeds > 0
+                    ? `${stats.failingFeeds} need attention`
+                    : "all healthy"
+                }
+                sublabelTone={stats.failingFeeds > 0 ? "warn" : undefined}
+              />
+              <StatCard
+                icon={<Tag className="size-3.5" />}
+                label="Tags"
+                value={stats.tags}
+                href={stats.tags > 0 ? "/reader/tags" : undefined}
+                onNav={(href) => router.push(href)}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* Recommended articles */}
+        {recommended.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Featured</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              Recommended
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {featured.map((article, idx) => (
+              {recommended.map((article, idx) => (
                 <ArticleCard
                   key={article.id}
                   article={article}
@@ -316,16 +417,6 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
             </div>
           </section>
         )}
-
-        {/* Category sections */}
-        {groups.map((group) => (
-          <CategorySection
-            key={group.folderId ?? "uncategorized"}
-            group={group}
-            onSelectArticle={onSelectArticle}
-            onViewCategory={handleViewCategory}
-          />
-        ))}
       </div>
     </div>
   );

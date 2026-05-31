@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Star, Inbox } from "lucide-react";
 import { cn, proxyImg } from "@/lib/utils";
@@ -12,8 +13,14 @@ interface Article {
   summary: string | null;
   imageUrl?: string | null;
   publishedAt: Date | null;
+  createdAt: Date | null;
   isRead: boolean;
   isStarred: boolean;
+}
+
+/** Prefer article's own pubdate, fall back to when we fetched/created it. */
+function displayedAt(article: { publishedAt: Date | null; createdAt: Date | null }): Date | null {
+  return article.publishedAt ?? article.createdAt;
 }
 
 interface ArticleListProps {
@@ -44,6 +51,11 @@ function Highlight({ text, query }: { text: string; query?: string }) {
 }
 
 export function ArticleList({ articles, activeId, onSelect, onStar, compact = false, hasMore, loadingMore, onLoadMore, searchQuery }: ArticleListProps) {
+  // Callback ref state so InfiniteScrollSentinel can use the actual scroll
+  // container (not the viewport) as the IntersectionObserver root — the list
+  // is inside an overflow-y-auto wrapper.
+  const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
+
   if (articles.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-8">
@@ -57,7 +69,7 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
 
   if (compact) {
     return (
-      <div className="overflow-y-auto h-full scrollbar-thin">
+      <div ref={setScrollRoot} className="overflow-y-auto h-full scrollbar-thin">
         <div className="flex flex-col gap-px p-1.5">
           {articles.map((article) => (
 
@@ -86,9 +98,9 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
                   <span className="text-[10px] text-muted-foreground/70 truncate">
                     {article.feedTitle ?? "Unknown"}
                   </span>
-                  {article.publishedAt && (
+                  {displayedAt(article) && (
                     <span className="text-[10px] text-muted-foreground/50 shrink-0 ml-auto">
-                      {formatDistanceToNow(article.publishedAt, { addSuffix: false })}
+                      {formatDistanceToNow(displayedAt(article)!, { addSuffix: false })}
                     </span>
                   )}
                 </div>
@@ -109,13 +121,18 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
             </div>
           ))}
         </div>
-        <LoadMoreButton hasMore={hasMore} loadingMore={loadingMore} onLoadMore={onLoadMore} />
+        <InfiniteScrollSentinel
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={onLoadMore}
+          root={scrollRoot}
+        />
       </div>
     );
   }
 
   return (
-    <div className="overflow-y-auto h-full scrollbar-thin">
+    <div ref={setScrollRoot} className="overflow-y-auto h-full scrollbar-thin">
       <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 auto-rows-min">
         {articles.map((article) => {
           const excerpt = article.summary
@@ -150,11 +167,11 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
                   <span className="text-[10px] text-muted-foreground/80 font-medium truncate">
                     {article.feedTitle ?? "Unknown"}
                   </span>
-                  {article.publishedAt && (
+                  {displayedAt(article) && (
                     <>
                       <span className="text-[10px] text-muted-foreground/40 shrink-0">·</span>
                       <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                        {formatDistanceToNow(article.publishedAt, { addSuffix: true })}
+                        {formatDistanceToNow(displayedAt(article)!, { addSuffix: true })}
                       </span>
                     </>
                   )}
@@ -188,27 +205,60 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
           );
         })}
       </div>
-      <LoadMoreButton hasMore={hasMore} loadingMore={loadingMore} onLoadMore={onLoadMore} />
+      <InfiniteScrollSentinel
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        onLoadMore={onLoadMore}
+        root={scrollRoot}
+      />
     </div>
   );
 }
 
-function LoadMoreButton({ hasMore, loadingMore, onLoadMore }: {
+/**
+ * Invisible sentinel at the bottom of the list — uses IntersectionObserver
+ * (with the list's own scroll container as root) to call onLoadMore when it
+ * scrolls into view. `rootMargin: 400px` triggers the next page slightly
+ * before the user actually hits the bottom, so paging feels seamless.
+ */
+function InfiniteScrollSentinel({
+  hasMore,
+  loadingMore,
+  onLoadMore,
+  root,
+}: {
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  root?: HTMLElement | null;
 }) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!hasMore || !onLoadMore) return;
+    const target = sentinelRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && hasMore && !loadingMore) {
+            onLoadMore();
+          }
+        }
+      },
+      { root: root ?? null, rootMargin: "400px 0px" }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, onLoadMore, root]);
+
   if (!hasMore) return null;
   return (
-    <div className="flex justify-center py-4">
-      <button
-        type="button"
-        onClick={onLoadMore}
-        disabled={loadingMore}
-        className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 px-4 py-2 rounded-lg bg-muted hover:bg-accent transition-colors"
-      >
-        {loadingMore ? "Loading…" : "Load more"}
-      </button>
+    <div ref={sentinelRef} className="flex justify-center py-4" aria-hidden="true">
+      {loadingMore && (
+        <div className="size-4 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
+      )}
     </div>
   );
 }

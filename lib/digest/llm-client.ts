@@ -76,12 +76,93 @@ function parseOpenAiResponse(json: unknown): string {
 }
 
 function parseAnthropicResponse(json: unknown): string {
-  const typed = json as { content?: Array<{ type?: string; text?: string }> };
-  const block = typed.content?.[0];
-  if (block?.type !== "text" || typeof block.text !== "string") {
-    throw new LlmParseError("Missing content[0].text", JSON.stringify(json));
+  const typed = json as {
+    content?: string | Array<{ type?: string; text?: string }>;
+    error?: { message?: string; type?: string };
+  };
+
+  // Some endpoints return upstream errors with status 200 but an `error` envelope.
+  if (typed.error && typeof typed.error.message === "string") {
+    throw new LlmParseError(`Upstream error: ${typed.error.message}`, JSON.stringify(json));
   }
-  return block.text;
+
+  // Some Anthropic-compatible proxies return content as a plain string.
+  if (typeof typed.content === "string") {
+    return typed.content;
+  }
+
+  if (!Array.isArray(typed.content)) {
+    throw new LlmParseError(
+      `Anthropic response had no content array`,
+      JSON.stringify(json).slice(0, 500)
+    );
+  }
+
+  // Find ALL text blocks — Claude may return thinking/tool_use blocks before
+  // (or after) the actual text; we want the text wherever it appears.
+  const textBlocks = typed.content.filter(
+    (b): b is { type: string; text: string } =>
+      b?.type === "text" && typeof b.text === "string"
+  );
+
+  if (textBlocks.length === 0) {
+    const seenTypes = typed.content.map((b) => b?.type ?? "?").join(", ");
+    throw new LlmParseError(
+      `No text block in Anthropic content (got: ${seenTypes || "empty"})`,
+      JSON.stringify(json).slice(0, 500)
+    );
+  }
+
+  return textBlocks.map((b) => b.text).join("\n");
+}
+
+/**
+ * Pull a JSON value out of LLM text. Tries:
+ *   1. The text as-is.
+ *   2. Inside a ```json ... ``` (or ``` ... ```) code fence.
+ *   3. The first {...} or [...] substring.
+ *
+ * Needed because the Anthropic Messages API has no native JSON-schema mode, so
+ * we ask via the system prompt — models often wrap the answer in markdown or
+ * add prose around it.
+ */
+export function extractJsonFromText(text: string): unknown {
+  const trimmed = text.trim();
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // fall through
+  }
+
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch) {
+    try {
+      return JSON.parse(fenceMatch[1].trim());
+    } catch {
+      // fall through
+    }
+  }
+
+  const objMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try {
+      return JSON.parse(objMatch[0]);
+    } catch {
+      // fall through
+    }
+  }
+
+  const arrMatch = trimmed.match(/\[[\s\S]*\]/);
+  if (arrMatch) {
+    try {
+      return JSON.parse(arrMatch[0]);
+    } catch {
+      // fall through
+    }
+  }
+
+  throw new LlmParseError("Could not extract JSON from response text", trimmed.slice(0, 500));
 }
 
 export async function callChatCompletion(
@@ -144,11 +225,7 @@ export async function callChatCompletion(
   }
 
   const content = format === "anthropic" ? parseAnthropicResponse(json) : parseOpenAiResponse(json);
-  try {
-    return JSON.parse(content);
-  } catch {
-    throw new LlmParseError("message.content is not valid JSON", content);
-  }
+  return extractJsonFromText(content);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

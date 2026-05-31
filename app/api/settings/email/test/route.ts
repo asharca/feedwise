@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
-import { getUserEmail, getArticlesForEmail, getUserSMTPConfig } from "@/lib/email/queries";
+import {
+  getUserEmail,
+  getArticlesForEmail,
+  getUserSMTPConfig,
+  getSubscriptionSettings,
+} from "@/lib/email/queries";
 import { sendDailyDigest } from "@/lib/email/sender";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
 import { buildFallback } from "@/lib/digest/fallback";
+import { buildEmailLinkFn } from "@/lib/email/click-link";
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const session = await requireSession();
 
@@ -17,7 +23,6 @@ export async function POST() {
     const articles = await getArticlesForEmail(session.user.id);
     const smtpConfig = await getUserSMTPConfig(session.user.id);
 
-    // Check if SMTP is configured
     if (!smtpConfig) {
       return NextResponse.json({
         success: false,
@@ -36,7 +41,20 @@ export async function POST() {
       articles.map((a) => ({ primary: a, duplicates: [] })),
       "no-config"
     );
-    const html = renderFallbackHtml(digest);
+
+    // Honor the user's click-behavior settings (mark-read / star). When
+    // NEXT_PUBLIC_APP_URL isn't configured we fall back to the request's
+    // origin so the test email still has a working /api/r redirect to come
+    // back to.
+    const settings = await getSubscriptionSettings(session.user.id);
+    const reqOrigin = new URL(req.url).origin;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || reqOrigin;
+    const buildLink = buildEmailLinkFn(session.user.id, appUrl, {
+      markReadOnClick: settings?.markReadOnClick,
+      autoSaveOnClick: settings?.autoSaveOnClick,
+    });
+
+    const html = await renderFallbackHtml(digest, buildLink);
 
     await sendDailyDigest({
       to: email,
@@ -56,8 +74,6 @@ export async function POST() {
     });
   } catch (err) {
     console.error("[test-digest] Error:", err);
-
-    // Provide more specific error messages
     let errorMessage = "Failed to send test email";
     if (err instanceof Error) {
       if (err.message.includes("ENETUNREACH")) {

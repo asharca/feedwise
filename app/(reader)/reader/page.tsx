@@ -1,9 +1,10 @@
 "use client";
 
 import { Suspense, useState, useEffect, useCallback, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArticleList } from "@/components/article/article-list";
 import { ArticleReader } from "@/components/article/article-reader";
+import { ArticleDrawer } from "@/components/article/article-drawer";
 import { NewsDashboard } from "@/components/dashboard/news-dashboard";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { CheckCheck, BookOpen } from "lucide-react";
@@ -19,6 +20,7 @@ interface Article {
   summary: string | null;
   imageUrl: string | null;
   publishedAt: string | null;
+  createdAt: string | null;
   isRead: boolean;
   isStarred: boolean;
 }
@@ -28,14 +30,20 @@ interface ArticleDetail extends Article {
   url: string | null;
   contentHtml: string | null;
   contentText: string | null;
+  aiSummary?: string | null;
+  importance?: "high" | "med" | "low" | null;
+  tags?: Array<{ id: string; name: string; color?: string | null }>;
 }
 
 function ReaderContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const feedId = searchParams.get("feedId") ?? undefined;
   const folderId = searchParams.get("folderId") ?? undefined;
+  const tagId = searchParams.get("tag") ?? undefined;
   const view = searchParams.get("view") ?? "all";
   const search = searchParams.get("search") ?? undefined;
+  const articleId = searchParams.get("articleId") ?? undefined;
 
   const [articleList, setArticleList] = useState<Article[]>([]);
   const [activeArticle, setActiveArticle] = useState<ArticleDetail | null>(null);
@@ -43,14 +51,52 @@ function ReaderContent() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Reader-level LLM preferences. `null` = not loaded yet (don't auto-trigger).
+  const [autoSummarize, setAutoSummarize] = useState<boolean | null>(null);
+  const [tagNameById, setTagNameById] = useState<Record<string, string>>({});
   const PAGE_SIZE = 50;
 
-  const showDashboard = view === "all" && !feedId && !folderId && !search;
+  useEffect(() => {
+    fetch("/api/email/llm/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        // Only auto-trigger when LLM is actually enabled AND user opted in.
+        setAutoSummarize(Boolean(data.enabled) && Boolean(data.autoSummarize));
+      })
+      .catch(() => {
+        setAutoSummarize(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    function loadTags() {
+      fetch("/api/tags")
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data?.success) return;
+          const map: Record<string, string> = {};
+          for (const t of data.data ?? []) map[t.id] = t.name;
+          setTagNameById(map);
+        })
+        .catch(() => {});
+    }
+    loadTags();
+    window.addEventListener("tags-changed", loadTags);
+    return () => window.removeEventListener("tags-changed", loadTags);
+  }, []);
+
+  // Dashboard is the home view. A specific article opened from dashboard is
+  // shown as an overlay drawer on top of the dashboard instead of switching
+  // to the 2-pane layout — that keeps the magazine context intact while
+  // reading and makes the back behavior a trivial drawer dismiss.
+  const showDashboard = view === "all" && !feedId && !folderId && !tagId && !search;
 
   const fetchArticles = useCallback(async (pageOffset: number) => {
     const params = new URLSearchParams();
     if (feedId) params.set("feedId", feedId);
     if (folderId) params.set("folderId", folderId);
+    if (tagId) params.set("tag", tagId);
     if (view === "unread") params.set("unread", "true");
     if (view === "starred") params.set("starred", "true");
     if (search) params.set("search", search);
@@ -60,9 +106,10 @@ function ReaderContent() {
     const data = await res.json();
     if (data.success) return data.data as Article[];
     return [];
-  }, [feedId, folderId, view, search, PAGE_SIZE]);
+  }, [feedId, folderId, tagId, view, search, PAGE_SIZE]);
 
-  // Reset and reload when filters change
+  // Reset and reload the LIST when filters change. The currently-open article
+  // is driven separately by the articleId URL param, so we don't touch it here.
   useEffect(() => {
     if (showDashboard) return;
     setOffset(0);
@@ -72,8 +119,64 @@ function ReaderContent() {
       setArticleList(data);
       setHasMore(data.length === PAGE_SIZE);
     });
-    setActiveArticle(null);
   }, [fetchArticles, showDashboard, PAGE_SIZE]);
+
+  // Drive the open article from the URL: refreshing on ?articleId=… re-opens
+  // the same article, and back/forward navigation Just Works.
+  useEffect(() => {
+    if (!articleId) {
+      setActiveArticle(null);
+      return;
+    }
+    if (activeArticle?.id === articleId) return;
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/articles/${articleId}`);
+      if (!res.ok || cancelled) return;
+      const data = await res.json();
+      if (cancelled) return;
+      if (data.success) {
+        setActiveArticle(data.data);
+        // Mark read (best-effort, non-blocking)
+        if (data.data && !data.data.isRead) {
+          fetch(`/api/articles/${articleId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isRead: true }),
+          }).catch(() => {});
+          // Reflect read state in the list + sidebar counter
+          setArticleList((prev) =>
+            prev.map((a) => (a.id === articleId ? { ...a, isRead: true } : a))
+          );
+          if (data.data.feedId) dispatchUnreadDelta(data.data.feedId, -1);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // dispatchUnreadDelta is stable (defined inline below), excluded on purpose
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articleId]);
+
+  function openArticle(id: string, opts?: { feedId?: string }) {
+    const p = new URLSearchParams(searchParams.toString());
+    if (opts?.feedId) {
+      p.set("feedId", opts.feedId);
+      p.set("view", "all");
+      // dashboard-launched article: drop any unrelated filters
+      p.delete("folderId");
+      p.delete("tag");
+    }
+    p.set("articleId", id);
+    router.replace(`/reader?${p.toString()}`);
+  }
+
+  function closeArticle() {
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("articleId");
+    router.replace(`/reader?${p.toString()}`);
+  }
 
   async function handleLoadMore() {
     const nextOffset = offset + PAGE_SIZE;
@@ -96,36 +199,15 @@ function ReaderContent() {
     window.dispatchEvent(new CustomEvent("feedwise:mark-all-read", { detail: { feedId: targetFeedId, folderId: targetFolderId } }));
   }
 
-  async function handleSelect(id: string) {
-    const article = articleList.find((a) => a.id === id);
-    const wasUnread = article && !article.isRead;
-    setArticleList((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, isRead: true } : a))
-    );
-    if (wasUnread && article) dispatchUnreadDelta(article.feedId, -1);
-    fetch(`/api/articles/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isRead: true }),
-    }).catch(() => {});
-    const res = await fetch(`/api/articles/${id}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data.success) setActiveArticle(data.data);
+  function handleSelect(id: string) {
+    // Just update the URL — the articleId useEffect handles fetching and
+    // marking-as-read uniformly for clicks AND refreshes.
+    openArticle(id);
   }
 
-  async function handleDashboardSelect(id: string) {
-    const res = await fetch(`/api/articles/${id}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data.success) {
-      setActiveArticle(data.data);
-      fetch(`/api/articles/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isRead: true }),
-      }).catch(() => {});
-    }
+  function handleDashboardSelect(id: string) {
+    // Stay in dashboard mode — the article opens as a drawer overlay.
+    openArticle(id);
   }
 
   async function handleStar(id: string, starred: boolean) {
@@ -171,56 +253,68 @@ function ReaderContent() {
     toast.success("Marked all as read");
   }
 
-  // Dashboard
+  // Dashboard. If an article is open on top of dashboard (articleId in URL),
+  // it renders as a slide-in drawer overlay rather than swapping the layout.
   if (showDashboard) {
-    if (activeArticle) {
-      return (
-        <div className="flex h-full">
-          <ArticleReader
-            article={{ ...activeArticle, publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null }}
-            onMarkRead={handleMarkRead}
-            onStar={handleStar}
-            onBack={() => setActiveArticle(null)}
-          />
-        </div>
-      );
-    }
     return (
-      <div className="flex flex-col h-full">
-        <div className="md:hidden px-4 h-12 flex items-center gap-2 shrink-0 border-b border-border/50">
-          <SidebarTrigger />
+      <>
+        <div className="flex flex-col h-full">
+          <div className="md:hidden px-4 h-12 flex items-center gap-2 shrink-0 border-b border-border/50">
+            <SidebarTrigger />
+          </div>
+          <div className="flex-1 min-h-0">
+            <NewsDashboard onSelectArticle={handleDashboardSelect} />
+          </div>
         </div>
-        <div className="flex-1 min-h-0">
-          <NewsDashboard onSelectArticle={handleDashboardSelect} />
-        </div>
-      </div>
+        <ArticleDrawer open={Boolean(activeArticle)} onClose={closeArticle}>
+          {activeArticle && (
+            <ArticleReader
+              article={{
+                ...activeArticle,
+                publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null,
+                createdAt: activeArticle.createdAt ? new Date(activeArticle.createdAt) : null,
+              }}
+              onMarkRead={handleMarkRead}
+              onStar={handleStar}
+              onBack={closeArticle}
+              contextLabel="Today's News"
+              autoSummarize={autoSummarize ?? false}
+            />
+          )}
+        </ArticleDrawer>
+      </>
     );
   }
 
   // Article list view
   const viewTitle = search
     ? `"${search}"`
-    : feedId && articleList.length > 0
-      ? (articleList[0].feedTitle ?? "Feed")
-      : folderId
-        ? "Category"
-        : view === "unread"
-          ? "Unread"
-          : view === "starred"
-            ? "Starred"
-            : "All Articles";
+    : tagId
+      ? `#${tagNameById[tagId] ?? "tag"}`
+      : feedId && articleList.length > 0
+        ? (articleList[0].feedTitle ?? "Feed")
+        : folderId
+          ? "Category"
+          : view === "unread"
+            ? "Unread"
+            : view === "starred"
+              ? "Starred"
+              : "Home";
 
   const mappedArticles = articleList.map((a) => ({
     ...a,
     publishedAt: a.publishedAt ? new Date(a.publishedAt) : null,
+    createdAt: a.createdAt ? new Date(a.createdAt) : null,
   }));
 
   return (
     <div className="flex h-full">
-      {/* Article list panel — left */}
+      {/* Article list panel — left. Always visible on desktop so the feed
+          catalogue is one click away while reading; collapses on mobile only
+          when an article is open (screen room is tight). */}
       <div className={cn(
-        "flex flex-col border-r border-border bg-background shrink-0",
-        activeArticle ? "w-80 hidden md:flex" : "w-full md:w-80"
+        "flex flex-col border-r border-border bg-background shrink-0 md:w-80",
+        activeArticle ? "hidden md:flex" : "w-full"
       )}>
         <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border">
           <SidebarTrigger className="md:hidden" />
@@ -263,10 +357,16 @@ function ReaderContent() {
       )}>
         {activeArticle ? (
           <ArticleReader
-            article={{ ...activeArticle, publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null }}
+            article={{
+              ...activeArticle,
+              publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null,
+              createdAt: activeArticle.createdAt ? new Date(activeArticle.createdAt) : null,
+            }}
             onMarkRead={handleMarkRead}
             onStar={handleStar}
-            onBack={() => setActiveArticle(null)}
+            onBack={closeArticle}
+            contextLabel={viewTitle}
+            autoSummarize={autoSummarize ?? false}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">

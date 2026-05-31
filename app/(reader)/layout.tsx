@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { getSubscriptions, getFolders } from "@/lib/db/queries/feeds";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { GlobalSettingsDialog } from "@/components/settings/global-settings-dialog";
 
 export default async function ReaderLayout({
   children,
@@ -33,6 +34,7 @@ export default async function ReaderLayout({
         <SidebarInset className="flex-1 overflow-hidden bg-background">
           {children}
         </SidebarInset>
+        <GlobalSettingsDialog />
       </div>
     </SidebarProvider>
   );

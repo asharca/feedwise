@@ -16,26 +16,27 @@ const fixture: OrganizedDigest = {
 };
 
 describe("renderFallbackHtml", () => {
-  it("renders all ungrouped articles, no banner when no-config", () => {
-    const html = renderFallbackHtml(fixture);
+  it("renders all ungrouped articles", async () => {
+    const html = await renderFallbackHtml(fixture);
     expect(html).toContain("Article A");
     expect(html).toContain("Article B");
     expect(html).toContain("https://e.com/a");
+  });
+
+  it("uses a plain-text brief regardless of llm-failed mode (no banner)", async () => {
+    const html = await renderFallbackHtml({ ...fixture, mode: "fallback-llm-failed" });
     expect(html).not.toContain("Topic clustering unavailable");
+    expect(html).not.toContain("<p>Summary A</p>");
+    expect(html).toContain("Summary A");
   });
 
-  it("renders unavailable banner when llm-failed", () => {
-    const html = renderFallbackHtml({ ...fixture, mode: "fallback-llm-failed" });
-    expect(html).toContain("Topic clustering unavailable");
-  });
-
-  it("uses the injected buildLink for article hrefs", () => {
-    const html = renderFallbackHtml(fixture, (a) => `https://app/r?id=${a.id}`);
+  it("uses the injected buildLink for article hrefs", async () => {
+    const html = await renderFallbackHtml(fixture, (a) => `https://app/r?id=${a.id}`);
     expect(html).toContain('href="https://app/r?id=a"');
     expect(html).toContain('href="https://app/r?id=b"');
   });
 
-  it("defaults links to the article url", () => {
-    expect(renderFallbackHtml(fixture)).toContain('href="https://e.com/a"');
+  it("defaults links to the article url", async () => {
+    expect(await renderFallbackHtml(fixture)).toContain('href="https://e.com/a"');
   });
 });

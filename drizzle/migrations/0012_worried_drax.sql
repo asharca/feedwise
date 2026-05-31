@@ -1,0 +1,1 @@
+ALTER TABLE "email_subscriptions" ADD COLUMN "auto_summarize" boolean DEFAULT true NOT NULL;

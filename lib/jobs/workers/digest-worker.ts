@@ -8,17 +8,13 @@ import {
   logDigestSend,
   updateNextScheduledAt,
   getLastDigestSentDate,
-  getUserLlmConfig,
 } from "@/lib/email/queries";
 import { sendDailyDigest } from "@/lib/email/sender";
 import { dedupeByCanonicalUrl, dedupeByTitleSimilarity } from "@/lib/digest/dedupe";
-import { runClustering } from "@/lib/digest/cluster";
-import { organize } from "@/lib/digest/organize";
-import { buildFallback } from "@/lib/digest/fallback";
-import { callChatCompletion } from "@/lib/digest/llm-client";
+import { buildTagBasedDigest } from "@/lib/digest/organize-by-tag";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
-import { signClickToken } from "@/lib/email/click-token";
+import { buildEmailLinkFn } from "@/lib/email/click-link";
 import type { DigestArticle, OrganizedDigest } from "@/lib/digest/types";
 
 const DEFAULT_CRON = "0 8 * * *"; // Daily at 8:00 AM
@@ -74,42 +70,30 @@ export async function processDailyDigests() {
 }
 
 /**
- * Pure-ish assembly: dedupe + cluster (or fallback) + organize.
- * Returns the organized digest plus the ORIGINAL article ids to mark as sent.
- * Exported for unit testing.
+ * Build the digest from articles whose per-article enrichment (tag + AI
+ * summary) has already happened in the background. Dedupes by URL/title,
+ * groups by primary tag, no synchronous LLM call.
+ *
+ * Articles without an ai_summary still appear (they just render the RSS
+ * summary as a fallback in the template). Articles without tags fall into
+ * an "Uncategorized" group.
+ *
+ * `userId` is kept in the signature for callers that still pass it; the
+ * function no longer needs it because no per-user LLM call is made here.
  */
 export async function assembleDigestForSubscription(
-  userId: string,
+  _userId: string,
   articles: DigestArticle[]
 ): Promise<{ digest: OrganizedDigest; allArticleIds: string[] }> {
   const allArticleIds = articles.map((a) => a.id);
 
   const dedupedByUrl = dedupeByCanonicalUrl(articles);
   const deduped = dedupeByTitleSimilarity(dedupedByUrl, 0.85);
+  // dedupe returns DedupedArticle[]; we just want the primaries for grouping.
+  const primaries = deduped.map((d) => d.primary);
 
-  let llmConfig;
-  try {
-    llmConfig = await getUserLlmConfig(userId);
-  } catch (err) {
-    // Decryption failure (e.g. ENCRYPTION_KEY rotated, tampered ciphertext)
-    // is treated as an LLM failure, not "no config" — surface the banner.
-    console.error(`[digest] LLM key decryption failed for user ${userId}:`, err);
-    return { digest: buildFallback(deduped, "llm-failed"), allArticleIds };
-  }
-
-  if (!llmConfig) {
-    return { digest: buildFallback(deduped, "no-config"), allArticleIds };
-  }
-
-  try {
-    const client = (input: Parameters<typeof callChatCompletion>[1]) =>
-      callChatCompletion(llmConfig, input);
-    const response = await runClustering(deduped, client);
-    return { digest: organize(deduped, response), allArticleIds };
-  } catch (err) {
-    console.error(`[digest] LLM clustering failed for user ${userId}:`, err);
-    return { digest: buildFallback(deduped, "llm-failed"), allArticleIds };
-  }
+  const digest = buildTagBasedDigest(primaries);
+  return { digest, allArticleIds };
 }
 
 async function sendDigestForDate(
@@ -151,19 +135,24 @@ async function sendDigestForDate(
       ? `Feedwise Digest - ${dateStr} - No new articles`
       : `Feedwise Digest - ${dateStr} - ${articles.length} article${articles.length === 1 ? "" : "s"}`;
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  const buildLink =
-    subscription.autoSaveOnClick && appUrl
-      ? (a: DigestArticle) => `${appUrl}/api/r?t=${signClickToken(subscription.userId, a.id)}`
-      : (a: DigestArticle) => a.url ?? "";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  if (!appUrl) {
+    console.warn(
+      "[digest] NEXT_PUBLIC_APP_URL is not set — email links will skip /api/r so clicks won't mark articles read/starred."
+    );
+  }
+  const buildLink = buildEmailLinkFn(subscription.userId, appUrl, {
+    markReadOnClick: subscription.markReadOnClick,
+    autoSaveOnClick: subscription.autoSaveOnClick,
+  });
 
   const html =
     digest.mode === "clustered"
-      ? renderDigestHtml(digest, buildLink)
-      : renderFallbackHtml(digest, buildLink);
+      ? await renderDigestHtml(digest, buildLink)
+      : await renderFallbackHtml(digest, buildLink);
 
   try {
-    await sendDailyDigest({ to: email, subject, html, smtpConfig });
+    await sendDailyDigestWithRetry({ to: email, subject, html, smtpConfig });
     await markArticlesAsSent(subscription.userId, allArticleIds);
     await logDigestSend(subscription.userId, articles.length, "success");
     console.log(
@@ -175,6 +164,31 @@ async function sendDigestForDate(
     console.error(`[digest] Failed to send to ${email}:`, message);
     throw err;
   }
+}
+
+const SEND_RETRY_ATTEMPTS = 3;
+const SEND_RETRY_BASE_MS = 5_000;
+
+async function sendDailyDigestWithRetry(
+  params: Parameters<typeof sendDailyDigest>[0]
+): Promise<void> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= SEND_RETRY_ATTEMPTS; attempt++) {
+    try {
+      await sendDailyDigest(params);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (attempt === SEND_RETRY_ATTEMPTS) break;
+      const delay = SEND_RETRY_BASE_MS * Math.pow(2, attempt - 1);
+      console.warn(
+        `[digest] Send attempt ${attempt} failed, retrying in ${delay}ms:`,
+        err instanceof Error ? err.message : err
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw lastErr;
 }
 
 /**

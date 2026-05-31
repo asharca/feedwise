@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
 
-const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "::1"];
+const BLOCKED_HOSTS =
+  process.env.NODE_ENV === "production"
+    ? ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
+    : ["0.0.0.0", "::1"];
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",

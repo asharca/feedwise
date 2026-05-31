@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "::1"];
+const BLOCKED_HOSTS =
+  process.env.NODE_ENV === "production"
+    ? ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
+    : ["0.0.0.0", "::1"];
 
 // 1x1 transparent GIF — returned when upstream fails so browsers don't retry
 const TRANSPARENT_GIF = Buffer.from(

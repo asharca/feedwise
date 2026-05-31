@@ -17,8 +17,11 @@ function buildTrustedOrigins() {
   for (const origin of fromEnv) origins.add(origin);
 
   if (process.env.NODE_ENV !== "production") {
-    origins.add("http://localhost:3000");
-    origins.add("http://127.0.0.1:3000");
+    // Allow common dev server ports so auth works regardless of which port Next.js binds to
+    for (let p = 3000; p <= 3010; p++) {
+      origins.add(`http://localhost:${p}`);
+      origins.add(`http://127.0.0.1:${p}`);
+    }
   }
 
   return Array.from(origins);
@@ -40,6 +43,10 @@ export function getAuth() {
         enabled: true,
       },
       session: {
+        // Keep sessions valid for 30 days, rolling-refresh once a day so
+        // active users never see a sudden logout.
+        expiresIn: 60 * 60 * 24 * 30,
+        updateAge: 60 * 60 * 24,
         cookieCache: { enabled: true, maxAge: 60 * 5 },
       },
       trustedOrigins: buildTrustedOrigins(),

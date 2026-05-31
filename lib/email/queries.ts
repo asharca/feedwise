@@ -37,6 +37,7 @@ export interface SubscriptionSettings {
   emailProvider?: string | null;
   emailApiKey?: string | null;
   autoSaveOnClick?: boolean;
+  markReadOnClick?: boolean;
 }
 
 export interface SMTPConfig {
@@ -84,6 +85,7 @@ export async function getSubscriptionSettings(userId: string): Promise<Subscript
     emailProvider: sub.emailProvider,
     emailApiKey: decryptIfEncrypted(sub.emailApiKey),
     autoSaveOnClick: sub.autoSaveOnClick ?? false,
+    markReadOnClick: sub.markReadOnClick ?? true,
   };
 }
 
@@ -110,6 +112,7 @@ export async function updateSubscriptionSettings(
         emailProvider: settings.emailProvider,
         emailApiKey: encryptIfPresent(settings.emailApiKey) ?? null,
         autoSaveOnClick: settings.autoSaveOnClick ?? false,
+        markReadOnClick: settings.markReadOnClick ?? true,
       })
       .returning();
     await syncSubscriptionEntities(created.id, settings);
@@ -131,6 +134,7 @@ export async function updateSubscriptionSettings(
       emailProvider: settings.emailProvider !== undefined ? settings.emailProvider : existing.emailProvider,
       emailApiKey: settings.emailApiKey !== undefined ? encryptIfPresent(settings.emailApiKey) ?? null : existing.emailApiKey,
       autoSaveOnClick: settings.autoSaveOnClick ?? existing.autoSaveOnClick,
+      markReadOnClick: settings.markReadOnClick ?? existing.markReadOnClick,
       updatedAt: new Date(),
     })
     .where(eq(emailSubscriptions.id, existing.id));
@@ -203,6 +207,8 @@ export async function getArticlesForEmail(
       title: articles.title,
       url: articles.url,
       summary: articles.summary,
+      aiSummary: articles.aiSummary,
+      importance: articles.importance,
       feedTitle: feeds.title,
       feedId: feeds.id,
       publishedAt: articles.publishedAt,
@@ -244,36 +250,54 @@ export async function getArticlesForEmail(
   const hasSelectedFeeds = settings.selectedFeeds.length > 0;
   const hasSelectedTags = settings.selectedTags.length > 0;
 
-  // Nothing selected = include all
-  if (!hasSelectedFeeds && !hasSelectedTags) {
-    return rows.map((row) => ({
-      id: row.id,
-      title: row.title ?? "Untitled",
-      url: row.url ?? "",
-      summary: row.summary,
-      feedTitle: row.feedTitle,
-      publishedAt: row.publishedAt,
-    }));
+  const matched = !hasSelectedFeeds && !hasSelectedTags
+    ? rows
+    : rows.filter((row) => {
+        const feedMatch = hasSelectedFeeds && settings.selectedFeeds.includes(row.feedId as string);
+        const tagMatch = hasSelectedTags && taggedArticleIds.has(row.id);
+        if (hasSelectedFeeds && hasSelectedTags) return feedMatch || tagMatch;
+        if (hasSelectedFeeds) return feedMatch;
+        if (hasSelectedTags) return tagMatch;
+        return false;
+      });
+
+  // Batch-fetch tags for the in-window articles so the digest can group by tag
+  // without an N+1 lookup downstream.
+  const articleIds = matched.map((r) => r.id);
+  const tagRows = articleIds.length === 0
+    ? []
+    : await db
+        .select({
+          articleId: articleTags.articleId,
+          tagId: tags.id,
+          tagName: tags.name,
+        })
+        .from(articleTags)
+        .innerJoin(tags, eq(articleTags.tagId, tags.id))
+        .where(
+          and(
+            inArray(articleTags.articleId, articleIds),
+            eq(tags.userId, userId)
+          )
+        );
+
+  const tagsByArticle = new Map<string, Array<{ id: string; name: string }>>();
+  for (const t of tagRows) {
+    if (!tagsByArticle.has(t.articleId)) tagsByArticle.set(t.articleId, []);
+    tagsByArticle.get(t.articleId)!.push({ id: t.tagId, name: t.tagName });
   }
 
-  const filtered = rows.filter((row) => {
-    const feedMatch = hasSelectedFeeds && settings.selectedFeeds.includes(row.feedId as string);
-    const tagMatch = hasSelectedTags && taggedArticleIds.has(row.id);
-
-    // If both feeds and tags are selected, match either (OR)
-    if (hasSelectedFeeds && hasSelectedTags) return feedMatch || tagMatch;
-    if (hasSelectedFeeds) return feedMatch;
-    if (hasSelectedTags) return tagMatch;
-    return false;
-  });
-
-  return filtered.map((row) => ({
+  return matched.map((row) => ({
     id: row.id,
     title: row.title ?? "Untitled",
     url: row.url ?? "",
     summary: row.summary,
+    aiSummary: row.aiSummary,
+    importance: row.importance,
     feedTitle: row.feedTitle,
+    feedId: row.feedId,
     publishedAt: row.publishedAt,
+    tags: tagsByArticle.get(row.id) ?? [],
   }));
 }
 
@@ -313,6 +337,47 @@ export async function getLastDigestSentDate(userId: string): Promise<Date | null
   return row?.sentAt ?? null;
 }
 
+export async function getUsersWithAutoTagEnabled(): Promise<string[]> {
+  const rows = await db
+    .select({ userId: emailSubscriptions.userId })
+    .from(emailSubscriptions)
+    .where(
+      and(
+        eq(emailSubscriptions.autoTag, true),
+        eq(emailSubscriptions.llmEnabled, true)
+      )
+    );
+  return rows.map((r) => r.userId);
+}
+
+export async function getUsersWithAutoSummarizeEnabled(): Promise<string[]> {
+  const rows = await db
+    .select({ userId: emailSubscriptions.userId })
+    .from(emailSubscriptions)
+    .where(
+      and(
+        eq(emailSubscriptions.autoSummarize, true),
+        eq(emailSubscriptions.llmEnabled, true)
+      )
+    );
+  return rows.map((r) => r.userId);
+}
+
+export async function getDigestHistory(userId: string, limit: number = 30) {
+  return db
+    .select({
+      id: emailDigestLogs.id,
+      sentAt: emailDigestLogs.sentAt,
+      articleCount: emailDigestLogs.articleCount,
+      status: emailDigestLogs.status,
+      errorMessage: emailDigestLogs.errorMessage,
+    })
+    .from(emailDigestLogs)
+    .where(eq(emailDigestLogs.userId, userId))
+    .orderBy(sql`${emailDigestLogs.sentAt} desc`)
+    .limit(limit);
+}
+
 export async function getAllActiveSubscriptions() {
   const rows = await db
     .select({
@@ -329,6 +394,7 @@ export async function getAllActiveSubscriptions() {
       smtpPass: emailSubscriptions.smtpPass,
       smtpFrom: emailSubscriptions.smtpFrom,
       autoSaveOnClick: emailSubscriptions.autoSaveOnClick,
+      markReadOnClick: emailSubscriptions.markReadOnClick,
     })
     .from(emailSubscriptions)
     .where(eq(emailSubscriptions.enabled, true));
@@ -368,6 +434,8 @@ export interface LlmConfig {
   apiKey: string;
   model: string;
   format: LlmFormat;
+  autoSummarize: boolean;
+  autoTag: boolean;
 }
 
 export async function getUserLlmConfig(userId: string): Promise<LlmConfig | null> {
@@ -388,6 +456,8 @@ export async function getUserLlmConfig(userId: string): Promise<LlmConfig | null
     apiKey,
     model: sub.llmModel,
     format: (sub.llmFormat as LlmFormat) ?? "openai",
+    autoSummarize: sub.autoSummarize ?? true,
+    autoTag: sub.autoTag ?? false,
   };
 }
 
@@ -397,6 +467,8 @@ export interface LlmConfigInput {
   apiKey?: string;
   model: string;
   format?: LlmFormat;
+  autoSummarize?: boolean;
+  autoTag?: boolean;
 }
 
 export async function updateUserLlmConfig(userId: string, input: LlmConfigInput): Promise<void> {
@@ -417,6 +489,8 @@ export async function updateUserLlmConfig(userId: string, input: LlmConfigInput)
       llmApiKey: apiKeyToStore,
       llmModel: input.model || null,
       llmFormat: input.format ?? "openai",
+      ...(input.autoSummarize !== undefined ? { autoSummarize: input.autoSummarize } : {}),
+      ...(input.autoTag !== undefined ? { autoTag: input.autoTag } : {}),
     });
     return;
   }
@@ -428,6 +502,8 @@ export async function updateUserLlmConfig(userId: string, input: LlmConfigInput)
       llmApiKey: apiKeyToStore,
       llmModel: input.model || null,
       llmFormat: input.format ?? existing.llmFormat ?? "openai",
+      ...(input.autoSummarize !== undefined ? { autoSummarize: input.autoSummarize } : {}),
+      ...(input.autoTag !== undefined ? { autoTag: input.autoTag } : {}),
       updatedAt: new Date(),
     })
     .where(eq(emailSubscriptions.id, existing.id));

@@ -51,15 +51,14 @@ docs/                     Design specs and architecture decisions
 | `lib/auth/` | `lib/db/`, `better-auth` | `app/`, `app/api/` | Auth configuration only. No UI components. |
 | `lib/feeds/` | `lib/db/`, `feedparser-promised` | `lib/jobs/` | RSS fetching + parsing. No HTTP server logic. |
 | `lib/email/` | `lib/db/`, `nodemailer` | `lib/jobs/` | Email sending + templates. No digest logic. |
-| `lib/digest/` | `lib/db/` | `lib/jobs/`, `lib/email/` | Content organization pipeline. LLM calls allowed here only. |
+| `lib/digest/` | `lib/db/` | `lib/jobs/`, `lib/email/`, `app/api/` | Content organization pipeline. LLM client utilities live here and may be reused by Web UI features. |
 | `lib/jobs/` | `lib/db/`, `lib/feeds/`, `lib/email/`, `lib/digest/` | `package.json scripts` | Worker entry points. Orchestrates other modules. |
 | `app/api/` | `lib/*` | — | API routes. Thin wrappers over lib modules. |
-| `app/(reader)/` | `components/`, `lib/hooks/` | — | Reader UI. No AI features. |
+| `app/(reader)/` | `components/`, `lib/hooks/` | — | Reader UI. LLM features allowed when user has opted in and configured a key. |
 
 ## Key Decisions
 
-- **Web UI: no AI features** — reader, settings, auth are purely rule-based
-- **Digest pipeline: LLM allowed** — clustering, summarization, importance scoring
+- **LLM features**: allowed across digest pipeline and Web UI; always opt-in and gated on the user's own API key/config
 - **LLM config**: OpenAI-compatible (baseURL + key + model), JSON mode
 - **File size**: prefer small files, single responsibility
 - **Testing**: new modules must have tests (pure functions mockable, fixtures for templates)

@@ -29,36 +29,36 @@ function digest(): OrganizedDigest {
 }
 
 describe("renderDigestHtml (layout A)", () => {
-  it("renders multiple event items under a topic", () => {
-    const html = renderDigestHtml(digest());
+  it("renders multiple event items under a topic", async () => {
+    const html = await renderDigestHtml(digest());
     expect(html).toContain("Ceasefire talks resume");
     expect(html).toContain("Earthquake hits coast");
   });
-  it("contains no expand/collapse markup", () => {
-    const html = renderDigestHtml(digest());
+  it("contains no expand/collapse markup", async () => {
+    const html = await renderDigestHtml(digest());
     expect(html).not.toContain("<details");
     expect(html).not.toMatch(/other source/i);
   });
-  it("renders the plain-text brief, not raw HTML summary", () => {
-    const html = renderDigestHtml(digest());
+  it("renders the plain-text brief, not raw HTML summary", async () => {
+    const html = await renderDigestHtml(digest());
     expect(html).toContain("Brief for Ceasefire talks resume");
     expect(html).not.toContain("<p>Brief for");
   });
-  it("uses the injected buildLink for article hrefs", () => {
-    const html = renderDigestHtml(digest(), (a) => `https://app/r?id=${a.id}`);
+  it("uses the injected buildLink for article hrefs", async () => {
+    const html = await renderDigestHtml(digest(), (a) => `https://app/r?id=${a.id}`);
     expect(html).toContain('href="https://app/r?id=a"');
     expect(html).toContain('href="https://app/r?id=b"');
   });
-  it("defaults links to the article url", () => {
-    const html = renderDigestHtml(digest());
+  it("defaults links to the article url", async () => {
+    const html = await renderDigestHtml(digest());
     expect(html).toContain('href="https://e.com/a"');
   });
-  it("contains no <img> tags", () => {
-    expect(renderDigestHtml(digest())).not.toContain("<img");
+  it("contains no <img> tags", async () => {
+    expect(await renderDigestHtml(digest())).not.toContain("<img");
   });
-  it("omits the TOP STORIES header when there are no headlines", () => {
+  it("omits the TOP STORIES header when there are no headlines", async () => {
     const d = digest();
     d.topHeadlines = [];
-    expect(renderDigestHtml(d)).not.toContain("TOP STORIES");
+    expect(await renderDigestHtml(d)).not.toContain("TOP STORIES");
   });
 });

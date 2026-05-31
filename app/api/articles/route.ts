@@ -12,6 +12,7 @@ export async function GET(req: Request) {
     const articles = await getArticles(session.user.id, {
       feedId: searchParams.get("feedId") ?? undefined,
       folderId: searchParams.get("folderId") ?? undefined,
+      tagId: searchParams.get("tag") ?? undefined,
       unreadOnly: searchParams.get("unread") === "true",
       starredOnly: searchParams.get("starred") === "true",
       search: searchQuery,

@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, Check } from "lucide-react";
+import { Mail, Check, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { SettingRow } from "@/components/settings/setting-row";
 import { SettingsSubTabs, type SettingsSubTab } from "@/components/settings/settings-sub-tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import CronBuilder from "@/components/cron-builder";
 
 interface Sub {
@@ -33,6 +35,7 @@ interface EmailSettings {
   smtpUser?: string | null;
   smtpFrom?: string | null;
   autoSaveOnClick?: boolean;
+  markReadOnClick?: boolean;
 }
 
 interface Props {
@@ -55,6 +58,7 @@ interface Props {
   onFeedToggle: (feedId: string) => void;
   onTestEmail: () => void;
   onAutoSaveToggle: (autoSaveOnClick: boolean) => void;
+  onMarkReadOnClickToggle: (markReadOnClick: boolean) => void;
 }
 
 export function DigestEmailSection({
@@ -77,8 +81,46 @@ export function DigestEmailSection({
   onFeedToggle,
   onTestEmail,
   onAutoSaveToggle,
+  onMarkReadOnClickToggle,
 }: Props) {
   const [tab, setTab] = useState("general");
+
+  // Preview-email dialog state. The digest is built from per-article tags
+  // and AI summaries that background workers maintain, so this is a fast
+  // POST with no LLM call in the request path.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string>("");
+  const [previewMeta, setPreviewMeta] = useState<{ mode: string; articleCount: number } | null>(null);
+
+  async function runPreview() {
+    setPreviewLoading(true);
+    try {
+      const res = await fetch("/api/email/llm/preview", { method: "POST" });
+      const data = (await res.json()) as {
+        success: boolean;
+        error?: string;
+        data?: { mode: string; html: string; articleCount: number };
+      };
+      if (!data.success || !data.data) {
+        toast.error(data.error ?? "Preview failed");
+        return;
+      }
+      setPreviewHtml(data.data.html);
+      setPreviewMeta({ mode: data.data.mode, articleCount: data.data.articleCount });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Preview failed");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function openPreview() {
+    setPreviewHtml("");
+    setPreviewMeta(null);
+    setPreviewOpen(true);
+    runPreview();
+  }
   const enabled = emailSettings?.enabled ?? false;
   const subTabs: SettingsSubTab[] = [
     { key: "general", label: "General" },
@@ -124,17 +166,30 @@ export function DigestEmailSection({
                   }
                 />
                 {enabled && (
-                  <SettingRow
-                    title="Auto-save on click"
-                    description="Save to starred when opened from email"
-                    control={
-                      <Switch
-                        checked={emailSettings?.autoSaveOnClick ?? false}
-                        onCheckedChange={onAutoSaveToggle}
-                        disabled={emailSaving}
-                      />
-                    }
-                  />
+                  <>
+                    <SettingRow
+                      title="Mark read on click"
+                      description="When you open an article from the email, mark it as read in feedwise."
+                      control={
+                        <Switch
+                          checked={emailSettings?.markReadOnClick ?? true}
+                          onCheckedChange={onMarkReadOnClickToggle}
+                          disabled={emailSaving}
+                        />
+                      }
+                    />
+                    <SettingRow
+                      title="Star on click"
+                      description="Also star (save) the article when you open it from the email."
+                      control={
+                        <Switch
+                          checked={emailSettings?.autoSaveOnClick ?? false}
+                          onCheckedChange={onAutoSaveToggle}
+                          disabled={emailSaving}
+                        />
+                      }
+                    />
+                  </>
                 )}
               </div>
             )}
@@ -242,19 +297,31 @@ export function DigestEmailSection({
                     <p className="mt-1 text-[11px] text-muted-foreground">SMTP password is saved.</p>
                   )}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full rounded-md"
-                  onClick={onTestEmail}
-                  disabled={
-                    emailSaving || emailTesting || !isSmtpValid ||
-                    (!emailSettings!.hasSmtpPass && smtpPassDraft.trim().length === 0)
-                  }
-                >
-                  <Mail className="size-4 mr-2" />
-                  {emailTesting ? "Sending…" : "Send Test Email"}
-                </Button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-md"
+                    onClick={openPreview}
+                    title="Render what the next digest would look like, with or without AI"
+                  >
+                    <Eye className="size-4 mr-2" />
+                    Preview email
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-md"
+                    onClick={onTestEmail}
+                    disabled={
+                      emailSaving || emailTesting || !isSmtpValid ||
+                      (!emailSettings!.hasSmtpPass && smtpPassDraft.trim().length === 0)
+                    }
+                  >
+                    <Mail className="size-4 mr-2" />
+                    {emailTesting ? "Sending…" : "Send Test Email"}
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -301,6 +368,45 @@ export function DigestEmailSection({
           </>
         )}
       </CardContent>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent
+          // Big fixed canvas so the email renders at its real width and the
+          // dialog doesn't reflow while toggling AI on/off.
+          className="!max-w-none rounded-lg w-[min(1100px,96vw)] h-[min(88vh,820px)] overflow-hidden flex flex-col"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 flex-wrap pr-6">
+              <span>Email preview</span>
+              {previewMeta && (
+                <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                  {previewMeta.articleCount} article{previewMeta.articleCount === 1 ? "" : "s"}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-hidden rounded-md border border-border bg-background relative">
+            {previewLoading && (
+              <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-center py-2 bg-background/80 backdrop-blur-sm text-xs text-muted-foreground">
+                <div className="size-3 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin mr-2" />
+                Rebuilding…
+              </div>
+            )}
+            {previewHtml ? (
+              <iframe
+                title="Email preview"
+                srcDoc={previewHtml}
+                sandbox=""
+                className="w-full h-full bg-white"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                Building preview…
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

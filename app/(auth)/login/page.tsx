@@ -22,7 +22,9 @@ function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      const res = await signIn.email({ email, password });
+      // rememberMe: true keeps a persistent cookie (Max-Age = session.expiresIn)
+      // instead of a browser-session cookie that disappears when the tab closes.
+      const res = await signIn.email({ email, password, rememberMe: true });
       if (res.error) {
         setError(res.error.message ?? "Login failed");
       } else {

@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
-import { getUserLlmConfig, updateUserLlmConfig } from "@/lib/email/queries";
+import { getUserLlmConfig, getUserSubscription, updateUserLlmConfig } from "@/lib/email/queries";
 
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
   const cfg = await getUserLlmConfig(session.user.id);
+
+  // Read the toggle directly from the subscription row so the setting is
+  // available even when llmEnabled is false (so users can flip prefs while
+  // their LLM is off without losing them).
+  const sub = await getUserSubscription(session.user.id);
+  const autoSummarize = sub?.autoSummarize ?? true;
+  const autoTag = sub?.autoTag ?? false;
+
   if (!cfg) {
     return NextResponse.json({
       enabled: false,
@@ -14,6 +23,8 @@ export async function GET() {
       apiKeyMask: "",
       model: "",
       format: "openai",
+      autoSummarize,
+      autoTag,
     });
   }
   const k = cfg.apiKey;
@@ -24,6 +35,8 @@ export async function GET() {
     apiKeyMask,
     model: cfg.model,
     format: cfg.format,
+    autoSummarize,
+    autoTag,
   });
 }
 
@@ -33,6 +46,8 @@ const InputSchema = z.object({
   apiKey: z.string().optional(),
   model: z.string().max(100),
   format: z.enum(["openai", "anthropic"]).optional(),
+  autoSummarize: z.boolean().optional(),
+  autoTag: z.boolean().optional(),
 });
 
 export async function PUT(req: Request) {

@@ -132,7 +132,7 @@ describe("callChatCompletion", () => {
     expect(body.response_format).toBeUndefined();
   });
 
-  it("throws LlmParseError when anthropic response lacks content[0].text", async () => {
+  it("throws LlmParseError when anthropic response has no text blocks", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ content: [{ type: "image", source: {} }] }),
@@ -142,6 +142,97 @@ describe("callChatCompletion", () => {
     await expect(
       callChatCompletion(ANTHROPIC_CONFIG, { system: "", user: "", jsonSchema: { name: "X", schema: {} } })
     ).rejects.toBeInstanceOf(LlmParseError);
+  });
+
+  it("anthropic: picks text block when thinking block comes first", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: [
+            { type: "thinking", thinking: "let me think..." },
+            { type: "text", text: '{"ok":true}' },
+          ],
+        }),
+        { status: 200 }
+      )
+    ) as unknown as typeof fetch;
+    const out = await callChatCompletion(ANTHROPIC_CONFIG, {
+      system: "", user: "", jsonSchema: { name: "X", schema: {} },
+    });
+    expect(out).toEqual({ ok: true });
+  });
+
+  it("anthropic: handles tool_use mixed with text", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: [
+            { type: "text", text: '{"ok":true}' },
+            { type: "tool_use", id: "x", name: "y", input: {} },
+          ],
+        }),
+        { status: 200 }
+      )
+    ) as unknown as typeof fetch;
+    const out = await callChatCompletion(ANTHROPIC_CONFIG, {
+      system: "", user: "", jsonSchema: { name: "X", schema: {} },
+    });
+    expect(out).toEqual({ ok: true });
+  });
+
+  it("anthropic: extracts JSON from markdown code fence", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: [{ type: "text", text: 'Here you go:\n```json\n{"ok":true}\n```\n' }],
+        }),
+        { status: 200 }
+      )
+    ) as unknown as typeof fetch;
+    const out = await callChatCompletion(ANTHROPIC_CONFIG, {
+      system: "", user: "", jsonSchema: { name: "X", schema: {} },
+    });
+    expect(out).toEqual({ ok: true });
+  });
+
+  it("anthropic: extracts JSON when wrapped in prose", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: [{ type: "text", text: 'Sure — {"ok":true} is the answer.' }],
+        }),
+        { status: 200 }
+      )
+    ) as unknown as typeof fetch;
+    const out = await callChatCompletion(ANTHROPIC_CONFIG, {
+      system: "", user: "", jsonSchema: { name: "X", schema: {} },
+    });
+    expect(out).toEqual({ ok: true });
+  });
+
+  it("anthropic: accepts content as a plain string", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ content: '{"ok":true}' }),
+        { status: 200 }
+      )
+    ) as unknown as typeof fetch;
+    const out = await callChatCompletion(ANTHROPIC_CONFIG, {
+      system: "", user: "", jsonSchema: { name: "X", schema: {} },
+    });
+    expect(out).toEqual({ ok: true });
+  });
+
+  it("anthropic: surfaces upstream error envelope", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { type: "invalid_request_error", message: "model not found" } }),
+        { status: 200 }
+      )
+    ) as unknown as typeof fetch;
+    await expect(
+      callChatCompletion(ANTHROPIC_CONFIG, { system: "", user: "", jsonSchema: { name: "X", schema: {} } })
+    ).rejects.toThrow(/model not found/);
   });
 });
 
