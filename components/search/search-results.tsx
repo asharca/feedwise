@@ -16,6 +16,7 @@ export interface ResultsProps {
   feeds: FeedHitDTO[];
   tags: TagHitDTO[];
   activeKey: string | null;
+  getRowId: (key: string | null) => string | undefined;
   onActivate: (key: string) => void;
   onOpenArticle: (a: ArticleHitDTO) => void;
   onOpenFeed: (f: FeedHitDTO) => void;
@@ -31,11 +32,13 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 function ArticleRow({
+  id,
   hit,
   active,
   onActivate,
   onOpen,
 }: {
+  id?: string;
   hit: ArticleHitDTO;
   active: boolean;
   onActivate: () => void;
@@ -44,6 +47,7 @@ function ArticleRow({
   return (
     <li>
       <button
+        id={id}
         type="button"
         role="option"
         aria-selected={active}
@@ -95,11 +99,13 @@ function ArticleRow({
 }
 
 function FeedRow({
+  id,
   hit,
   active,
   onActivate,
   onOpen,
 }: {
+  id?: string;
   hit: FeedHitDTO;
   active: boolean;
   onActivate: () => void;
@@ -108,6 +114,7 @@ function FeedRow({
   return (
     <li>
       <button
+        id={id}
         type="button"
         role="option"
         aria-selected={active}
@@ -144,11 +151,13 @@ function FeedRow({
 }
 
 function TagRow({
+  id,
   hit,
   active,
   onActivate,
   onOpen,
 }: {
+  id?: string;
   hit: TagHitDTO;
   active: boolean;
   onActivate: () => void;
@@ -157,6 +166,7 @@ function TagRow({
   return (
     <li>
       <button
+        id={id}
         type="button"
         role="option"
         aria-selected={active}
@@ -205,7 +215,7 @@ export function SearchResults(props: ResultsProps) {
   }
 
   return (
-    <div className="max-h-[60vh] overflow-y-auto scrollbar-thin pb-1">
+    <div id="sp-results" className="max-h-[60vh] overflow-y-auto scrollbar-thin pb-1">
       {articles.length > 0 && (
         <>
           <SectionHeader label="Articles" />
@@ -213,6 +223,7 @@ export function SearchResults(props: ResultsProps) {
             {articles.map((a) => (
               <ArticleRow
                 key={a.id}
+                id={props.getRowId("article:" + a.id)}
                 hit={a}
                 active={activeKey === "article:" + a.id}
                 onActivate={() => props.onActivate("article:" + a.id)}
@@ -229,6 +240,7 @@ export function SearchResults(props: ResultsProps) {
             {feeds.map((f) => (
               <FeedRow
                 key={f.feedId}
+                id={props.getRowId("feed:" + f.feedId)}
                 hit={f}
                 active={activeKey === "feed:" + f.feedId}
                 onActivate={() => props.onActivate("feed:" + f.feedId)}
@@ -245,6 +257,7 @@ export function SearchResults(props: ResultsProps) {
             {tags.map((t) => (
               <TagRow
                 key={t.id}
+                id={props.getRowId("tag:" + t.id)}
                 hit={t}
                 active={activeKey === "tag:" + t.id}
                 onActivate={() => props.onActivate("tag:" + t.id)}

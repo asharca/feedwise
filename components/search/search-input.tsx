@@ -8,10 +8,15 @@ interface Props {
   onChange: (v: string) => void;
   onClear: () => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  /** id of the currently active result row, for aria-activedescendant. */
+  activeDescendantId?: string;
 }
 
 export const SearchInput = forwardRef<HTMLInputElement, Props>(
-  function SearchInput({ value, onChange, onClear, onKeyDown }, ref) {
+  function SearchInput(
+    { value, onChange, onClear, onKeyDown, activeDescendantId },
+    ref
+  ) {
     return (
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
         <Search className="size-4 text-muted-foreground shrink-0" />
@@ -23,6 +28,11 @@ export const SearchInput = forwardRef<HTMLInputElement, Props>(
           onKeyDown={onKeyDown}
           placeholder="Search articles, feeds, tags…"
           autoFocus
+          role="combobox"
+          aria-expanded={value.trim().length > 0}
+          aria-autocomplete="list"
+          aria-controls="sp-results"
+          aria-activedescendant={activeDescendantId}
           className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/60"
         />
         {value && (
