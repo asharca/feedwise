@@ -261,6 +261,7 @@ function RailSection({
   empty: boolean;
   children: React.ReactNode;
 }) {
+  if (empty) return null;
   return (
     <section>
       <div className="flex items-baseline gap-2 mb-1.5">
@@ -269,13 +270,7 @@ function RailSection({
         </h3>
         <span className="text-[10px] text-muted-foreground/50">{count}</span>
       </div>
-      {empty ? (
-        <p className="text-[11px] text-muted-foreground/60 italic px-2 py-1">
-          No {label.toLowerCase()} matched.
-        </p>
-      ) : (
-        <div className="flex flex-col">{children}</div>
-      )}
+      <div className="flex flex-col">{children}</div>
     </section>
   );
 }
