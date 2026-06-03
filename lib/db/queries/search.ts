@@ -162,3 +162,31 @@ export async function searchFeedsByName(
     )
     .limit(Math.min(limit, 20));
 }
+
+export interface TagHit {
+  id: string;
+  name: string;
+  color: string | null;
+  articleCount: number;
+}
+
+export async function searchTagsByName(
+  userId: string,
+  q: string,
+  limit = 5
+): Promise<TagHit[]> {
+  return db
+    .select({
+      id: tags.id,
+      name: tags.name,
+      color: tags.color,
+      articleCount: sql<number>`(
+        select count(*)::int from ${articleTags} at
+        where at.tag_id = ${tags.id}
+      )`,
+    })
+    .from(tags)
+    .where(and(eq(tags.userId, userId), ilike(tags.name, "%" + q + "%")))
+    .orderBy(tags.name)
+    .limit(Math.min(limit, 20));
+}
