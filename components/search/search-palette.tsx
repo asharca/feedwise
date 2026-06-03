@@ -22,7 +22,10 @@ type Action =
   | { type: "set-query"; q: string }
   | { type: "clear" }
   | { type: "set-active"; key: string }
-  | { type: "move-active"; dir: 1 | -1; keys: string[] };
+  | { type: "move-active"; dir: 1 | -1; keys: string[] }
+  | { type: "set-filter"; key: "feedId" | "folderId" | "tagId" | "since"; value: string | undefined }
+  | { type: "toggle-filter"; key: "unread" | "starred" }
+  | { type: "clear-filters" };
 
 function reducer(state: PaletteState, action: Action): PaletteState {
   switch (action.type) {
@@ -39,6 +42,35 @@ function reducer(state: PaletteState, action: Action): PaletteState {
       const next = idx < 0 ? 0 : Math.min(keys.length - 1, Math.max(0, idx + dir));
       return { ...state, activeKey: keys[next] };
     }
+    case "set-filter":
+      return {
+        ...state,
+        filters: { ...state.filters, [action.key]: action.value as never },
+        activeKey: null,
+      };
+    case "toggle-filter": {
+      // unread and starred are mutually exclusive (reader uses a single `view`).
+      if (action.key === "unread") {
+        const next = !state.filters.unread;
+        return {
+          ...state,
+          filters: { ...state.filters, unread: next, starred: next ? false : state.filters.starred },
+          activeKey: null,
+        };
+      }
+      const next = !state.filters.starred;
+      return {
+        ...state,
+        filters: { ...state.filters, starred: next, unread: next ? false : state.filters.unread },
+        activeKey: null,
+      };
+    }
+    case "clear-filters":
+      return {
+        ...state,
+        filters: { unread: false, starred: false },
+        activeKey: null,
+      };
   }
 }
 
@@ -115,6 +147,12 @@ export function SearchPalette({ initialQuery, onClose }: Props) {
     onClose();
     const p = new URLSearchParams();
     p.set("search", q);
+    if (state.filters.feedId) p.set("feedId", state.filters.feedId);
+    if (state.filters.folderId) p.set("folderId", state.filters.folderId);
+    if (state.filters.tagId) p.set("tag", state.filters.tagId);
+    if (state.filters.starred) p.set("view", "starred");
+    else if (state.filters.unread) p.set("view", "unread");
+    // `since` is palette-local; reader has no since param.
     router.push(`/reader?${p.toString()}`);
   }
 
