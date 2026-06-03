@@ -169,7 +169,7 @@ async function sendDigestForDate(
 const SEND_RETRY_ATTEMPTS = 3;
 const SEND_RETRY_BASE_MS = 5_000;
 
-async function sendDailyDigestWithRetry(
+export async function sendDailyDigestWithRetry(
   params: Parameters<typeof sendDailyDigest>[0]
 ): Promise<void> {
   let lastErr: unknown;
