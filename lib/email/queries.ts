@@ -412,7 +412,7 @@ export async function logDigestSendWithArticles(
       })
       .returning({ id: emailDigestLogs.id });
 
-    if (articleIds.length > 0) {
+      if (articleIds.length > 0) {
       await tx
         .insert(emailDigestLogArticles)
         .values(
@@ -426,6 +426,70 @@ export async function logDigestSendWithArticles(
 
     return log.id;
   });
+}
+
+export async function getArticlesForLog(
+  logId: string,
+  userId: string
+): Promise<EmailArticle[]> {
+  // Defensive ownership check: the join returns no rows if the log is owned
+  // by a different user, even if the caller passes a guessed logId.
+  const rows = await db
+    .select({
+      id: articles.id,
+      title: articles.title,
+      url: articles.url,
+      summary: articles.summary,
+      aiSummary: articles.aiSummary,
+      importance: articles.importance,
+      feedTitle: feeds.title,
+      feedId: feeds.id,
+      publishedAt: articles.publishedAt,
+    })
+    .from(emailDigestLogArticles)
+    .innerJoin(articles, eq(emailDigestLogArticles.articleId, articles.id))
+    .innerJoin(feeds, eq(articles.feedId, feeds.id))
+    .innerJoin(
+      emailDigestLogs,
+      and(
+        eq(emailDigestLogs.id, emailDigestLogArticles.logId),
+        eq(emailDigestLogs.userId, userId)
+      )
+    )
+    .where(eq(emailDigestLogArticles.logId, logId));
+
+  if (rows.length === 0) return [];
+
+  const articleIds = rows.map((r) => r.id);
+  const tagRows = await db
+    .select({
+      articleId: articleTags.articleId,
+      tagId: tags.id,
+      tagName: tags.name,
+    })
+    .from(articleTags)
+    .innerJoin(tags, eq(articleTags.tagId, tags.id))
+    .where(inArray(articleTags.articleId, articleIds));
+
+  const tagsByArticle = new Map<string, { id: string; name: string }[]>();
+  for (const tr of tagRows) {
+    const list = tagsByArticle.get(tr.articleId) ?? [];
+    list.push({ id: tr.tagId, name: tr.tagName });
+    tagsByArticle.set(tr.articleId, list);
+  }
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title ?? "Untitled",
+    url: row.url ?? "",
+    summary: row.summary,
+    aiSummary: row.aiSummary,
+    importance: row.importance,
+    feedTitle: row.feedTitle,
+    feedId: row.feedId,
+    publishedAt: row.publishedAt,
+    tags: tagsByArticle.get(row.id) ?? [],
+  }));
 }
 
 export async function getAllActiveSubscriptions() {
