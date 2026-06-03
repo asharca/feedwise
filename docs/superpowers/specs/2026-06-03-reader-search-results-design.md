@@ -24,7 +24,7 @@ The two surfaces share a query and a mental model, but render and rank different
 - Detect `?search=...` in `app/(reader)/reader/page.tsx` and route rendering through a new `ReaderSearchResults` layout.
 - Reuse the same `/api/search` endpoint and `useSearch` hook (and the same zod schema) so palette and page can never disagree on the data shape.
 - Reuse `SearchFilterBar`, `SearchSnippet`, and the section header styling from `components/search/` to eliminate the duplication that allowed drift.
-- Filter chips, sort, and pagination behaviour carried over as-is (palette uses top-20 only; page uses top-50 + offset for Articles, top-20 for Feeds/Tags).
+- Filter chips, sort, and pagination behaviour carried over as-is (palette uses the API default of 5 per section; the page asks for the max-20 Articles list and 5 each for Feeds/Tags, then dedupes the article list against the older chronological tail).
 - Clicking an article sets `?articleId=...` (preserves the existing reader drawer on the right), same as today.
 
 **Out of scope**
@@ -53,20 +53,23 @@ Single-column flow with a right-side rail, scoped to the `/reader` route's exist
 │                      │  │ Top bar:                       │  │
 │                      │  │  "Search: <q>"  ·  N results   │  │
 │                      │  │  Filter chips: [feed] [tag]..  │  │
-│                      │  ├────────────────────────────────┤  │
-│                      │  │ Section: Articles (top-50,     │  │
-│                      │  │  ts_rank_cd order, infinite)   │  │
-│                      │  │  ┌──────────────────────────┐  │  │
-│                      │  │  │ feed icon · feed name    │  │  │
-│                      │  │  │ Title with <mark>        │  │  │
-│                      │  │  │ Snippet with <mark>      │  │  │
-│                      │  │  │ date                     │  │  │
-│                      │  │  └──────────────────────────┘  │  │
-│                      │  │  ...rows...                    │  │
-│                      │  ├────────────────────────────────┤  │
-│                      │  │ Section: Feeds (top-20)        │  │
-│                      │  │ Section: Tags  (top-20)        │  │
-│                      │  └────────────────────────────────┘  │
+│  │  ├────────────────────────────────┤  │
+│  │  │ Section: Articles              │  │
+│  │  │  (top-20 by ts_rank_cd, with   │  │
+│  │  │   snippets, marked)            │  │
+│  │  │  + chronological tail via      │  │
+│  │  │    /api/articles, deduped       │  │
+│  │  │  ┌──────────────────────────┐  │  │
+│  │  │  │ feed icon · feed name    │  │  │
+│  │  │  │ Title with <mark>        │  │  │
+│  │  │  │ Snippet with <mark>      │  │  │
+│  │  │  │ date                     │  │  │
+│  │  │  └──────────────────────────┘  │  │
+│  │  │  ...rows...                    │  │
+│  │  ├────────────────────────────────┤  │
+│  │  │ Section: Feeds (top-5)         │  │
+│  │  │ Section: Tags  (top-5)         │  │
+│  │  └────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -134,11 +137,16 @@ SearchResultsPage
    └─ <EmptyState /> (only if data === null OR total === 0 with no Feeds/Tags hits)
 ```
 
-**Why two endpoints?**
-- `/api/search` returns top-20 per section with `ts_headline` snippets, ranked by `ts_rank_cd`. Drives the top of every section.
-- `/api/articles?search=...` returns top-50 offset-paginated, ranked by `publishedAt desc`. Drives the infinite-scroll article list. This matches today's reader behaviour (chronological) and preserves the existing `/api/articles` test surface.
+**Why two endpoints, and what each one drives**
 
-Both endpoints share the same `q` param and the same FTS + ILIKE fallback, so a hit appears in both — and the article list's chronological tail extends beyond the top-20 relevance list.
+| Section | Endpoint | Limit | Sort | Snippets |
+|---|---|---|---|---|
+| Articles top | `GET /api/search?q=...&limit=20` | 20 (max) | `ts_rank_cd` desc | yes (`ts_headline`) |
+| Articles tail | `GET /api/articles?q=...&limit=50&offset=N` | 50, paginated | `publishedAt desc` | no |
+| Feeds | `GET /api/search?q=...&limit=20` | 5 (default, max 20) | `title ILIKE` prefix match | n/a |
+| Tags | `GET /api/search?q=...&limit=20` | 5 (default, max 20) | `name` | n/a |
+
+The Articles top and tail are **merged and deduped by `id`**: the top list wins (so the user always sees highlighted snippets first), the tail fills below. Both endpoints share the same FTS + ILIKE fallback so a hit appears in both — and the chronological tail extends beyond the relevance top.
 
 **State sync**
 - `usePageSearch` reads filters from `useSearchParams` on mount, writes them back via `router.replace` on change (no scroll, no flash).
@@ -164,11 +172,12 @@ Both endpoints share the same `q` param and the same FTS + ILIKE fallback, so a 
 
 ### `SearchResultsArticles`
 - Renders article hits from `data.articles` (the first 20 from `/api/search`, with snippets) followed by the older chronological list from `/api/articles` (deduped by `id` against the top-20).
+- **Dedup rule:** the top-20 list is the canonical order. The tail list is appended only if `id` is not already in the top-20. If the top-20 is empty, the page is in pure-chronological mode (this happens only if the user lands on `/reader?search=...` without ever using the palette, which is the legacy flow).
 - Click → `router.replace(/reader?search=...&articleId=...)` (existing `openArticle` in `page.tsx`).
 - Star/inline actions from the existing `handleStar` and `handleMarkRead` callbacks.
 
 ### `SearchResultsSideRail`
-- Renders Feeds section then Tags section. Each section caps at 20 (matches API).
+- Renders Feeds section then Tags section. Each section caps at the API's default (5, max 20 per route.ts zod schema).
 - Feed row: click → `router.replace(/reader?feedId=<feedId>)`.
 - Tag row: click → `router.replace(/reader?tag=<id>)`.
 
@@ -191,7 +200,7 @@ Both endpoints share the same `q` param and the same FTS + ILIKE fallback, so a 
 
 ## 7. Testing
 
-- New `tests/api/articles-search.test.ts` already covers the list endpoint; not changed.
+- Existing `tests/api/articles-search.test.ts` does not exist; the list endpoint is covered indirectly by `tests/api/r.test.ts` style snapshot tests if any. We will **add** `tests/api/articles-search.test.ts` for the new `?search=` path through `/api/articles` to lock down the existing behaviour we depend on (FTS + ILIKE fallback, top-50 + offset).
 - New `tests/_search-view/use-page-search.test.ts` (vitest + Testing Library) for the hook: filter → URL roundtrip, debounce, abort on unmount.
 - The existing `tests/api/search.test.ts` and `tests/db/search-headline-options.test.ts` cover `/api/search` and the constant invariants — unchanged.
 - Manual checklist (added to `docs/superpowers/manual-tests/`):
