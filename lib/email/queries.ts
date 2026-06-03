@@ -5,6 +5,7 @@ import {
   emailSubscriptionTags,
   emailSubscriptionFeeds,
   emailSentArticles,
+  emailDigestLogArticles,
   emailDigestLogs,
   users,
   articles,
@@ -317,14 +318,8 @@ export async function logDigestSend(
   articleCount: number,
   status: "success" | "failed",
   errorMessage?: string
-) {
-  await db.insert(emailDigestLogs).values({
-    userId,
-    articleCount,
-    status,
-    errorMessage: errorMessage ?? null,
-    sentAt: new Date(),
-  });
+): Promise<string> {
+  return logDigestSendWithArticles(userId, [], articleCount, status, errorMessage);
 }
 
 export async function getLastDigestSentDate(userId: string): Promise<Date | null> {
@@ -376,6 +371,61 @@ export async function getDigestHistory(userId: string, limit: number = 30) {
     .where(eq(emailDigestLogs.userId, userId))
     .orderBy(sql`${emailDigestLogs.sentAt} desc`)
     .limit(limit);
+}
+
+export async function getDigestLogById(logId: string, userId: string) {
+  const [row] = await db
+    .select({
+      id: emailDigestLogs.id,
+      sentAt: emailDigestLogs.sentAt,
+      articleCount: emailDigestLogs.articleCount,
+      status: emailDigestLogs.status,
+      errorMessage: emailDigestLogs.errorMessage,
+    })
+    .from(emailDigestLogs)
+    .where(
+      and(
+        eq(emailDigestLogs.id, logId),
+        eq(emailDigestLogs.userId, userId)
+      )
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+export async function logDigestSendWithArticles(
+  userId: string,
+  articleIds: string[],
+  articleCount: number,
+  status: "success" | "failed",
+  errorMessage?: string
+): Promise<string> {
+  return db.transaction(async (tx) => {
+    const [log] = await tx
+      .insert(emailDigestLogs)
+      .values({
+        userId,
+        articleCount,
+        status,
+        errorMessage: errorMessage ?? null,
+        sentAt: new Date(),
+      })
+      .returning({ id: emailDigestLogs.id });
+
+    if (articleIds.length > 0) {
+      await tx
+        .insert(emailDigestLogArticles)
+        .values(
+          articleIds.map((articleId) => ({
+            logId: log.id,
+            articleId,
+          }))
+        )
+        .onConflictDoNothing();
+    }
+
+    return log.id;
+  });
 }
 
 export async function getAllActiveSubscriptions() {
