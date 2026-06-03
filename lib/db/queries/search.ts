@@ -1,4 +1,4 @@
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   articles,
@@ -117,4 +117,48 @@ export async function searchArticles(
     isStarred: r.isStarred,
     publishedAt: r.publishedAt,
   }));
+}
+
+export interface FeedHit {
+  feedId: string;
+  title: string | null;
+  iconUrl: string | null;
+  unreadCount: number;
+}
+
+export async function searchFeedsByName(
+  userId: string,
+  q: string,
+  limit = 5
+): Promise<FeedHit[]> {
+  const like = "%" + q + "%";
+  return db
+    .select({
+      feedId: feeds.id,
+      title: sql<string | null>`coalesce(${subscriptions.customTitle}, ${feeds.title})`,
+      iconUrl: feeds.iconUrl,
+      unreadCount: sql<number>`(
+        select count(*)::int from ${articles} a
+        left join ${userArticles} ua
+          on ua.article_id = a.id and ua.user_id = ${userId}
+        where a.feed_id = ${feeds.id}
+          and (ua.is_read is null or ua.is_read = false)
+      )`,
+    })
+    .from(subscriptions)
+    .innerJoin(feeds, eq(subscriptions.feedId, feeds.id))
+    .where(
+      and(
+        eq(subscriptions.userId, userId),
+        or(
+          ilike(feeds.title, like),
+          ilike(subscriptions.customTitle, like),
+          ilike(feeds.description, like)
+        )
+      )
+    )
+    .orderBy(
+      sql`(case when coalesce(${subscriptions.customTitle}, ${feeds.title}) ILIKE ${q + "%"} then 0 else 1 end), coalesce(${subscriptions.customTitle}, ${feeds.title})`
+    )
+    .limit(Math.min(limit, 20));
 }
