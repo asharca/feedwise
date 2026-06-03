@@ -10,6 +10,7 @@ import { sendDailyDigest } from "@/lib/email/sender";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
 import { buildFallback } from "@/lib/digest/fallback";
 import { buildEmailLinkFn } from "@/lib/email/click-link";
+import { mapSmtpError } from "@/lib/email/smtp-error";
 
 export async function POST(req: Request) {
   try {
@@ -74,21 +75,7 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("[test-digest] Error:", err);
-    let errorMessage = "Failed to send test email";
-    if (err instanceof Error) {
-      if (err.message.includes("ENETUNREACH")) {
-        errorMessage = "Cannot connect to SMTP server. Please check your SMTP host and port settings.";
-      } else if (err.message.includes("EAUTH")) {
-        errorMessage = "SMTP authentication failed. Please check your username and password.";
-      } else if (err.message.includes("Mail from address must be same as authorization user")) {
-        errorMessage = "QQ Mail requires the sender address to match the SMTP username. Please set both to the same QQ email address.";
-      } else if (err.message.includes("ETIMEDOUT")) {
-        errorMessage = "SMTP connection timed out. Please check your SMTP server settings.";
-      } else {
-        errorMessage = `SMTP Error: ${err.message}`;
-      }
-    }
-
+    const errorMessage = mapSmtpError(err);
     return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
