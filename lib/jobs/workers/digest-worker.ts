@@ -5,7 +5,7 @@ import {
   getUserEmail,
   getArticlesForEmail,
   markArticlesAsSent,
-  logDigestSend,
+  logDigestSendWithArticles,
   updateNextScheduledAt,
   getLastDigestSentDate,
 } from "@/lib/email/queries";
@@ -154,13 +154,24 @@ async function sendDigestForDate(
   try {
     await sendDailyDigestWithRetry({ to: email, subject, html, smtpConfig });
     await markArticlesAsSent(subscription.userId, allArticleIds);
-    await logDigestSend(subscription.userId, articles.length, "success");
+    await logDigestSendWithArticles(
+      subscription.userId,
+      allArticleIds,
+      articles.length,
+      "success"
+    );
     console.log(
       `[digest] Sent digest to ${email} (${articles.length} articles, mode=${digest.mode}) for ${triggerDate.toDateString()}`
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await logDigestSend(subscription.userId, articles.length, "failed", message);
+    await logDigestSendWithArticles(
+      subscription.userId,
+      allArticleIds,
+      articles.length,
+      "failed",
+      message
+    );
     console.error(`[digest] Failed to send to ${email}:`, message);
     throw err;
   }
@@ -169,7 +180,7 @@ async function sendDigestForDate(
 const SEND_RETRY_ATTEMPTS = 3;
 const SEND_RETRY_BASE_MS = 5_000;
 
-async function sendDailyDigestWithRetry(
+export async function sendDailyDigestWithRetry(
   params: Parameters<typeof sendDailyDigest>[0]
 ): Promise<void> {
   let lastErr: unknown;

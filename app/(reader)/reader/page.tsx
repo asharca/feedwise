@@ -1,29 +1,17 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback, useTransition } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArticleList } from "@/components/article/article-list";
 import { ArticleReader } from "@/components/article/article-reader";
 import { ArticleDrawer } from "@/components/article/article-drawer";
 import { NewsDashboard } from "@/components/dashboard/news-dashboard";
+import { SearchResultsPage } from "./_search-view/search-results-page";
+import type { Article } from "./_search-view/types";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { CheckCheck, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-interface Article {
-  id: string;
-  feedId: string;
-  feedTitle: string | null;
-  feedIconUrl: string | null;
-  title: string | null;
-  summary: string | null;
-  imageUrl: string | null;
-  publishedAt: string | null;
-  createdAt: string | null;
-  isRead: boolean;
-  isStarred: boolean;
-}
 
 interface ArticleDetail extends Article {
   author: string | null;
@@ -51,6 +39,11 @@ function ReaderContent() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Tracks the in-flight pagination request so we can abort it when filters
+  // change. Without this, a "load more" fetch from feed X can resolve AFTER
+  // the user switches to feed Y and append X's next page onto Y's list —
+  // showing a couple of stale articles mixed in with the new ones.
+  const loadMoreAbortRef = useRef<AbortController | null>(null);
   // Reader-level LLM preferences. `null` = not loaded yet (don't auto-trigger).
   const [autoSummarize, setAutoSummarize] = useState<boolean | null>(null);
   const [tagNameById, setTagNameById] = useState<Record<string, string>>({});
@@ -91,8 +84,9 @@ function ReaderContent() {
   // to the 2-pane layout — that keeps the magazine context intact while
   // reading and makes the back behavior a trivial drawer dismiss.
   const showDashboard = view === "all" && !feedId && !folderId && !tagId && !search;
+  const inSearchMode = Boolean(search);
 
-  const fetchArticles = useCallback(async (pageOffset: number) => {
+  const fetchArticles = useCallback(async (pageOffset: number, signal?: AbortSignal) => {
     const params = new URLSearchParams();
     if (feedId) params.set("feedId", feedId);
     if (folderId) params.set("folderId", folderId);
@@ -102,7 +96,7 @@ function ReaderContent() {
     if (search) params.set("search", search);
     params.set("limit", String(PAGE_SIZE));
     params.set("offset", String(pageOffset));
-    const res = await fetch(`/api/articles?${params}`);
+    const res = await fetch(`/api/articles?${params}`, { signal });
     const data = await res.json();
     if (data.success) return data.data as Article[];
     return [];
@@ -110,15 +104,32 @@ function ReaderContent() {
 
   // Reset and reload the LIST when filters change. The currently-open article
   // is driven separately by the articleId URL param, so we don't touch it here.
+  //
+  // The AbortController + cleanup is load-bearing: without it, a slower fetch
+  // from feed X can resolve AFTER the user has already switched to feed Y and
+  // overwrite Y's list with X's (whole or partial, depending on whether the
+  // pagination "load more" race also fires). Cancelling on filter change keeps
+  // only the latest request's result.
   useEffect(() => {
     if (showDashboard) return;
+    const controller = new AbortController();
+    // Cancel any in-flight pagination from the previous filter — its result
+    // would otherwise be appended onto the new list.
+    loadMoreAbortRef.current?.abort();
     setOffset(0);
     setHasMore(false);
     startTransition(async () => {
-      const data = await fetchArticles(0);
-      setArticleList(data);
-      setHasMore(data.length === PAGE_SIZE);
+      try {
+        const data = await fetchArticles(0, controller.signal);
+        if (controller.signal.aborted) return;
+        setArticleList(data);
+        setHasMore(data.length === PAGE_SIZE);
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+        throw err;
+      }
     });
+    return () => controller.abort();
   }, [fetchArticles, showDashboard, PAGE_SIZE]);
 
   // Drive the open article from the URL: refreshing on ?articleId=… re-opens
@@ -180,14 +191,21 @@ function ReaderContent() {
 
   async function handleLoadMore() {
     const nextOffset = offset + PAGE_SIZE;
+    loadMoreAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadMoreAbortRef.current = controller;
     setLoadingMore(true);
     try {
-      const data = await fetchArticles(nextOffset);
+      const data = await fetchArticles(nextOffset, controller.signal);
+      if (controller.signal.aborted) return;
       setArticleList((prev) => [...prev, ...data]);
       setOffset(nextOffset);
       setHasMore(data.length === PAGE_SIZE);
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return;
+      throw err;
     } finally {
-      setLoadingMore(false);
+      if (!controller.signal.aborted) setLoadingMore(false);
     }
   }
 
@@ -251,6 +269,57 @@ function ReaderContent() {
     setArticleList((prev) => prev.map((a) => ({ ...a, isRead: true })));
     dispatchMarkAllRead(feedId, folderId);
     toast.success("Marked all as read");
+  }
+
+  // Search results view. Shares the same two-pane container as the default
+  // reader so clicking an article slides the reader in on the right, with
+  // the search results staying mounted on the left.
+  if (inSearchMode) {
+    return (
+      <div className="flex h-full">
+        <div className={cn(
+          "shrink-0",
+          activeArticle ? "hidden md:block" : "w-full md:w-auto"
+        )}>
+          <SearchResultsPage
+            search={search!}
+            activeArticle={activeArticle}
+            onSelect={handleSelect}
+            onStar={handleStar}
+            articleList={articleList}
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onLoadMore={handleLoadMore}
+          />
+        </div>
+        <div className={cn(
+          "flex-1 min-w-0 overflow-hidden border-l border-border",
+          !activeArticle && "hidden md:block"
+        )}>
+          {activeArticle ? (
+            <ArticleReader
+              article={{
+                ...activeArticle,
+                publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null,
+                createdAt: activeArticle.createdAt ? new Date(activeArticle.createdAt) : null,
+              }}
+              onMarkRead={handleMarkRead}
+              onStar={handleStar}
+              onBack={closeArticle}
+              contextLabel={`"${search}"`}
+              autoSummarize={autoSummarize ?? false}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+              <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
+                <BookOpen className="size-6 text-muted-foreground/40" />
+              </div>
+              <p className="text-sm">Select an article to read</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   // Dashboard. If an article is open on top of dashboard (articleId in URL),

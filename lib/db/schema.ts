@@ -304,3 +304,18 @@ export const emailDigestLogs = pgTable(
     errorMessage: text("error_message"),
   }
 );
+
+// Record the article set included in each digest send, so we can preview
+// and resend past digests with the exact same content.
+export const emailDigestLogArticles = pgTable(
+  "email_digest_log_articles",
+  {
+    logId: uuid("log_id")
+      .references(() => emailDigestLogs.id, { onDelete: "cascade" })
+      .notNull(),
+    articleId: uuid("article_id")
+      .references(() => articles.id, { onDelete: "cascade" })
+      .notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.logId, t.articleId] })]
+);

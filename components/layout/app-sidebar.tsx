@@ -858,25 +858,6 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
             </SidebarGroupContent>
           </SidebarGroup>
         )}
-
-        {/* Add feed button when no uncategorized feeds */}
-        {uncategorized.length === 0 && (
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => setAddOpen(true)}
-                    className="rounded-md h-9 transition-all duration-150 text-muted-foreground"
-                  >
-                    <Plus className="size-4" />
-                    <span className="flex-1">Add Feed</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
 
       <SidebarFooter className="px-2 pb-3 space-y-1">
