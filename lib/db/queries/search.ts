@@ -16,7 +16,7 @@ import {
 } from "@/lib/search/parse-snippet";
 
 const HEADLINE_OPTIONS_BODY = `StartSel=${SNIPPET_START}, StopSel=${SNIPPET_END}, MaxFragments=2, MaxWords=15, MinWords=5`;
-const HEADLINE_OPTIONS_TITLE = `StartSel=${SNIPPET_START}, StopSel=${SNIPPET_END}, MaxFragments=1, MaxWords=20, MinWords=20`;
+const HEADLINE_OPTIONS_TITLE = `StartSel=${SNIPPET_START}, StopSel=${SNIPPET_END}, MaxFragments=1, MaxWords=20, MinWords=5`;
 
 export interface SearchArticleOpts {
   q: string;
