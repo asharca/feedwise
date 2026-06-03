@@ -1,0 +1,5 @@
+pre-push:
+  commands:
+    build:
+      glob: "*.{ts,tsx,js,jsx,json,css,mjs}"
+      run: pnpm build
