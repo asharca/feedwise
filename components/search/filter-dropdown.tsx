@@ -49,9 +49,7 @@ export function FilterDropdown({ label, activeId, loadOptions, onSelect }: Props
 
   return (
     <div ref={containerRef} className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
+      <div
         className={cn(
           "inline-flex items-center gap-1 h-6 rounded-full px-2 text-[11px] border transition-colors",
           activeId
@@ -59,27 +57,37 @@ export function FilterDropdown({ label, activeId, loadOptions, onSelect }: Props
             : "bg-muted border-transparent hover:border-border text-muted-foreground"
         )}
       >
-        <span className="truncate max-w-[120px]">{chipLabel}</span>
-        {activeId ? (
-          <span
-            role="button"
-            tabIndex={0}
-            aria-label={"Clear " + label}
-            className="hover:bg-primary/10 rounded-full p-[1px]"
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1 outline-none"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span className="truncate max-w-[120px]">{chipLabel}</span>
+          {!activeId && <ChevronDown className="size-3" />}
+        </button>
+        {activeId && (
+          <button
+            type="button"
+            aria-label={`Clear ${label}`}
             onClick={(e) => {
               e.stopPropagation();
               onSelect(undefined);
             }}
+            className="inline-flex items-center hover:bg-primary/10 rounded-full p-[1px]"
           >
             <X className="size-3" />
-          </span>
-        ) : (
-          <ChevronDown className="size-3" />
+          </button>
         )}
-      </button>
+      </div>
 
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 min-w-[180px] max-h-[40vh] overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md py-1">
+        <div
+          role="listbox"
+          aria-label={label}
+          className="absolute left-0 top-full mt-1 z-50 min-w-[180px] max-h-[40vh] overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md py-1"
+        >
           {loading ? (
             <div className="px-3 py-2 text-xs text-muted-foreground">Loading…</div>
           ) : !options || options.length === 0 ? (
@@ -89,6 +97,8 @@ export function FilterDropdown({ label, activeId, loadOptions, onSelect }: Props
               <button
                 key={opt.id}
                 type="button"
+                role="option"
+                aria-selected={opt.id === activeId}
                 onClick={() => {
                   onSelect(opt.id);
                   setOpen(false);
