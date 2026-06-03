@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useReducer, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { SearchFilterBar } from "./search-filter-bar";
 import { SearchInput } from "./search-input";
 import { SearchResults } from "./search-results";
 import {
@@ -203,6 +204,12 @@ export function SearchPalette({ initialQuery, onClose }: Props) {
         }}
         onKeyDown={onKeyDown}
         activeDescendantId={activeDescendantId}
+      />
+      <SearchFilterBar
+        filters={state.filters}
+        onSetFilter={(key, value) => dispatch({ type: "set-filter", key, value })}
+        onToggleFilter={(key) => dispatch({ type: "toggle-filter", key })}
+        onClearAll={() => dispatch({ type: "clear-filters" })}
       />
       <SearchResults
         query={state.query}
