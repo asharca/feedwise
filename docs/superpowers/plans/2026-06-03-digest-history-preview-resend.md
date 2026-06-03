@@ -1213,42 +1213,13 @@ git commit -m "feat(ui): add shared EmailPreviewDialog component"
 
 ---
 
-## Task 11: Refactor `digest-email-section.tsx` to use the shared dialog
+## Task 11: ~~Refactor `digest-email-section.tsx` to use the shared dialog~~ — CANCELLED
 
-**Files:**
-- Modify: `components/settings/digest-email-section.tsx`
+The plan originally called for replacing the existing inline "Preview email" dialog in `digest-email-section.tsx` (which previews the *next* digest via `/api/email/llm/preview`) with the new `EmailPreviewDialog` (which fetches a *past* digest via `/api/settings/email/history/[logId]/preview`). The two components have different fetch semantics and the spec's "no behavior change" claim was incorrect.
 
-- [ ] **Step 1: Replace the inline `<Dialog>` block with the new component**
+**Decision (recorded during execution):** Skip this refactor. The existing inline dialog in `digest-email-section.tsx` stays. `EmailPreviewDialog` is only used by the new history-row Preview button (Task 12). The ~40 lines of duplication are acceptable; the alternative (adding a `staticHtml` prop to `EmailPreviewDialog`) enlarged the component's prop surface for a single caller.
 
-In `digest-email-section.tsx`:
-
-1. Add the import at the top (alongside other `components/settings/...` imports):
-   ```ts
-   import { EmailPreviewDialog } from "@/components/settings/email-preview-dialog";
-   ```
-
-2. Delete the import for `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle` from `@/components/ui/dialog` (no longer used in this file).
-
-3. Replace the entire `<Dialog>...</Dialog>` block at lines 372-409 with:
-   ```tsx
-       <EmailPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} logId={null} />
-   ```
-
-- [ ] **Step 2: Type-check**
-
-Run: `pnpm exec tsc --noEmit`
-Expected: no errors. `previewOpen`, `setPreviewOpen` remain in this file's state.
-
-- [ ] **Step 3: Manual smoke test**
-
-Run: `pnpm dev` and open Settings → Daily Digest → click "Preview email". The dialog opens, the iframe renders the same preview as before. No regression.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add components/settings/digest-email-section.tsx
-git commit -m "refactor(ui): use shared EmailPreviewDialog in digest-email-section"
-```
+No code change in this task. Move directly to Task 12.
 
 ---
 
