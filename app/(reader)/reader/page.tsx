@@ -6,24 +6,12 @@ import { ArticleList } from "@/components/article/article-list";
 import { ArticleReader } from "@/components/article/article-reader";
 import { ArticleDrawer } from "@/components/article/article-drawer";
 import { NewsDashboard } from "@/components/dashboard/news-dashboard";
+import { SearchResultsPage } from "./_search-view/search-results-page";
+import type { Article } from "./_search-view/types";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { CheckCheck, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-interface Article {
-  id: string;
-  feedId: string;
-  feedTitle: string | null;
-  feedIconUrl: string | null;
-  title: string | null;
-  summary: string | null;
-  imageUrl: string | null;
-  publishedAt: string | null;
-  createdAt: string | null;
-  isRead: boolean;
-  isStarred: boolean;
-}
 
 interface ArticleDetail extends Article {
   author: string | null;
@@ -96,6 +84,7 @@ function ReaderContent() {
   // to the 2-pane layout — that keeps the magazine context intact while
   // reading and makes the back behavior a trivial drawer dismiss.
   const showDashboard = view === "all" && !feedId && !folderId && !tagId && !search;
+  const inSearchMode = Boolean(search);
 
   const fetchArticles = useCallback(async (pageOffset: number, signal?: AbortSignal) => {
     const params = new URLSearchParams();
@@ -280,6 +269,54 @@ function ReaderContent() {
     setArticleList((prev) => prev.map((a) => ({ ...a, isRead: true })));
     dispatchMarkAllRead(feedId, folderId);
     toast.success("Marked all as read");
+  }
+
+  // Search results view. Shares the same two-pane container as the default
+  // reader so clicking an article slides the reader in on the right, with
+  // the search results staying mounted on the left.
+  if (inSearchMode) {
+    return (
+      <div className="flex h-full">
+        <div className="flex-1 min-w-0">
+          <SearchResultsPage
+            search={search!}
+            activeArticle={activeArticle}
+            onSelect={handleSelect}
+            onStar={handleStar}
+            articleList={articleList}
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onLoadMore={handleLoadMore}
+          />
+        </div>
+        <div className={cn(
+          "flex-1 min-w-0 overflow-hidden border-l border-border",
+          !activeArticle && "hidden md:block"
+        )}>
+          {activeArticle ? (
+            <ArticleReader
+              article={{
+                ...activeArticle,
+                publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null,
+                createdAt: activeArticle.createdAt ? new Date(activeArticle.createdAt) : null,
+              }}
+              onMarkRead={handleMarkRead}
+              onStar={handleStar}
+              onBack={closeArticle}
+              contextLabel={`"${search}"`}
+              autoSummarize={autoSummarize ?? false}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+              <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
+                <BookOpen className="size-6 text-muted-foreground/40" />
+              </div>
+              <p className="text-sm">Select an article to read</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   // Dashboard. If an article is open on top of dashboard (articleId in URL),
