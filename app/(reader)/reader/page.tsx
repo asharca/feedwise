@@ -277,7 +277,10 @@ function ReaderContent() {
   if (inSearchMode) {
     return (
       <div className="flex h-full">
-        <div className="flex-1 min-w-0">
+        <div className={cn(
+          "shrink-0",
+          activeArticle ? "hidden md:block" : "w-full md:w-auto"
+        )}>
           <SearchResultsPage
             search={search!}
             activeArticle={activeArticle}
