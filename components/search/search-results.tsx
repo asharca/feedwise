@@ -193,80 +193,82 @@ function TagRow({
 export function SearchResults(props: ResultsProps) {
   const { query, loading, articles, feeds, tags, activeKey } = props;
 
+  const empty = articles.length === 0 && feeds.length === 0 && tags.length === 0;
+
+  let content: React.ReactNode;
+
   if (query.trim().length === 0) {
-    return (
+    content = (
       <div className="px-3 py-6 text-center text-xs text-muted-foreground">
         Type to search articles, feeds, and tags.
       </div>
     );
-  }
-
-  const empty = articles.length === 0 && feeds.length === 0 && tags.length === 0;
-  if (loading && empty) {
-    return (
+  } else if (loading && empty) {
+    content = (
       <div className="flex items-center gap-2 px-3 py-4 text-xs text-muted-foreground">
         <Loader2 className="size-3 animate-spin" />
         Searching…
       </div>
     );
-  }
-  if (empty) {
-    return <div className="px-3 py-4 text-xs text-muted-foreground">No matches.</div>;
+  } else if (empty) {
+    content = <div className="px-3 py-4 text-xs text-muted-foreground">No matches.</div>;
+  } else {
+    content = (
+      <div className="max-h-[60vh] overflow-y-auto scrollbar-thin pb-1">
+        {articles.length > 0 && (
+          <>
+            <SectionHeader label="Articles" />
+            <ul role="listbox" aria-label="Articles">
+              {articles.map((a) => (
+                <ArticleRow
+                  key={a.id}
+                  id={props.getRowId("article:" + a.id)}
+                  hit={a}
+                  active={activeKey === "article:" + a.id}
+                  onActivate={() => props.onActivate("article:" + a.id)}
+                  onOpen={() => props.onOpenArticle(a)}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+        {feeds.length > 0 && (
+          <>
+            <SectionHeader label="Feeds" />
+            <ul role="listbox" aria-label="Feeds">
+              {feeds.map((f) => (
+                <FeedRow
+                  key={f.feedId}
+                  id={props.getRowId("feed:" + f.feedId)}
+                  hit={f}
+                  active={activeKey === "feed:" + f.feedId}
+                  onActivate={() => props.onActivate("feed:" + f.feedId)}
+                  onOpen={() => props.onOpenFeed(f)}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+        {tags.length > 0 && (
+          <>
+            <SectionHeader label="Tags" />
+            <ul role="listbox" aria-label="Tags">
+              {tags.map((t) => (
+                <TagRow
+                  key={t.id}
+                  id={props.getRowId("tag:" + t.id)}
+                  hit={t}
+                  active={activeKey === "tag:" + t.id}
+                  onActivate={() => props.onActivate("tag:" + t.id)}
+                  onOpen={() => props.onOpenTag(t)}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    );
   }
 
-  return (
-    <div id="sp-results" className="max-h-[60vh] overflow-y-auto scrollbar-thin pb-1">
-      {articles.length > 0 && (
-        <>
-          <SectionHeader label="Articles" />
-          <ul role="listbox" aria-label="Articles">
-            {articles.map((a) => (
-              <ArticleRow
-                key={a.id}
-                id={props.getRowId("article:" + a.id)}
-                hit={a}
-                active={activeKey === "article:" + a.id}
-                onActivate={() => props.onActivate("article:" + a.id)}
-                onOpen={() => props.onOpenArticle(a)}
-              />
-            ))}
-          </ul>
-        </>
-      )}
-      {feeds.length > 0 && (
-        <>
-          <SectionHeader label="Feeds" />
-          <ul role="listbox" aria-label="Feeds">
-            {feeds.map((f) => (
-              <FeedRow
-                key={f.feedId}
-                id={props.getRowId("feed:" + f.feedId)}
-                hit={f}
-                active={activeKey === "feed:" + f.feedId}
-                onActivate={() => props.onActivate("feed:" + f.feedId)}
-                onOpen={() => props.onOpenFeed(f)}
-              />
-            ))}
-          </ul>
-        </>
-      )}
-      {tags.length > 0 && (
-        <>
-          <SectionHeader label="Tags" />
-          <ul role="listbox" aria-label="Tags">
-            {tags.map((t) => (
-              <TagRow
-                key={t.id}
-                id={props.getRowId("tag:" + t.id)}
-                hit={t}
-                active={activeKey === "tag:" + t.id}
-                onActivate={() => props.onActivate("tag:" + t.id)}
-                onOpen={() => props.onOpenTag(t)}
-              />
-            ))}
-          </ul>
-        </>
-      )}
-    </div>
-  );
+  return <div id="sp-results">{content}</div>;
 }
