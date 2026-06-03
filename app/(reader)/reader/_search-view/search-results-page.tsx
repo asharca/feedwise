@@ -220,7 +220,11 @@ export function SearchResultsPage({
                   </div>
                 )}
                 <ArticleList
-                  articles={articleList}
+                  articles={articleList.map((a) => ({
+                    ...a,
+                    publishedAt: a.publishedAt ? new Date(a.publishedAt) : null,
+                    createdAt: a.createdAt ? new Date(a.createdAt) : null,
+                  }))}
                   activeId={activeArticle?.id}
                   onSelect={onSelect}
                   onStar={onStar}
