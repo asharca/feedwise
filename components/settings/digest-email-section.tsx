@@ -91,7 +91,9 @@ export function DigestEmailSection({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string>("");
-  const [previewMeta, setPreviewMeta] = useState<{ mode: string; articleCount: number } | null>(null);
+  const [previewMeta, setPreviewMeta] = useState<{ mode: string; articleCount: number } | null>(
+    null,
+  );
 
   async function runPreview() {
     setPreviewLoading(true);
@@ -147,9 +149,7 @@ export function DigestEmailSection({
           </div>
         ) : (
           <>
-            {enabled && (
-              <SettingsSubTabs tabs={subTabs} active={tab} onChange={setTab} />
-            )}
+            {enabled && <SettingsSubTabs tabs={subTabs} active={tab} onChange={setTab} />}
 
             {/* General */}
             {(tab === "general" || !enabled) && (
@@ -204,7 +204,12 @@ export function DigestEmailSection({
                 />
                 {pendingCron !== null && pendingCron !== emailSettings!.cronExpression && (
                   <div className="flex items-center gap-2 mt-3">
-                    <Button size="sm" className="rounded-md" disabled={emailSaving} onClick={onCronSave}>
+                    <Button
+                      size="sm"
+                      className="rounded-md"
+                      disabled={emailSaving}
+                      onClick={onCronSave}
+                    >
                       {emailSaving ? "Saving…" : "Save schedule"}
                     </Button>
                     <button
@@ -228,13 +233,19 @@ export function DigestEmailSection({
                   </div>
                 )}
                 <div>
-                  <label htmlFor="smtp-host" className="text-xs text-muted-foreground block mb-1">SMTP Host</label>
+                  <label htmlFor="smtp-host" className="text-xs text-muted-foreground block mb-1">
+                    SMTP Host
+                  </label>
                   <input
                     id="smtp-host"
                     type="text"
                     placeholder="smtp.gmail.com"
                     value={emailSettings!.smtpHost || ""}
-                    onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpHost: e.target.value } : null)}
+                    onChange={(e) =>
+                      onEmailSettingsChange((prev) =>
+                        prev ? { ...prev, smtpHost: e.target.value } : null,
+                      )
+                    }
                     onBlur={(e) => onSMTPChange("smtpHost", e.target.value)}
                     disabled={emailSaving || emailTesting}
                     className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
@@ -242,26 +253,38 @@ export function DigestEmailSection({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="smtp-port" className="text-xs text-muted-foreground block mb-1">Port</label>
+                    <label htmlFor="smtp-port" className="text-xs text-muted-foreground block mb-1">
+                      Port
+                    </label>
                     <input
                       id="smtp-port"
                       type="number"
                       placeholder="587"
                       value={emailSettings!.smtpPort || ""}
-                      onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpPort: parseInt(e.target.value) || 587 } : null)}
+                      onChange={(e) =>
+                        onEmailSettingsChange((prev) =>
+                          prev ? { ...prev, smtpPort: parseInt(e.target.value) || 587 } : null,
+                        )
+                      }
                       onBlur={(e) => onSMTPChange("smtpPort", parseInt(e.target.value) || 587)}
                       disabled={emailSaving || emailTesting}
                       className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
                     />
                   </div>
                   <div>
-                    <label htmlFor="smtp-from" className="text-xs text-muted-foreground block mb-1">From Name</label>
+                    <label htmlFor="smtp-from" className="text-xs text-muted-foreground block mb-1">
+                      From Name
+                    </label>
                     <input
                       id="smtp-from"
                       type="text"
                       placeholder="Feedwise"
                       value={emailSettings!.smtpFrom || ""}
-                      onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpFrom: e.target.value } : null)}
+                      onChange={(e) =>
+                        onEmailSettingsChange((prev) =>
+                          prev ? { ...prev, smtpFrom: e.target.value } : null,
+                        )
+                      }
                       onBlur={(e) => onSMTPChange("smtpFrom", e.target.value)}
                       disabled={emailSaving || emailTesting}
                       className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
@@ -269,32 +292,44 @@ export function DigestEmailSection({
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="smtp-user" className="text-xs text-muted-foreground block mb-1">Username / Email</label>
+                  <label htmlFor="smtp-user" className="text-xs text-muted-foreground block mb-1">
+                    Username / Email
+                  </label>
                   <input
                     id="smtp-user"
                     type="text"
                     placeholder="your-email@gmail.com"
                     value={emailSettings!.smtpUser || ""}
-                    onChange={(e) => onEmailSettingsChange(prev => prev ? { ...prev, smtpUser: e.target.value } : null)}
+                    onChange={(e) =>
+                      onEmailSettingsChange((prev) =>
+                        prev ? { ...prev, smtpUser: e.target.value } : null,
+                      )
+                    }
                     onBlur={(e) => onSMTPChange("smtpUser", e.target.value)}
                     disabled={emailSaving || emailTesting}
                     className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
                   />
                 </div>
                 <div>
-                  <label htmlFor="smtp-pass" className="text-xs text-muted-foreground block mb-1">Password / App Password</label>
+                  <label htmlFor="smtp-pass" className="text-xs text-muted-foreground block mb-1">
+                    Password / App Password
+                  </label>
                   <input
                     id="smtp-pass"
                     type="password"
                     placeholder="Enter password"
                     value={smtpPassDraft}
                     onChange={(e) => onSmtpPassDraftChange(e.target.value)}
-                    onBlur={(e) => { if (e.target.value) onSMTPChange("smtpPass", e.target.value); }}
+                    onBlur={(e) => {
+                      if (e.target.value) onSMTPChange("smtpPass", e.target.value);
+                    }}
                     disabled={emailSaving || emailTesting}
                     className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
                   />
                   {emailSettings!.hasSmtpPass && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">SMTP password is saved.</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      SMTP password is saved.
+                    </p>
                   )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -314,7 +349,9 @@ export function DigestEmailSection({
                     className="rounded-md"
                     onClick={onTestEmail}
                     disabled={
-                      emailSaving || emailTesting || !isSmtpValid ||
+                      emailSaving ||
+                      emailTesting ||
+                      !isSmtpValid ||
                       (!emailSettings!.hasSmtpPass && smtpPassDraft.trim().length === 0)
                     }
                   >
@@ -326,8 +363,9 @@ export function DigestEmailSection({
             )}
 
             {/* Feeds */}
-            {enabled && tab === "feeds" && (
-              subs.length > 0 ? (
+            {enabled &&
+              tab === "feeds" &&
+              (subs.length > 0 ? (
                 <div className="pt-1">
                   <div className="border border-border rounded-md divide-y divide-border max-h-80 overflow-y-auto scrollbar-thin">
                     {subs.map((sub) => {
@@ -342,14 +380,18 @@ export function DigestEmailSection({
                           role="checkbox"
                           className="w-full text-left flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent/30 disabled:opacity-60"
                         >
-                          <div className={cn(
-                            "w-4 h-4 rounded border flex items-center justify-center shrink-0",
-                            checked ? "bg-primary border-primary" : "border-muted-foreground"
-                          )}>
+                          <div
+                            className={cn(
+                              "w-4 h-4 rounded border flex items-center justify-center shrink-0",
+                              checked ? "bg-primary border-primary" : "border-muted-foreground",
+                            )}
+                          >
                             {checked && <Check className="size-3 text-primary-foreground" />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm truncate">{sub.title ?? sub.feedTitle ?? sub.url}</p>
+                            <p className="text-sm truncate">
+                              {sub.title ?? sub.feedTitle ?? sub.url}
+                            </p>
                           </div>
                         </button>
                       );
@@ -363,8 +405,7 @@ export function DigestEmailSection({
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground pt-2">No feeds to choose from yet.</p>
-              )
-            )}
+              ))}
           </>
         )}
       </CardContent>

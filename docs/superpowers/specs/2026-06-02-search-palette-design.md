@@ -11,6 +11,7 @@
 Upgrade the `⌘K` palette from "title-only article search" into a unified finder.
 
 **In scope**
+
 - Full-text snippet over title + body + summary + AI summary, with `<mark>` highlighting
 - Sectioned results: **Articles / Feeds / Tags** (5 per section)
 - Ephemeral filter chip bar above the input: Feed / Folder / Tag / Date / Unread / Starred
@@ -18,12 +19,14 @@ Upgrade the `⌘K` palette from "title-only article search" into a unified finde
 - Component decomposition so no single file exceeds ~200 LOC
 
 **Out of scope**
+
 - Modifying `app/(reader)/reader/page.tsx`. The reader list keeps using `/api/articles?search=` and keeps publishedAt ordering (list semantics, not search semantics).
 - Modifying `getArticles()` in `lib/db/queries/articles.ts`.
 - Schema migrations. The optional GIN index is documented as a follow-up.
 - New search engines (Meilisearch / Typesense). PG `to_tsvector` is sufficient.
 
 **Module boundaries** (per `AGENTS.md`)
+
 - `lib/db/queries/search.ts` depends only on drizzle + schema. No Next.js imports.
 - `app/api/search/route.ts` is a thin wrapper over the query layer.
 - All UI in `components/search/`.
@@ -54,16 +57,16 @@ No deletions. No file should exceed ~200 LOC.
 
 `GET /api/search`
 
-| Param | Type | Notes |
-|---|---|---|
-| `q` | string (required) | Trimmed both sides. Empty → 400. |
-| `feedId` | uuid | |
-| `folderId` | uuid | |
-| `tag` | uuid | |
-| `unread` | `"true"` | |
-| `starred` | `"true"` | |
-| `since` | ISO datetime | |
-| `limit` | number | Per-section cap. Default 5, clamped to 20. |
+| Param      | Type              | Notes                                      |
+| ---------- | ----------------- | ------------------------------------------ |
+| `q`        | string (required) | Trimmed both sides. Empty → 400.           |
+| `feedId`   | uuid              |                                            |
+| `folderId` | uuid              |                                            |
+| `tag`      | uuid              |                                            |
+| `unread`   | `"true"`          |                                            |
+| `starred`  | `"true"`          |                                            |
+| `since`    | ISO datetime      |                                            |
+| `limit`    | number            | Per-section cap. Default 5, clamped to 20. |
 
 Validated with a zod schema; invalid params → 400.
 
@@ -174,6 +177,7 @@ The Node side maps `rawSnippet`/`rawTitle` through `parseSnippet()` before retur
 ### `searchFeedsByName(userId, q, limit): Promise<FeedHit[]>`
 
 Searches the user's **subscribed** feeds (not the global feeds table):
+
 - `feeds.title ILIKE '%q%'`, or
 - `subscriptions.customTitle ILIKE '%q%'` (user's renamed title), or
 - `feeds.description ILIKE '%q%'`
@@ -195,7 +199,7 @@ LIMIT $limit
 
 ## 5. Snippet Parser (`lib/search/parse-snippet.ts`)
 
-Pure function. Lives in `lib/search/`, not `lib/db/`, because it's used by the server *and* could be used by the client in the future.
+Pure function. Lives in `lib/search/`, not `lib/db/`, because it's used by the server _and_ could be used by the client in the future.
 
 ```ts
 export type SnippetPart =
@@ -280,6 +284,7 @@ interface PaletteState {
 ### `useSearch` hook
 
 `lib/hooks/use-search.ts` owns the network concerns:
+
 - 250 ms debounce on query changes
 - Filter changes trigger an **immediate** refetch (discrete, not typed)
 - AbortController on every new request
@@ -290,6 +295,7 @@ The component reads `{ data, loading }`. Race conditions are not its problem.
 ### Lazy dropdown options
 
 Filter dropdowns fetch options on first open and cache for the palette session:
+
 - Feed dropdown → `/api/feeds/subscriptions` (or whichever route returns the user's subscriptions; add a thin route if none exists today — verified during slice 3)
 - Folder dropdown → `/api/folders` (verify existence; add thin route if missing)
 - Tag dropdown → `/api/tags` (verified to exist)
@@ -317,18 +323,19 @@ No HTML strings. No sanitization. No XSS surface.
 
 ### Keyboard & mouse map
 
-| Input | Action |
-|---|---|
-| ⌘K / Ctrl+K | Toggle palette |
-| Esc | Close, discard chip state |
-| ↑ / ↓ | Move `activeKey` across sections in DOM order |
-| Enter | Trigger default action for `activeKey` |
-| ⌘+Enter | Force "See all results", regardless of selection |
-| Tab | Move focus from input into filter chip row |
-| Mouse hover over result | Set `activeKey` (matches current behavior) |
-| Click on result | Trigger that result's default action |
+| Input                   | Action                                           |
+| ----------------------- | ------------------------------------------------ |
+| ⌘K / Ctrl+K             | Toggle palette                                   |
+| Esc                     | Close, discard chip state                        |
+| ↑ / ↓                   | Move `activeKey` across sections in DOM order    |
+| Enter                   | Trigger default action for `activeKey`           |
+| ⌘+Enter                 | Force "See all results", regardless of selection |
+| Tab                     | Move focus from input into filter chip row       |
+| Mouse hover over result | Set `activeKey` (matches current behavior)       |
+| Click on result         | Trigger that result's default action             |
 
 Default action per result type:
+
 - Article → open article (current `openHit` behavior)
 - Feed → `router.push('/reader?feedId=…')`, drops `search`
 - Tag → `router.push('/reader?tag=…')`, drops `search`
@@ -363,6 +370,7 @@ Filters only mutate the URL on explicit commit, not on every keystroke.
 Three independently shippable PRs.
 
 **Slice 1 — Backend + snippet**
+
 - `lib/db/queries/search.ts`
 - `lib/search/parse-snippet.ts` + unit tests
 - `app/api/search/route.ts` + zod
@@ -371,6 +379,7 @@ Three independently shippable PRs.
 No UI calls `/api/search` yet. Zero user-visible risk.
 
 **Slice 2 — Frontend palette refactor (no filter bar)**
+
 - `components/search/` new files
 - `lib/hooks/use-search.ts`
 - `components/layout/sidebar-search.tsx` shrunk to shell
@@ -379,6 +388,7 @@ No UI calls `/api/search` yet. Zero user-visible risk.
 User-visible delta: snippets, feed/tag results, sectioned layout. No filters yet, but no regression vs. today's palette.
 
 **Slice 3 — Filter chip bar**
+
 - `search-filter-bar.tsx` + dropdowns
 - `/api/feeds/subscriptions` (if not present)
 - URL folding on commit
@@ -390,17 +400,17 @@ Each slice ships on its own. If slice 3 UX needs iteration, it doesn't block sli
 
 ## 8. Testing
 
-| Layer | What | Tooling |
-|---|---|---|
-| `parseSnippet` | empty / no-match / single / multi / unclosed | Vitest unit |
-| `searchArticles` | rank ordering, filter intersection, user isolation, ILIKE fallback | Vitest + real PG |
-| `searchFeedsByName` | subscribed-only, `customTitle` match, user isolation | Vitest + real PG |
-| `searchTagsByName` | user-scoped, ILIKE case-insensitive | Vitest + real PG |
-| `/api/search` route | zod 400, 401 unauth, Promise.all isolation | Vitest |
-| `SearchSnippet` | parts → JSX, empty returns null | React Testing Library |
-| `useSearch` | debounce, abort race, disabled = no fetch | Vitest + fake timers |
-| Keyboard nav | ↑↓ across sections, Enter defaults, ⌘+Enter force commit | RTL |
-| URL folding | filter state → URLSearchParams | Unit |
+| Layer               | What                                                               | Tooling               |
+| ------------------- | ------------------------------------------------------------------ | --------------------- |
+| `parseSnippet`      | empty / no-match / single / multi / unclosed                       | Vitest unit           |
+| `searchArticles`    | rank ordering, filter intersection, user isolation, ILIKE fallback | Vitest + real PG      |
+| `searchFeedsByName` | subscribed-only, `customTitle` match, user isolation               | Vitest + real PG      |
+| `searchTagsByName`  | user-scoped, ILIKE case-insensitive                                | Vitest + real PG      |
+| `/api/search` route | zod 400, 401 unauth, Promise.all isolation                         | Vitest                |
+| `SearchSnippet`     | parts → JSX, empty returns null                                    | React Testing Library |
+| `useSearch`         | debounce, abort race, disabled = no fetch                          | Vitest + fake timers  |
+| Keyboard nav        | ↑↓ across sections, Enter defaults, ⌘+Enter force commit           | RTL                   |
+| URL folding         | filter state → URLSearchParams                                     | Unit                  |
 
 **Not tested**: visual styling (snippet color, chip spacing), `ts_headline` itself (trust Postgres).
 
@@ -416,7 +426,7 @@ Each slice ships on its own. If slice 3 UX needs iteration, it doesn't block sli
 
 4. **Large dropdown lists.** A user with 500 feeds gets a slow dropdown. Mitigation deferred: add type-to-filter inside the dropdown when needed.
 
-5. **`/api/articles?search=` unchanged.** Reader list still sorts by `publishedAt`, not relevance. This is intentional: a list view is a *browse* surface, not a *find* surface. If product disagrees later, separate ticket.
+5. **`/api/articles?search=` unchanged.** Reader list still sorts by `publishedAt`, not relevance. This is intentional: a list view is a _browse_ surface, not a _find_ surface. If product disagrees later, separate ticket.
 
 6. **`since` filter is palette-local.** Reader page has no `since` URL param today. The Date chip applies in the palette query; on "See all results" it's not folded into the URL because the reader can't honor it. Acceptable: the dominant use of Date is narrowing the palette preview.
 

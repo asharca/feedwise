@@ -13,13 +13,19 @@ export class LlmRateLimitError extends Error {
   }
 }
 export class LlmHttpError extends Error {
-  constructor(public status: number, body: string) {
+  constructor(
+    public status: number,
+    body: string,
+  ) {
     super(`LLM HTTP ${status}: ${body.slice(0, 200)}`);
     this.name = "LlmHttpError";
   }
 }
 export class LlmParseError extends Error {
-  constructor(message: string, public raw: string) {
+  constructor(
+    message: string,
+    public raw: string,
+  ) {
     super(message);
     this.name = "LlmParseError";
   }
@@ -94,22 +100,21 @@ function parseAnthropicResponse(json: unknown): string {
   if (!Array.isArray(typed.content)) {
     throw new LlmParseError(
       `Anthropic response had no content array`,
-      JSON.stringify(json).slice(0, 500)
+      JSON.stringify(json).slice(0, 500),
     );
   }
 
   // Find ALL text blocks — Claude may return thinking/tool_use blocks before
   // (or after) the actual text; we want the text wherever it appears.
   const textBlocks = typed.content.filter(
-    (b): b is { type: string; text: string } =>
-      b?.type === "text" && typeof b.text === "string"
+    (b): b is { type: string; text: string } => b?.type === "text" && typeof b.text === "string",
   );
 
   if (textBlocks.length === 0) {
     const seenTypes = typed.content.map((b) => b?.type ?? "?").join(", ");
     throw new LlmParseError(
       `No text block in Anthropic content (got: ${seenTypes || "empty"})`,
-      JSON.stringify(json).slice(0, 500)
+      JSON.stringify(json).slice(0, 500),
     );
   }
 
@@ -167,7 +172,7 @@ export function extractJsonFromText(text: string): unknown {
 
 export async function callChatCompletion(
   config: LlmClientConfig,
-  input: ChatCompletionInput
+  input: ChatCompletionInput,
 ): Promise<unknown> {
   const format = config.format ?? "openai";
   const baseUrl = config.baseUrl.replace(/\/$/, "");
@@ -236,10 +241,7 @@ export interface RetryOptions {
 }
 
 /** Retry a fn on transient LLM errors (timeout, 429) with exponential backoff. */
-export async function withLlmRetry<T>(
-  fn: () => Promise<T>,
-  opts: RetryOptions = {}
-): Promise<T> {
+export async function withLlmRetry<T>(fn: () => Promise<T>, opts: RetryOptions = {}): Promise<T> {
   const retries = Math.max(0, opts.retries ?? 2);
   const baseDelayMs = opts.baseDelayMs ?? 250;
   let lastErr: unknown;

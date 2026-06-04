@@ -52,7 +52,13 @@ function paramDefault(info: RouteParam | string | undefined): string {
   return info.default ?? "";
 }
 
-function RouteCard({ route, onSubscribe }: { route: Route; onSubscribe: (url: string) => Promise<void> }) {
+function RouteCard({
+  route,
+  onSubscribe,
+}: {
+  route: Route;
+  onSubscribe: (url: string) => Promise<void>;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [params, setParams] = useState<Record<string, string>>({});
   const [subscribing, setSubscribing] = useState(false);
@@ -93,17 +99,24 @@ function RouteCard({ route, onSubscribe }: { route: Route; onSubscribe: (url: st
   }
 
   return (
-    <div className={cn(
-      "break-inside-avoid rounded-md border border-border/50 bg-card transition-all duration-150",
-      expanded && "border-border shadow-sm"
-    )}>
+    <div
+      className={cn(
+        "break-inside-avoid rounded-md border border-border/50 bg-card transition-all duration-150",
+        expanded && "border-border shadow-sm",
+      )}
+    >
       {/* Header row */}
       <div
         className="flex items-start gap-3 p-3 cursor-pointer"
         role="button"
         tabIndex={0}
         onClick={() => setExpanded((v) => !v)}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded((v) => !v); } }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((v) => !v);
+          }
+        }}
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -124,7 +137,10 @@ function RouteCard({ route, onSubscribe }: { route: Route; onSubscribe: (url: st
           {!hasParams && !expanded && (
             <button
               className="text-[11px] px-2.5 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
-              onClick={(e) => { e.stopPropagation(); handleSubscribe(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSubscribe();
+              }}
               disabled={subscribing || subscribed}
             >
               {subscribed ? "Added!" : subscribing ? "Adding..." : "Subscribe"}
@@ -185,8 +201,15 @@ function RouteCard({ route, onSubscribe }: { route: Route; onSubscribe: (url: st
           {/* URL preview */}
           <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-2.5 py-1.5">
             <Rss className="size-3 text-muted-foreground/50 shrink-0" />
-            <span className="text-[11px] text-muted-foreground/70 font-mono truncate flex-1">{feedUrl}</span>
-            <a href={feedUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            <span className="text-[11px] text-muted-foreground/70 font-mono truncate flex-1">
+              {feedUrl}
+            </span>
+            <a
+              href={feedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+            >
               <ExternalLink className="size-3 text-muted-foreground/50 hover:text-primary transition-colors" />
             </a>
           </div>
@@ -199,10 +222,18 @@ function RouteCard({ route, onSubscribe }: { route: Route; onSubscribe: (url: st
             disabled={subscribing || subscribed || hasUnfilledRequired}
             onClick={handleSubscribe}
           >
-            {subscribed ? "Added to feeds!" : subscribing ? (
-              <><Loader2 className="size-3 animate-spin mr-1.5" />Adding...</>
+            {subscribed ? (
+              "Added to feeds!"
+            ) : subscribing ? (
+              <>
+                <Loader2 className="size-3 animate-spin mr-1.5" />
+                Adding...
+              </>
             ) : (
-              <><Plus className="size-3 mr-1.5" />Subscribe</>
+              <>
+                <Plus className="size-3 mr-1.5" />
+                Subscribe
+              </>
             )}
           </Button>
         </div>
@@ -283,7 +314,7 @@ export default function DiscoverPage() {
             onClick={() => setActiveNs(null)}
             className={cn(
               "text-left px-3 py-2 text-[13px] leading-snug rounded-lg mx-1.5 transition-colors",
-              !activeNs ? "bg-accent font-medium" : "hover:bg-accent/50 text-muted-foreground"
+              !activeNs ? "bg-accent font-medium" : "hover:bg-accent/50 text-muted-foreground",
             )}
           >
             All sources
@@ -294,7 +325,9 @@ export default function DiscoverPage() {
               onClick={() => setActiveNs(ns === activeNs ? null : ns)}
               className={cn(
                 "text-left px-3 py-2 text-[13px] leading-snug rounded-lg mx-1.5 transition-colors break-words",
-                activeNs === ns ? "bg-accent font-medium" : "hover:bg-accent/50 text-muted-foreground"
+                activeNs === ns
+                  ? "bg-accent font-medium"
+                  : "hover:bg-accent/50 text-muted-foreground",
               )}
             >
               {ns}
@@ -323,7 +356,7 @@ export default function DiscoverPage() {
               onClick={() => setActiveNs(null)}
               className={cn(
                 "text-[11px] px-2.5 py-1 rounded-full shrink-0 transition-colors",
-                !activeNs ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                !activeNs ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
               )}
             >
               All
@@ -334,7 +367,9 @@ export default function DiscoverPage() {
                 onClick={() => setActiveNs(ns === activeNs ? null : ns)}
                 className={cn(
                   "text-[11px] px-2.5 py-1 rounded-full shrink-0 transition-colors capitalize",
-                  activeNs === ns ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  activeNs === ns
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground",
                 )}
               >
                 {ns}

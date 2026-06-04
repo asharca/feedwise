@@ -16,9 +16,9 @@ Both work for any log row, success or failed. Resends create a new log row (the 
 
 - `email_digest_logs` (`lib/db/schema.ts:294`) records `id, userId, sentAt, articleCount, status, errorMessage`. No link to the article IDs that were in the send.
 - `getDigestHistory(userId, limit=30)` (`lib/email/queries.ts:366`) returns the last 30 rows.
-- The Daily Digest settings card has its own "Preview email" action (`/api/email/llm/preview`) that renders *what the next digest would look like* using the current article pool, plus a "Send Test Email" action that uses the current pool and current SMTP config.
+- The Daily Digest settings card has its own "Preview email" action (`/api/email/llm/preview`) that renders _what the next digest would look like_ using the current article pool, plus a "Send Test Email" action that uses the current pool and current SMTP config.
 - The digest render pipeline is `assembleDigestForSubscription` + `renderDigestHtml` (LLM path) or `buildFallback` + `renderFallbackHtml` (no-config path). The same primitives can be re-driven with a different input article set.
-- Click links in digest emails are wrapped by `buildEmailLinkFn` so opens hit `/api/r?…` first; this enables the `markReadOnClick` / `autoSaveOnClick` settings. Per brainstorming decision, resends honor the user's *current* click-behavior settings (no snapshotting).
+- Click links in digest emails are wrapped by `buildEmailLinkFn` so opens hit `/api/r?…` first; this enables the `markReadOnClick` / `autoSaveOnClick` settings. Per brainstorming decision, resends honor the user's _current_ click-behavior settings (no snapshotting).
 - SMTP error messages are currently mapped inline in `app/api/settings/email/test/route.ts:79-90` for ENETUNREACH, EAUTH, ETIMEDOUT, and QQ mail's strict-envelope rule. The resend route needs the same mapping.
 
 ## 1. New Table: `email_digest_log_articles`
@@ -127,6 +127,7 @@ Returns the same human-readable strings the test-digest route already produces (
   - `size-7` ghost icon-buttons; `gap-1` between them; `shrink-0` so the timestamp flexes.
   - Failed rows keep the existing chevron + error expand affordance; the new icons sit to the right.
   - Resend disabled with tooltip `"Nothing to resend"` when the row's `articleCount === 0`.
+
 - Preview: opens `EmailPreviewDialog` (see below) with `logId`.
 - Resend: `POST` to the resend route. On success → `toast.success("Digest resent to {email}")` + refetch the history list. On error → `toast.error(mapSmtpError(err))` from a client-side copy of the same mapping (or just display `err` as-is — the server already returns the mapped string).
 - Mobile: same inline layout; icons just use `size-6`.
@@ -146,17 +147,17 @@ Extracted from the existing `<Dialog>` block in `digest-email-section.tsx:372-40
 
 ## 5. Error Handling
 
-| Case | Behavior |
-|------|----------|
-| No session | 401 `{ success: false, error: "Unauthorized" }` (both routes) |
-| Invalid `logId` uuid | 400 `{ error: "Invalid log id" }` |
-| Log not found / wrong owner | 404 `{ error: "Not found" }` |
-| Resend with 0 articles | 400 `{ error: "Nothing to resend — the original digest had no articles" }`; UI also disables the button |
-| SMTP not configured | 400 `{ error: "SMTP not configured. Please configure your SMTP settings in the email settings." }` |
+| Case                                     | Behavior                                                                                                                                                                                                              |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No session                               | 401 `{ success: false, error: "Unauthorized" }` (both routes)                                                                                                                                                         |
+| Invalid `logId` uuid                     | 400 `{ error: "Invalid log id" }`                                                                                                                                                                                     |
+| Log not found / wrong owner              | 404 `{ error: "Not found" }`                                                                                                                                                                                          |
+| Resend with 0 articles                   | 400 `{ error: "Nothing to resend — the original digest had no articles" }`; UI also disables the button                                                                                                               |
+| SMTP not configured                      | 400 `{ error: "SMTP not configured. Please configure your SMTP settings in the email settings." }`                                                                                                                    |
 | SMTP send error (after retry exhaustion) | 500 with `mapSmtpError(err)`; `logDigestSendWithArticles` still runs in `finally` with `status: "failed"` and the captured error message. Retries are inside `sendDailyDigestWithRetry` and not surfaced to the user. |
-| DB error on read | 500 generic; logged with `logId` |
-| Render pipeline error | 500 generic; logged with `logId` and pipeline stage |
-| Resend during resend (double-click) | Client `pending` state disables the button; server has no dedupe so two parallel requests produce two log rows — acceptable per "no rate limit" decision |
+| DB error on read                         | 500 generic; logged with `logId`                                                                                                                                                                                      |
+| Render pipeline error                    | 500 generic; logged with `logId` and pipeline stage                                                                                                                                                                   |
+| Resend during resend (double-click)      | Client `pending` state disables the button; server has no dedupe so two parallel requests produce two log rows — acceptable per "no rate limit" decision                                                              |
 
 All routes follow the project's `{ success, data?, error? }` envelope.
 
@@ -207,14 +208,14 @@ All routes follow the project's `{ success, data?, error? }` envelope.
 
 ## 8. Module Boundary Check (per AGENTS.md)
 
-| New code | Module | Allowed dependencies | Notes |
-|----------|--------|---------------------|-------|
-| `email_digest_log_articles` table | `lib/db/schema.ts` | drizzle-orm, pg | Pure schema |
-| `getArticlesForLog`, `getDigestLogById`, `logDigestSendWithArticles` | `lib/email/queries.ts` | `lib/db/*` | Follows existing pattern |
-| `mapSmtpError` | `lib/email/smtp-error.ts` (new) | none | Pure function |
-| Two routes | `app/api/settings/email/history/[logId]/{preview,resend}/route.ts` | `lib/*` | Thin wrappers |
-| `EmailPreviewDialog` | `components/settings/` | `lib/hooks` only | Same as siblings |
-| `digest-history-section.tsx` | `components/settings/` | existing | Surgical edit |
-| Worker call site update | `lib/jobs/workers/digest-worker.ts` | `lib/email/queries.ts` | One-line change to log function |
+| New code                                                             | Module                                                             | Allowed dependencies   | Notes                           |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------- | ------------------------------- |
+| `email_digest_log_articles` table                                    | `lib/db/schema.ts`                                                 | drizzle-orm, pg        | Pure schema                     |
+| `getArticlesForLog`, `getDigestLogById`, `logDigestSendWithArticles` | `lib/email/queries.ts`                                             | `lib/db/*`             | Follows existing pattern        |
+| `mapSmtpError`                                                       | `lib/email/smtp-error.ts` (new)                                    | none                   | Pure function                   |
+| Two routes                                                           | `app/api/settings/email/history/[logId]/{preview,resend}/route.ts` | `lib/*`                | Thin wrappers                   |
+| `EmailPreviewDialog`                                                 | `components/settings/`                                             | `lib/hooks` only       | Same as siblings                |
+| `digest-history-section.tsx`                                         | `components/settings/`                                             | existing               | Surgical edit                   |
+| Worker call site update                                              | `lib/jobs/workers/digest-worker.ts`                                | `lib/email/queries.ts` | One-line change to log function |
 
 No cross-module boundary violations.

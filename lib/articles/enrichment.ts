@@ -29,7 +29,10 @@ export type SummaryOutcome =
   | { kind: "no-content" };
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**
@@ -42,7 +45,7 @@ function stripHtml(html: string): string {
  */
 export async function generateArticleSummary(
   article: EnrichableArticle,
-  llmConfig: LlmConfig
+  llmConfig: LlmConfig,
 ): Promise<SummaryOutcome> {
   const sourceText = pickFullText(article);
   if (!sourceText) return { kind: "no-content" };
@@ -56,7 +59,7 @@ export async function generateArticleSummary(
   const response = (await withLlmRetry(() =>
     callChatCompletion(llmConfig, {
       system:
-        "You analyse news articles. Reply with JSON: { \"summary\": string, \"importance\": \"high\"|\"med\"|\"low\" }. " +
+        'You analyse news articles. Reply with JSON: { "summary": string, "importance": "high"|"med"|"low" }. ' +
         "summary: 3-5 sentences, neutral, factual, no marketing language, do not start with 'This article...'. " +
         "importance: 'high' for breaking news / major announcements / safety issues; 'med' for noteworthy updates; 'low' for routine, niche, or marketing-heavy content.",
       user: `Title: ${titleHint}\n\nArticle:\n${truncated}`,
@@ -71,16 +74,14 @@ export async function generateArticleSummary(
           required: ["summary", "importance"],
         },
       },
-    })
+    }),
   )) as { summary?: unknown; importance?: unknown };
 
   const summary = typeof response.summary === "string" ? response.summary.trim() : "";
   if (!summary) return { kind: "no-content" };
 
   const importance: SummaryResult["importance"] =
-    response.importance === "high" ||
-    response.importance === "med" ||
-    response.importance === "low"
+    response.importance === "high" || response.importance === "med" || response.importance === "low"
       ? response.importance
       : null;
 
@@ -112,7 +113,7 @@ function pickSourceText(article: EnrichableArticle): string {
 export async function generateTagsForArticle(
   article: EnrichableArticle,
   userTags: Array<{ id: string; name: string }>,
-  llmConfig: LlmConfig
+  llmConfig: LlmConfig,
 ): Promise<TagSuggestion[]> {
   const sourceText = pickSourceText(article);
   if (!sourceText) return [];
@@ -127,7 +128,7 @@ export async function generateTagsForArticle(
         "You suggest 1-3 short topic tags for news articles. " +
         "Tags must be 1-3 words, lowercase, no punctuation. " +
         "Prefer reusing tags from the user's existing tag list when relevant; otherwise propose a new one. " +
-        "Reply with JSON: { \"tags\": string[] }.",
+        'Reply with JSON: { "tags": string[] }.',
       user: `Article title: ${titleHint}\n\nUser's existing tags: ${tagNamesList || "(none)"}\n\nArticle:\n${truncated}`,
       jsonSchema: {
         name: "tag_suggestions",
@@ -144,7 +145,7 @@ export async function generateTagsForArticle(
           required: ["tags"],
         },
       },
-    })
+    }),
   )) as { tags?: unknown };
 
   const raw = Array.isArray(response.tags) ? response.tags : [];

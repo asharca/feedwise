@@ -12,7 +12,7 @@ export type { LinkFn };
  */
 export async function renderDigestHtml(
   digest: OrganizedDigest,
-  buildLink?: LinkFn
+  buildLink?: LinkFn,
 ): Promise<string> {
   return render(<DigestEmail digest={digest} buildLink={buildLink} />);
 }

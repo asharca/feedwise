@@ -19,9 +19,7 @@ describe("filtersFromParams", () => {
   });
 
   it("reads each filter from its own key", () => {
-    const f = filtersFromParams(
-      new URLSearchParams("feedId=f1&folderId=d1&tag=t1&since=7d")
-    );
+    const f = filtersFromParams(new URLSearchParams("feedId=f1&folderId=d1&tag=t1&since=7d"));
     expect(f.feedId).toBe("f1");
     expect(f.folderId).toBe("d1");
     expect(f.tagId).toBe("t1");

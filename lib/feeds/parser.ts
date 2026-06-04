@@ -50,7 +50,7 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       (err) => {
         clearTimeout(timer);
         reject(classifyError(err));
-      }
+      },
     );
   });
 }
@@ -111,7 +111,10 @@ export async function preflightFeed(url: string, timeoutMs: number): Promise<voi
   throw new FeedError("not-feed", humanMessage("not-feed"));
 }
 
-export async function parseFeed(url: string, timeoutMs: number = DEFAULT_PARSE_TIMEOUT_MS): Promise<ParsedFeed> {
+export async function parseFeed(
+  url: string,
+  timeoutMs: number = DEFAULT_PARSE_TIMEOUT_MS,
+): Promise<ParsedFeed> {
   const items = await withTimeout(FeedParser.parse(url), timeoutMs);
 
   const meta = (items[0]?.["meta"] as Record<string, unknown>) ?? {};
@@ -140,14 +143,19 @@ export async function parseFeed(url: string, timeoutMs: number = DEFAULT_PARSE_T
 }
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getImageUrl(item: Record<string, unknown>): string | null {
-  const enclosures = item["enclosures"] as Array<{
-    url: string;
-    type: string;
-  }> | undefined;
+  const enclosures = item["enclosures"] as
+    | Array<{
+        url: string;
+        type: string;
+      }>
+    | undefined;
   const imageEnclosure = enclosures?.find((e) => e.type?.startsWith("image/"));
   if (imageEnclosure) return imageEnclosure.url;
 

@@ -57,7 +57,7 @@ export function SearchResultsPage({
       p.set("feedId", feedId);
       router.replace(`/reader?${p.toString()}`);
     },
-    [router, searchParams]
+    [router, searchParams],
   );
 
   const navigateToTag = useCallback(
@@ -67,7 +67,7 @@ export function SearchResultsPage({
       p.set("tag", tagId);
       router.replace(`/reader?${p.toString()}`);
     },
-    [router, searchParams]
+    [router, searchParams],
   );
 
   return (
@@ -98,7 +98,12 @@ export function SearchResultsPage({
           <CenterHint>
             <Search className="size-5 text-muted-foreground/40" />
             <p className="text-sm">No matches for &ldquo;{search}&rdquo;</p>
-            {(filters.feedId || filters.folderId || filters.tagId || filters.since || filters.unread || filters.starred) && (
+            {(filters.feedId ||
+              filters.folderId ||
+              filters.tagId ||
+              filters.since ||
+              filters.unread ||
+              filters.starred) && (
               <button
                 type="button"
                 onClick={clearFilters}
@@ -158,12 +163,14 @@ export function SearchResultsPage({
             </RailSection>
 
             {/* Inline hint when no top-20 hits but feeds/tags do */}
-            {data && data.articles.length === 0 && (data.feeds.length > 0 || data.tags.length > 0) && (
-              <div className="px-3 py-2 text-[11px] text-muted-foreground/80 border-b border-border/50">
-                No articles matched. {data.feeds.length + data.tags.length} feed/tag
-                match{data.feeds.length + data.tags.length === 1 ? "" : "es"} above.
-              </div>
-            )}
+            {data &&
+              data.articles.length === 0 &&
+              (data.feeds.length > 0 || data.tags.length > 0) && (
+                <div className="px-3 py-2 text-[11px] text-muted-foreground/80 border-b border-border/50">
+                  No articles matched. {data.feeds.length + data.tags.length} feed/tag match
+                  {data.feeds.length + data.tags.length === 1 ? "" : "es"} above.
+                </div>
+              )}
 
             {/* Articles: top-20 from /api/search (with snippets) merged with
                 the chronological tail from /api/articles (no snippets).
@@ -180,7 +187,7 @@ export function SearchResultsPage({
                 onClick={() => onSelect(a.id)}
                 className={cn(
                   "text-left px-3 py-2 border-b border-border/50 hover:bg-accent/50 transition-colors",
-                  activeArticle?.id === a.id && "bg-accent"
+                  activeArticle?.id === a.id && "bg-accent",
                 )}
               >
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/80 mb-0.5">
@@ -199,7 +206,7 @@ export function SearchResultsPage({
                   {a.titleParts.length > 0 ? (
                     <SearchSnippet parts={a.titleParts} />
                   ) : (
-                    a.title ?? "(no title)"
+                    (a.title ?? "(no title)")
                   )}
                 </p>
                 {a.snippetParts.length > 0 && (
@@ -220,7 +227,11 @@ export function SearchResultsPage({
                   </div>
                 )}
                 <ArticleList
-                  articles={articleList}
+                  articles={articleList.map((a) => ({
+                    ...a,
+                    publishedAt: a.publishedAt ? new Date(a.publishedAt) : null,
+                    createdAt: a.createdAt ? new Date(a.createdAt) : null,
+                  }))}
                   activeId={activeArticle?.id}
                   onSelect={onSelect}
                   onStar={onStar}

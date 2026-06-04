@@ -3,9 +3,25 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/db", () => ({ db: { transaction: vi.fn(), select: vi.fn() } }));
 vi.mock("@/lib/db/schema", () => ({
-  emailDigestLogs: { id: "id", userId: "userId", sentAt: "sentAt", articleCount: "articleCount", status: "status", errorMessage: "errorMessage" },
+  emailDigestLogs: {
+    id: "id",
+    userId: "userId",
+    sentAt: "sentAt",
+    articleCount: "articleCount",
+    status: "status",
+    errorMessage: "errorMessage",
+  },
   emailDigestLogArticles: { logId: "logId", articleId: "articleId" },
-  articles: { id: "id", title: "title", url: "url", summary: "summary", aiSummary: "aiSummary", importance: "importance", feedId: "feedId", publishedAt: "publishedAt" },
+  articles: {
+    id: "id",
+    title: "title",
+    url: "url",
+    summary: "summary",
+    aiSummary: "aiSummary",
+    importance: "importance",
+    feedId: "feedId",
+    publishedAt: "publishedAt",
+  },
   feeds: { id: "id", title: "title" },
   articleTags: { articleId: "articleId", tagId: "tagId" },
   tags: { id: "id", name: "name" },
@@ -25,10 +41,15 @@ beforeEach(() => {
 describe("getDigestLogById", () => {
   it("returns the row scoped to userId", async () => {
     const where = vi.fn().mockReturnThis();
-    const limit = vi.fn().mockResolvedValue([{
-      id: "log-1", sentAt: new Date("2026-06-03"),
-      articleCount: 3, status: "success", errorMessage: null,
-    }]);
+    const limit = vi.fn().mockResolvedValue([
+      {
+        id: "log-1",
+        sentAt: new Date("2026-06-03"),
+        articleCount: 3,
+        status: "success",
+        errorMessage: null,
+      },
+    ]);
     vi.mocked(db.select).mockReturnValue({ from: () => ({ where, limit }) } as any);
 
     const result = await getDigestLogById("log-1", "user-1");
@@ -49,24 +70,38 @@ describe("getDigestLogById", () => {
 describe("getArticlesForLog", () => {
   it("returns [] when the join finds no rows", async () => {
     const where = vi.fn().mockResolvedValue([]);
-    vi.mocked(db.select).mockReturnValue({ from: () => ({ innerJoin: () => ({ innerJoin: () => ({ innerJoin: () => ({ where }) }) }) }) } as any);
+    vi.mocked(db.select).mockReturnValue({
+      from: () => ({ innerJoin: () => ({ innerJoin: () => ({ innerJoin: () => ({ where }) }) }) }),
+    } as any);
 
     const result = await getArticlesForLog("log-1", "user-1");
     expect(result).toEqual([]);
   });
 
   it("joins articles and tags, scoped to userId", async () => {
-    const articleRows = [{
-      id: "art-1", title: "T", url: "https://x", summary: "s",
-      aiSummary: null, importance: null, feedId: "f-1",
-      feedTitle: "Feed", publishedAt: null,
-    }];
+    const articleRows = [
+      {
+        id: "art-1",
+        title: "T",
+        url: "https://x",
+        summary: "s",
+        aiSummary: null,
+        importance: null,
+        feedId: "f-1",
+        feedTitle: "Feed",
+        publishedAt: null,
+      },
+    ];
     const tagRows = [{ articleId: "art-1", tagId: "tag-1", tagName: "News" }];
 
     const where = vi.fn().mockResolvedValue(articleRows);
     const tagWhere = vi.fn().mockResolvedValue(tagRows);
     vi.mocked(db.select)
-      .mockReturnValueOnce({ from: () => ({ innerJoin: () => ({ innerJoin: () => ({ innerJoin: () => ({ where }) }) }) }) } as any)
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({ innerJoin: () => ({ innerJoin: () => ({ where }) }) }),
+        }),
+      } as any)
       .mockReturnValueOnce({ from: () => ({ innerJoin: () => ({ where: tagWhere }) }) } as any);
 
     const result = await getArticlesForLog("log-1", "user-1");

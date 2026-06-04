@@ -7,10 +7,7 @@ import { getArticleById } from "@/lib/db/queries/articles";
 import { getUserLlmConfig } from "@/lib/email/queries";
 import { generateTagsForArticle } from "@/lib/articles/enrichment";
 
-export async function POST(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
     session = await requireSession();
@@ -30,13 +27,13 @@ export async function POST(
   } catch {
     return NextResponse.json(
       { success: false, error: "LLM key could not be decrypted" },
-      { status: 500 }
+      { status: 500 },
     );
   }
   if (!llmConfig) {
     return NextResponse.json(
       { success: false, error: "No LLM configured — set one in Settings → Smart Digest" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

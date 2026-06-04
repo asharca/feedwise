@@ -24,7 +24,7 @@ export function getEmailTransporter(userSmtp?: SMTPConfig | null): Transporter {
       sendMail: async () => {
         console.log("Email not configured - would send email");
         return { messageId: "mock" };
-      }
+      },
     } as unknown as Transporter;
   }
 
@@ -83,7 +83,7 @@ export async function sendDailyDigest(email: DailyDigestSend): Promise<void> {
     : normalizeFromAddress(
         email.smtpConfig?.from || process.env.SMTP_FROM,
         smtpUser,
-        "Feedwise <noreply@feedwise.app>"
+        "Feedwise <noreply@feedwise.app>",
       );
 
   await transporter.sendMail({
@@ -106,7 +106,7 @@ function requiresStrictEnvelopeFrom(smtpUser: string): boolean {
 function normalizeFromAddress(
   fromInput: string | undefined,
   smtpUser: string,
-  fallback: string
+  fallback: string,
 ): string {
   if (!fromInput || fromInput.trim().length === 0) {
     return fallback;
@@ -129,4 +129,3 @@ function normalizeFromAddress(
 
   return fallback;
 }
-

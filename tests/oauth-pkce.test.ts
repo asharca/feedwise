@@ -7,10 +7,7 @@ describe("PKCE verification", () => {
     const verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
 
     // Compute expected challenge: BASE64URL(SHA256(verifier))
-    const digest = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(verifier)
-    );
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
     const challenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
       .replace(/\+/g, "-")
       .replace(/\//g, "_")

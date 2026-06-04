@@ -1,7 +1,9 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+
 <!-- END:nextjs-agent-rules -->
 
 # AGENTS.md — feedwise Project Guide
@@ -45,16 +47,16 @@ docs/                     Design specs and architecture decisions
 
 ## Module Boundaries
 
-| Module | Depends on | Used by | Rule |
-|--------|-----------|---------|------|
-| `lib/db/` | `drizzle-orm`, `pg` | `lib/auth/`, `lib/feeds/`, `lib/email/`, `lib/jobs/`, `lib/digest/`, `app/api/` | Only database access layer. No business logic. |
-| `lib/auth/` | `lib/db/`, `better-auth` | `app/`, `app/api/` | Auth configuration only. No UI components. |
-| `lib/feeds/` | `lib/db/`, `feedparser-promised` | `lib/jobs/` | RSS fetching + parsing. No HTTP server logic. |
-| `lib/email/` | `lib/db/`, `nodemailer` | `lib/jobs/` | Email sending + templates. No digest logic. |
-| `lib/digest/` | `lib/db/` | `lib/jobs/`, `lib/email/`, `app/api/` | Content organization pipeline. LLM client utilities live here and may be reused by Web UI features. |
-| `lib/jobs/` | `lib/db/`, `lib/feeds/`, `lib/email/`, `lib/digest/` | `package.json scripts` | Worker entry points. Orchestrates other modules. |
-| `app/api/` | `lib/*` | — | API routes. Thin wrappers over lib modules. |
-| `app/(reader)/` | `components/`, `lib/hooks/` | — | Reader UI. LLM features allowed when user has opted in and configured a key. |
+| Module          | Depends on                                           | Used by                                                                         | Rule                                                                                                |
+| --------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `lib/db/`       | `drizzle-orm`, `pg`                                  | `lib/auth/`, `lib/feeds/`, `lib/email/`, `lib/jobs/`, `lib/digest/`, `app/api/` | Only database access layer. No business logic.                                                      |
+| `lib/auth/`     | `lib/db/`, `better-auth`                             | `app/`, `app/api/`                                                              | Auth configuration only. No UI components.                                                          |
+| `lib/feeds/`    | `lib/db/`, `feedparser-promised`                     | `lib/jobs/`                                                                     | RSS fetching + parsing. No HTTP server logic.                                                       |
+| `lib/email/`    | `lib/db/`, `nodemailer`                              | `lib/jobs/`                                                                     | Email sending + templates. No digest logic.                                                         |
+| `lib/digest/`   | `lib/db/`                                            | `lib/jobs/`, `lib/email/`, `app/api/`                                           | Content organization pipeline. LLM client utilities live here and may be reused by Web UI features. |
+| `lib/jobs/`     | `lib/db/`, `lib/feeds/`, `lib/email/`, `lib/digest/` | `package.json scripts`                                                          | Worker entry points. Orchestrates other modules.                                                    |
+| `app/api/`      | `lib/*`                                              | —                                                                               | API routes. Thin wrappers over lib modules.                                                         |
+| `app/(reader)/` | `components/`, `lib/hooks/`                          | —                                                                               | Reader UI. LLM features allowed when user has opted in and configured a key.                        |
 
 ## Key Decisions
 

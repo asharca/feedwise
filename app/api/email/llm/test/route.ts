@@ -45,7 +45,7 @@ export async function POST(req: Request) {
           name: "Ping",
           schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] },
         },
-      }
+      },
     );
     return NextResponse.json({ ok: true, reply });
   } catch (err) {

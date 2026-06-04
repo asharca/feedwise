@@ -124,7 +124,7 @@ export function ChartsPanel() {
         <div
           className={cn(
             "grid grid-cols-1 lg:grid-cols-2 gap-3 transition-opacity duration-150",
-            refreshing && "opacity-70"
+            refreshing && "opacity-70",
           )}
         >
           <BarsCard
@@ -200,7 +200,7 @@ function BarsCard({
                 className={cn(
                   "rounded-sm transition-colors",
                   v === 0 ? "bg-muted/50" : barColor,
-                  v > 0 && "opacity-70 hover:opacity-100"
+                  v > 0 && "opacity-70 hover:opacity-100",
                 )}
                 style={{ height: `${heightPct}%` }}
               />
@@ -217,13 +217,7 @@ function BarsCard({
   );
 }
 
-function TagHeatmap({
-  days,
-  rows,
-}: {
-  days: string[];
-  rows: Timeline["tagActivity"];
-}) {
+function TagHeatmap({ days, rows }: { days: string[]; rows: Timeline["tagActivity"] }) {
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-4">
@@ -234,7 +228,8 @@ function TagHeatmap({
           Daily article counts per tag, deepest = busiest day for that tag.
         </div>
         <p className="text-sm text-muted-foreground py-4">
-          No tagged articles in this range. Enable Auto-tag in Settings → Smart Digest to populate this.
+          No tagged articles in this range. Enable Auto-tag in Settings → Smart Digest to populate
+          this.
         </p>
       </div>
     );
@@ -260,7 +255,10 @@ function TagHeatmap({
         <div className="min-w-fit space-y-0.5">
           {rows.map((row) => (
             <div key={row.tag.id} className="flex items-center gap-2">
-              <div className="w-20 shrink-0 text-xs truncate text-foreground/80" title={row.tag.name}>
+              <div
+                className="w-20 shrink-0 text-xs truncate text-foreground/80"
+                title={row.tag.name}
+              >
                 {row.tag.name}
               </div>
               <div className="flex gap-[2px] flex-1">

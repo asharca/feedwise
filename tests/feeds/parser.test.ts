@@ -42,7 +42,7 @@ describe("preflightFeed", () => {
     {
       contentType = "application/xml",
       body = "<rss><channel></channel></rss>",
-    }: { contentType?: string; body?: string } = {}
+    }: { contentType?: string; body?: string } = {},
   ) {
     globalThis.fetch = vi.fn(async () => {
       return new Response(body, {
@@ -93,7 +93,7 @@ describe("preflightFeed", () => {
   it("accepts text/html if body contains <rss or <feed (lenient — server misconfig)", async () => {
     mockFetch(200, {
       contentType: "text/html",
-      body: "<?xml version=\"1.0\"?><rss><channel><title>x</title></channel></rss>",
+      body: '<?xml version="1.0"?><rss><channel><title>x</title></channel></rss>',
     });
     await expect(preflightFeed("https://example.com/feed", 100)).resolves.toBeUndefined();
   });

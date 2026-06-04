@@ -4,7 +4,7 @@ import { getArticleById, removeTagFromArticle } from "@/lib/db/queries/articles"
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: Promise<{ id: string; tagId: string }> }
+  { params }: { params: Promise<{ id: string; tagId: string }> },
 ) {
   let session;
   try {

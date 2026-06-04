@@ -6,7 +6,10 @@ const TAG_LEN = 16;
 const VERSION = "v1";
 
 export class SecretDecryptionError extends Error {
-  constructor(message: string, public cause?: unknown) {
+  constructor(
+    message: string,
+    public cause?: unknown,
+  ) {
     super(message);
     this.name = "SecretDecryptionError";
   }
@@ -20,7 +23,7 @@ function loadKey(): Buffer {
   const key = Buffer.from(raw, "base64");
   if (key.length !== 32) {
     throw new Error(
-      `ENCRYPTION_KEY must decode to 32 bytes (got ${key.length}). Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+      `ENCRYPTION_KEY must decode to 32 bytes (got ${key.length}). Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`,
     );
   }
   return key;
@@ -72,7 +75,7 @@ export function decryptSecret(stored: string): string {
   } catch (e) {
     throw new SecretDecryptionError(
       "Authentication tag mismatch (key wrong or ciphertext tampered)",
-      e
+      e,
     );
   }
 }

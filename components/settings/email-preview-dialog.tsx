@@ -47,9 +47,7 @@ export function EmailPreviewDialog({ open, onOpenChange, logId }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="!max-w-none rounded-lg w-[min(1100px,96vw)] h-[min(88vh,820px)] overflow-hidden flex flex-col"
-      >
+      <DialogContent className="!max-w-none rounded-lg w-[min(1100px,96vw)] h-[min(88vh,820px)] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3 flex-wrap pr-6">
             <span>Email preview</span>

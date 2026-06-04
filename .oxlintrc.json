@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "react",
+    "react-hooks",
+    "nextjs",
+    "typescript",
+    "import",
+    "jsdoc",
+    "node",
+    "promise",
+    "unicorn"
+  ],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2024": true
+  },
+  "settings": {
+    "react": {
+      "version": "19.2"
+    },
+    "next": {
+      "rootDir": "."
+    }
+  },
+  "rules": {
+    "no-console": ["warn", { "allow": ["warn", "error", "info"] }],
+    "typescript/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "react/self-closing-comp": "error",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn"
+  },
+  "ignorePatterns": ["node_modules", ".next", "drizzle", "coverage", "dist", "build"],
+  "overrides": [
+    {
+      "files": ["*.test.ts", "*.test.tsx", "tests/**/*"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ]
+}

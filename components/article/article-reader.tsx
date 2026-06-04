@@ -3,7 +3,17 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import DOMPurify from "dompurify";
-import { ExternalLink, Star, CheckCheck, BookOpen, ArrowLeft, Copy, Sparkles, Tag, X } from "lucide-react";
+import {
+  ExternalLink,
+  Star,
+  CheckCheck,
+  BookOpen,
+  ArrowLeft,
+  Copy,
+  Sparkles,
+  Tag,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -12,7 +22,7 @@ function proxyImagesInHtml(html: string): string {
   return html.replace(
     /(<img\b[^>]*?\ssrc=)(["'])(https?:\/\/[^"']+)\2/gi,
     (_, prefix, quote, url) =>
-      `${prefix}${quote}/api/image-proxy?url=${encodeURIComponent(url)}${quote} loading="lazy" decoding="async"`
+      `${prefix}${quote}/api/image-proxy?url=${encodeURIComponent(url)}${quote} loading="lazy" decoding="async"`,
   );
 }
 
@@ -77,7 +87,7 @@ function ActionButton({
       title={title}
       className={cn(
         "size-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors",
-        className
+        className,
       )}
     >
       {children}
@@ -85,19 +95,28 @@ function ActionButton({
   );
 }
 
-export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabel, autoSummarize = false }: ArticleReaderProps) {
+export function ArticleReader({
+  article,
+  onMarkRead,
+  onStar,
+  onBack,
+  contextLabel,
+  autoSummarize = false,
+}: ArticleReaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
   const progressSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [aiSummary, setAiSummary] = useState<string | null>(article?.aiSummary ?? null);
-  const [importance, setImportance] = useState<"high" | "med" | "low" | null>(article?.importance ?? null);
+  const [importance, setImportance] = useState<"high" | "med" | "low" | null>(
+    article?.importance ?? null,
+  );
   const [summarizing, setSummarizing] = useState(false);
   const [tagSuggestions, setTagSuggestions] = useState<TagSuggestion[] | null>(null);
   const [suggestingTags, setSuggestingTags] = useState(false);
   const [acceptedTagNames, setAcceptedTagNames] = useState<Set<string>>(new Set());
   const [currentTags, setCurrentTags] = useState<Array<{ id: string; name: string }>>(
-    article?.tags?.map((t) => ({ id: t.id, name: t.name })) ?? []
+    article?.tags?.map((t) => ({ id: t.id, name: t.name })) ?? [],
   );
 
   // Track which article ids we already auto-triggered for, so flipping
@@ -118,56 +137,59 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabe
     setCurrentTags(article?.tags?.map((t) => ({ id: t.id, name: t.name })) ?? []);
   }, [article?.id, article?.aiSummary, article?.importance, article?.tags]);
 
-  const handleSummarize = useCallback(async (opts?: { manual?: boolean }) => {
-    if (!article) return;
-    const manual = opts?.manual === true;
-    const targetId = article.id;
-    setSummarizing(true);
-    try {
-      const res = await fetch(`/api/articles/${targetId}/summarize`, { method: "POST" });
-      const data = (await res.json()) as {
-        success: boolean;
-        error?: string;
-        data?: {
-          summary: string | null;
-          importance: "high" | "med" | "low" | null;
-          skipped?: string;
-          minChars?: number;
-          sourceChars?: number;
+  const handleSummarize = useCallback(
+    async (opts?: { manual?: boolean }) => {
+      if (!article) return;
+      const manual = opts?.manual === true;
+      const targetId = article.id;
+      setSummarizing(true);
+      try {
+        const res = await fetch(`/api/articles/${targetId}/summarize`, { method: "POST" });
+        const data = (await res.json()) as {
+          success: boolean;
+          error?: string;
+          data?: {
+            summary: string | null;
+            importance: "high" | "med" | "low" | null;
+            skipped?: string;
+            minChars?: number;
+            sourceChars?: number;
+          };
         };
-      };
-      if (!data.success) {
-        toast.error(data.error ?? "Failed to summarise");
-        return;
-      }
-      // Guard against the user clicking through several articles before this
-      // request lands — we only want to apply the result to the article that
-      // initiated it.
-      if (targetId !== currentArticleIdRef.current) return;
-
-      if (data.data?.skipped === "too-short") {
-        // Article is short enough that no summary is needed. Quietly skip on
-        // auto-trigger; tell the user only if they clicked the button.
-        if (manual) {
-          toast.info(
-            `Article is too short to summarise (${data.data.sourceChars} < ${data.data.minChars} chars).`
-          );
+        if (!data.success) {
+          toast.error(data.error ?? "Failed to summarise");
+          return;
         }
-        return;
-      }
+        // Guard against the user clicking through several articles before this
+        // request lands — we only want to apply the result to the article that
+        // initiated it.
+        if (targetId !== currentArticleIdRef.current) return;
 
-      setAiSummary(data.data?.summary ?? null);
-      if (data.data?.importance) setImportance(data.data.importance);
-    } catch (err) {
-      if (targetId === currentArticleIdRef.current) {
-        toast.error(err instanceof Error ? err.message : "Failed to summarise");
+        if (data.data?.skipped === "too-short") {
+          // Article is short enough that no summary is needed. Quietly skip on
+          // auto-trigger; tell the user only if they clicked the button.
+          if (manual) {
+            toast.info(
+              `Article is too short to summarise (${data.data.sourceChars} < ${data.data.minChars} chars).`,
+            );
+          }
+          return;
+        }
+
+        setAiSummary(data.data?.summary ?? null);
+        if (data.data?.importance) setImportance(data.data.importance);
+      } catch (err) {
+        if (targetId === currentArticleIdRef.current) {
+          toast.error(err instanceof Error ? err.message : "Failed to summarise");
+        }
+      } finally {
+        if (targetId === currentArticleIdRef.current) {
+          setSummarizing(false);
+        }
       }
-    } finally {
-      if (targetId === currentArticleIdRef.current) {
-        setSummarizing(false);
-      }
-    }
-  }, [article]);
+    },
+    [article],
+  );
 
   // Auto-summarise on article open when the user has opted in.
   useEffect(() => {
@@ -223,7 +245,7 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabe
         setCurrentTags((prev) =>
           prev.find((t) => t.id === data.data!.tagId)
             ? prev
-            : [...prev, { id: data.data!.tagId, name: data.data!.name }]
+            : [...prev, { id: data.data!.tagId, name: data.data!.name }],
         );
       }
       window.dispatchEvent(new CustomEvent("tags-changed"));
@@ -251,7 +273,6 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabe
       toast.error(err instanceof Error ? err.message : "Failed to remove tag");
     }
   }
-
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -300,10 +321,7 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabe
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
       {/* Scroll progress */}
-      <div
-        className="scroll-progress"
-        style={{ width: `${scrollProgress * 100}%` }}
-      />
+      <div className="scroll-progress" style={{ width: `${scrollProgress * 100}%` }} />
 
       {/* Action bar */}
       <div className="flex items-center gap-0.5 px-3 py-1.5 shrink-0 border-b border-border/50">
@@ -329,10 +347,7 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabe
           onClick={() => onMarkRead(article.id, !article.isRead)}
         >
           <CheckCheck
-            className={cn(
-              "size-4",
-              article.isRead ? "text-primary" : "text-muted-foreground"
-            )}
+            className={cn("size-4", article.isRead ? "text-primary" : "text-muted-foreground")}
           />
         </ActionButton>
 
@@ -343,7 +358,7 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabe
           <Star
             className={cn(
               "size-4",
-              article.isStarred ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
+              article.isStarred ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground",
             )}
           />
         </ActionButton>
@@ -369,19 +384,24 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabe
           title={aiSummary ? "Re-summarise" : "Summarise with AI"}
           onClick={() => handleSummarize({ manual: true })}
         >
-          <Sparkles className={cn(
-            "size-4",
-            summarizing ? "animate-pulse text-primary" : aiSummary ? "text-primary" : "text-muted-foreground"
-          )} />
+          <Sparkles
+            className={cn(
+              "size-4",
+              summarizing
+                ? "animate-pulse text-primary"
+                : aiSummary
+                  ? "text-primary"
+                  : "text-muted-foreground",
+            )}
+          />
         </ActionButton>
-        <ActionButton
-          title="Suggest tags with AI"
-          onClick={handleSuggestTags}
-        >
-          <Tag className={cn(
-            "size-4",
-            suggestingTags ? "animate-pulse text-primary" : "text-muted-foreground"
-          )} />
+        <ActionButton title="Suggest tags with AI" onClick={handleSuggestTags}>
+          <Tag
+            className={cn(
+              "size-4",
+              suggestingTags ? "animate-pulse text-primary" : "text-muted-foreground",
+            )}
+          />
         </ActionButton>
       </div>
 
@@ -405,7 +425,9 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabe
               <>
                 <span className="text-muted-foreground/40">&middot;</span>
                 <span>
-                  {formatDistanceToNow(new Date(article.publishedAt ?? article.createdAt!), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(article.publishedAt ?? article.createdAt!), {
+                    addSuffix: true,
+                  })}
                 </span>
               </>
             )}
@@ -430,11 +452,15 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabe
                   "size-2 rounded-full",
                   importance === "high" && "bg-red-500",
                   importance === "med" && "bg-amber-500",
-                  importance === "low" && "bg-muted-foreground/40"
+                  importance === "low" && "bg-muted-foreground/40",
                 )}
               />
               <span className="font-medium text-muted-foreground">
-                {importance === "high" ? "High importance" : importance === "med" ? "Medium" : "Low"}
+                {importance === "high"
+                  ? "High importance"
+                  : importance === "med"
+                    ? "Medium"
+                    : "Low"}
               </span>
             </div>
           )}
@@ -493,7 +519,7 @@ export function ArticleReader({ article, onMarkRead, onStar, onBack, contextLabe
                       "text-xs px-2 py-0.5 rounded-full transition-colors",
                       accepted
                         ? "bg-primary/20 text-primary cursor-default"
-                        : "bg-muted text-foreground hover:bg-primary/10 hover:text-primary"
+                        : "bg-muted text-foreground hover:bg-primary/10 hover:text-primary",
                     )}
                     disabled={accepted}
                   >

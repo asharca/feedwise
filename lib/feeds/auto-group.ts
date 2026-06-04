@@ -24,7 +24,7 @@ const MAX_FOLDER_NAME_CHARS = 60;
  */
 export async function generateFolderProposal(
   feeds: FeedForGrouping[],
-  llmConfig: LlmConfig
+  llmConfig: LlmConfig,
 ): Promise<FolderProposal[]> {
   if (feeds.length === 0) return [];
 
@@ -66,7 +66,7 @@ export async function generateFolderProposal(
           required: ["folders"],
         },
       },
-    })
+    }),
   )) as { folders?: unknown };
 
   const raw = Array.isArray(response.folders) ? (response.folders as unknown[]) : [];

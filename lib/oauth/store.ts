@@ -37,7 +37,7 @@ export async function saveClient(client: OAuthClient): Promise<void> {
     `${PREFIX}client:${client.client_id}`,
     JSON.stringify(client),
     "EX",
-    CLIENT_TTL
+    CLIENT_TTL,
   );
 }
 
@@ -49,12 +49,7 @@ export async function getClient(clientId: string): Promise<OAuthClient | null> {
 // ─── Authorization Codes ──────────────────────────────────────
 
 export async function saveAuthCode(data: AuthCode): Promise<void> {
-  await getRedis().set(
-    `${PREFIX}code:${data.code}`,
-    JSON.stringify(data),
-    "EX",
-    CODE_TTL
-  );
+  await getRedis().set(`${PREFIX}code:${data.code}`, JSON.stringify(data), "EX", CODE_TTL);
 }
 
 export async function consumeAuthCode(code: string): Promise<AuthCode | null> {

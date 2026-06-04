@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
-import { unsubscribeFeed, updateSubscription, updateFeedUrl, updateFeedInterval } from "@/lib/db/queries/feeds";
+import {
+  unsubscribeFeed,
+  updateSubscription,
+  updateFeedUrl,
+  updateFeedInterval,
+} from "@/lib/db/queries/feeds";
 import { getFeedFetchQueue } from "@/lib/jobs/queue";
 
 const PatchSchema = z.object({
@@ -11,10 +16,7 @@ const PatchSchema = z.object({
   fetchIntervalMinutes: z.number().int().min(5).max(1440).optional(),
 });
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireSession();
     const { id } = await params;
@@ -38,7 +40,7 @@ export async function PATCH(
         await getFeedFetchQueue().add(
           "fetch",
           { feedId: feed.feedId, url: data.feedUrl },
-          { jobId: `feed-${feed.feedId}-url-update-${Date.now()}`, attempts: 3 }
+          { jobId: `feed-${feed.feedId}-url-update-${Date.now()}`, attempts: 3 },
         );
       } catch (queueErr) {
         console.error("[feeds] Failed to enqueue fetch job after URL update:", queueErr);
@@ -57,10 +59,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireSession();
     const { id } = await params;

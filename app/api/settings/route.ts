@@ -37,10 +37,7 @@ export async function PATCH(req: Request) {
 
     const merged = { ...(user?.settings ?? {}), ...patch };
 
-    await db
-      .update(users)
-      .set({ settings: merged })
-      .where(eq(users.id, session.user.id));
+    await db.update(users).set({ settings: merged }).where(eq(users.id, session.user.id));
 
     return NextResponse.json({ success: true, data: merged });
   } catch (error) {

@@ -13,10 +13,7 @@ import {
   getUsersWithAutoSummarizeEnabled,
   getUserLlmConfig,
 } from "@/lib/email/queries";
-import {
-  generateArticleSummary,
-  generateTagsForArticle,
-} from "@/lib/articles/enrichment";
+import { generateArticleSummary, generateTagsForArticle } from "@/lib/articles/enrichment";
 import { LlmRateLimitError } from "@/lib/digest/llm-client";
 
 const ARTICLES_PER_RUN_PER_USER = 20;
@@ -51,7 +48,7 @@ export async function runAutoTagging(): Promise<{ users: number; tagged: number 
       const untagged = await getUntaggedArticlesForUser(
         userId,
         LOOKBACK_DAYS,
-        ARTICLES_PER_RUN_PER_USER
+        ARTICLES_PER_RUN_PER_USER,
       );
       if (untagged.length === 0) return;
 
@@ -66,11 +63,7 @@ export async function runAutoTagging(): Promise<{ users: number; tagged: number 
 
       for (const article of untagged) {
         try {
-          const suggestions = await generateTagsForArticle(
-            article,
-            userTagsForPrompt,
-            llmConfig
-          );
+          const suggestions = await generateTagsForArticle(article, userTagsForPrompt, llmConfig);
           if (suggestions.length === 0) continue;
 
           for (const s of suggestions) {
@@ -80,7 +73,7 @@ export async function runAutoTagging(): Promise<{ users: number; tagged: number 
             } catch (err) {
               console.error(
                 `[auto-tag] addTag failed (user=${userId}, article=${article.id}, tag=${s.name}):`,
-                err
+                err,
               );
             }
           }
@@ -92,12 +85,12 @@ export async function runAutoTagging(): Promise<{ users: number; tagged: number 
           }
           console.error(
             `[auto-tag] LLM failed (user=${userId}, article=${article.id}):`,
-            err instanceof Error ? err.message : err
+            err instanceof Error ? err.message : err,
           );
           // Continue with next article rather than aborting whole user
         }
       }
-    })
+    }),
   );
 
   return { users: userIds.length, tagged: totalTagged };
@@ -129,7 +122,7 @@ export async function runAutoSummarizing(): Promise<{ users: number; summarized:
       const targets = await getUnsummarizedArticlesForUser(
         userId,
         LOOKBACK_DAYS,
-        ARTICLES_PER_RUN_PER_USER
+        ARTICLES_PER_RUN_PER_USER,
       );
       if (targets.length === 0) return;
 
@@ -153,11 +146,11 @@ export async function runAutoSummarizing(): Promise<{ users: number; summarized:
           }
           console.error(
             `[auto-summary] LLM failed (user=${userId}, article=${article.id}):`,
-            err instanceof Error ? err.message : err
+            err instanceof Error ? err.message : err,
           );
         }
       }
-    })
+    }),
   );
 
   return { users: userIds.length, summarized: totalSummarized };

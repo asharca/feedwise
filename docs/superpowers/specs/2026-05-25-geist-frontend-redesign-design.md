@@ -12,25 +12,26 @@ This is a styling/IA effort. Business logic, data flow, state management, API ro
 
 ## Decisions (locked)
 
-| Decision | Choice |
-|----------|--------|
-| Design direction | Vercel / Geist — black/white, high contrast, sharp, whitespace |
-| Accent color | Single blue, Vercel-style (~`#0070f3`), accent-only usage |
-| Font | Geist Sans + Geist Mono via the `geist` npm package + `next/font` |
-| Default theme | Dark (both themes rebuilt as Geist high-contrast) |
-| Interface copy | Unified to English |
-| Reader layout | Conventional 3-column: sidebar \| article list (left) \| reader (right) |
-| Corner radius | Restrained ~6px (`--radius: 0.375rem`); sweep hardcoded `rounded-xl/2xl` |
-| Settings form | Compact rows + sub-tabs (no long scroll) |
-| Execution approach | Token-first + targeted per-surface sweep (incremental, low risk) |
+| Decision           | Choice                                                                   |
+| ------------------ | ------------------------------------------------------------------------ |
+| Design direction   | Vercel / Geist — black/white, high contrast, sharp, whitespace           |
+| Accent color       | Single blue, Vercel-style (~`#0070f3`), accent-only usage                |
+| Font               | Geist Sans + Geist Mono via the `geist` npm package + `next/font`        |
+| Default theme      | Dark (both themes rebuilt as Geist high-contrast)                        |
+| Interface copy     | Unified to English                                                       |
+| Reader layout      | Conventional 3-column: sidebar \| article list (left) \| reader (right)  |
+| Corner radius      | Restrained ~6px (`--radius: 0.375rem`); sweep hardcoded `rounded-xl/2xl` |
+| Settings form      | Compact rows + sub-tabs (no long scroll)                                 |
+| Execution approach | Token-first + targeted per-surface sweep (incremental, low risk)         |
 
 ## Execution approach
 
 **Token-first + targeted sweep.** Most primitives already read CSS variables from `globals.css`, so the bulk of the shift is at the token layer; the rest is a per-surface sweep to remove hardcoded warm/rounded/lift classes and apply Geist spacing, finishing with the structural changes (reader 3-column, settings sub-tabs).
 
 Rejected alternatives:
-- *Ground-up component rebuild* — replace Base UI / shadcn primitives wholesale. Highest fidelity but huge effort and discards working integration. Overkill.
-- *Variables-only retheme* — only edit `globals.css`. Won't deliver: hardcoded `rounded-xl`/`glass`/lift classes and the old layout remain.
+
+- _Ground-up component rebuild_ — replace Base UI / shadcn primitives wholesale. Highest fidelity but huge effort and discards working integration. Overkill.
+- _Variables-only retheme_ — only edit `globals.css`. Won't deliver: hardcoded `rounded-xl`/`glass`/lift classes and the old layout remain.
 
 ## 1. Design tokens (`app/globals.css`)
 
@@ -39,6 +40,7 @@ The heart of the redesign. Rewrite the `:root` (light) and `.dark` token blocks.
 **Color — drop the warm hue, go neutral grayscale + one blue.** Today's palette carries a warm tint (chroma at hue 60–80/260). Geist is pure neutral gray plus a single blue.
 
 Dark theme (default):
+
 - `--background: oklch(0.12 0 0)` (near-black, neutral)
 - `--card / --popover: oklch(0.165 0 0)` (elevated surface)
 - `--foreground: oklch(0.97 0 0)`
@@ -51,6 +53,7 @@ Dark theme (default):
 - `--destructive` stays red
 
 Light theme:
+
 - `--background: oklch(1 0 0)` (white)
 - `--foreground: oklch(0.18 0 0)`
 - `--card / --popover: oklch(1 0 0)`
@@ -115,20 +118,23 @@ Reskin via tokens + small edits; most inherit automatically.
 **Form: compact rows + sub-tabs.** Keep the `/settings` route and the left section rail (Appearance · Feeds · Digest · Smart · Account). Replace tall stacked forms with row-based settings.
 
 **New reusable settings primitives:**
+
 - `SettingRow` — title + description on the left, control slot on the right, hairline divider.
 - `SettingsSubTabs` — sub-tab bar within a section.
 - (uses `Switch` and `Segmented` from §3)
 
 **Per section:**
+
 - **Appearance** — one "Theme" row → `Segmented` (Light/Dark/System).
 - **Feeds** — action row (Sync / Import / Export, right-aligned); subscription list where each row is icon+title/url left, interval `Segmented`/select + delete right. List scrolls **internally** (max-height), not the page.
 - **Digest Email** — split into **sub-tabs** (each short, no long scroll):
-  - *General* — Enable digest (Switch row) · Auto-save on click (Switch row)
-  - *Schedule* — CronBuilder, compacted into rows
-  - *SMTP* — host / port / from / user / password rows · Send Test button
-  - *Feeds* — feed-selection checklist (internal scroll) + "N selected / all" hint
+  - _General_ — Enable digest (Switch row) · Auto-save on click (Switch row)
+  - _Schedule_ — CronBuilder, compacted into rows
+  - _SMTP_ — host / port / from / user / password rows · Send Test button
+  - _Feeds_ — feed-selection checklist (internal scroll) + "N selected / all" hint
 
   Sub-tabs (Schedule/SMTP/Feeds) appear only when the digest is enabled; General always shown.
+
 - **Smart Digest** — Enable LLM (Switch row) · Base URL / API Key / Model rows · Save + Test.
 - **Account** — identity row (avatar + name + email + joined) · Display Name row (input + Save) · Email row (input + Save).
 

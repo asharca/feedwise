@@ -30,6 +30,7 @@
 ### Task 1: Add Geist font + wire it up
 
 **Files:**
+
 - Modify: `package.json` (add `geist` dependency)
 - Modify: `app/layout.tsx`
 - Modify: `app/globals.css:7-12` (the `@theme inline` font lines)
@@ -122,6 +123,7 @@ git commit -m "feat(ui): add Geist Sans/Mono fonts"
 ### Task 2: Rewrite color + radius tokens, flatten utilities
 
 **Files:**
+
 - Modify: `app/globals.css:51-120` (the `:root` and `.dark` blocks)
 - Modify: `app/globals.css:42-48` (radius scale base, via `--radius` in the theme blocks)
 - Modify: `app/globals.css:134-156` (utilities — flatten `.glass`)
@@ -258,6 +260,7 @@ git commit -m "feat(ui): rebuild color + radius tokens for Geist, flatten glass"
 ### Task 3: Reskin button, input, card
 
 **Files:**
+
 - Modify: `components/ui/button.tsx:13-22` (variants)
 - Modify: `components/ui/card.tsx:15` (Card root classes)
 
@@ -303,6 +306,7 @@ git commit -m "feat(ui): flatten button/card for Geist"
 - [ ] **Step 1: Apply the radius rule in each file**
 
 In each file above, find and replace class tokens:
+
 - `rounded-2xl` → `rounded-lg`
 - `rounded-xl` → `rounded-md`
 - Remove any `shadow-lg` / `shadow-xl` (keep `shadow-sm` where used for menu/popover elevation).
@@ -335,6 +339,7 @@ git commit -m "refactor(ui): sweep radius/shadow to Geist scale in primitives"
 ### Task 5: Create `Switch` primitive
 
 **Files:**
+
 - Create: `components/ui/switch.tsx`
 
 - [ ] **Step 1: Write the component**
@@ -400,6 +405,7 @@ git commit -m "feat(ui): add Switch primitive"
 ### Task 6: Create `Segmented` primitive
 
 **Files:**
+
 - Create: `components/ui/segmented.tsx`
 
 - [ ] **Step 1: Write the component**
@@ -493,11 +499,13 @@ git commit -m "feat(ui): add Segmented control primitive"
 ### Task 7: Reskin app-sidebar + English copy
 
 **Files:**
+
 - Modify: `components/layout/app-sidebar.tsx`
 
 - [ ] **Step 1: English copy**
 
 Replace these strings:
+
 - `placeholder="搜索文章..."` → `placeholder="Search articles…"`
 - `全部已读` (the dropdown item label, line ~390) → `Mark all read`
 - `toast.success("全部标为已读")` → `toast.success("Marked all as read")`
@@ -505,10 +513,13 @@ Replace these strings:
 - [ ] **Step 2: Logo block — flatten/sharpen**
 
 Replace the logo wrapper (line ~425):
+
 ```tsx
           <div className="size-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
 ```
+
 with:
+
 ```tsx
           <div className="size-7 rounded-md bg-primary flex items-center justify-center shrink-0">
 ```
@@ -520,10 +531,13 @@ For the smart-view and feed `SidebarMenuButton`s, replace `rounded-xl` with `rou
 - [ ] **Step 4: Search field — Geist style**
 
 Replace the search `<input className=...>` (line ~437):
+
 ```tsx
             className="w-full text-sm bg-muted rounded-xl pl-8 pr-7 py-1.5 outline-none placeholder:text-muted-foreground/60"
 ```
+
 with:
+
 ```tsx
             className="w-full text-sm bg-muted rounded-md pl-8 pr-7 py-1.5 outline-none border border-transparent focus:border-border placeholder:text-muted-foreground/60"
 ```
@@ -556,6 +570,7 @@ git commit -m "feat(reader): Geist sidebar + English copy"
 ### Task 8: Reskin article-list + English copy
 
 **Files:**
+
 - Modify: `components/article/article-list.tsx`
 
 - [ ] **Step 1: English copy**
@@ -565,6 +580,7 @@ In `LoadMoreButton`: `加载中...` → `Loading…`, `加载更多` → `Load m
 - [ ] **Step 2: Flatten grid cards (magazine variant, used by dashboard)**
 
 Replace the grid card wrapper className block (lines ~131-139):
+
 ```tsx
                 "group relative flex flex-col rounded-xl overflow-hidden border bg-card",
                 "cursor-pointer transition-all duration-150",
@@ -573,7 +589,9 @@ Replace the grid card wrapper className block (lines ~131-139):
                   ? "border-primary/40 ring-1 ring-primary/30 shadow-sm"
                   : "border-border/50",
 ```
+
 with:
+
 ```tsx
                 "group relative flex flex-col rounded-md overflow-hidden border bg-card",
                 "cursor-pointer transition-colors duration-150",
@@ -612,6 +630,7 @@ git commit -m "feat(reader): flatten article cards + English copy"
 ### Task 9: Reskin article-reader + English copy
 
 **Files:**
+
 - Modify: `components/article/article-reader.tsx`
 
 - [ ] **Step 1: English copy**
@@ -651,17 +670,21 @@ git commit -m "feat(reader): Geist article reader + English copy"
 ### Task 10: Flatten news-dashboard
 
 **Files:**
+
 - Modify: `components/dashboard/news-dashboard.tsx`
 
 - [ ] **Step 1: Hero card**
 
 Replace hero wrapper classes (lines ~53-57):
+
 ```tsx
           "group relative rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg",
           "bg-card border border-border/50",
           article.isRead && "opacity-70"
 ```
+
 with:
+
 ```tsx
           "group relative rounded-lg overflow-hidden cursor-pointer transition-colors duration-150 hover:border-foreground/20",
           "bg-card border border-border",
@@ -671,12 +694,15 @@ with:
 - [ ] **Step 2: Normal card**
 
 Replace normal-card wrapper classes (lines ~155-158):
+
 ```tsx
         "group rounded-xl overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md",
         "bg-card border border-border/50",
         article.isRead && "opacity-65"
 ```
+
 with:
+
 ```tsx
         "group rounded-md overflow-hidden cursor-pointer transition-colors duration-150 hover:border-foreground/20",
         "bg-card border border-border",
@@ -704,6 +730,7 @@ git commit -m "feat(reader): flatten Today's News dashboard"
 ### Task 11: Restructure reader to 3-column + English copy
 
 **Files:**
+
 - Modify: `app/(reader)/reader/page.tsx`
 
 This changes layout only. All handlers, state, fetch logic, and custom events are preserved verbatim — only the returned JSX for the list-view branch changes from "reader-left / list-right-rail" to "list-left / reader-right".
@@ -786,6 +813,7 @@ Replace the entire final `return ( ... )` of `ReaderContent` (the block starting
 - [ ] **Step 3: Add the `BookOpen` import**
 
 In the lucide import at the top (currently `import { CheckCheck } from "lucide-react";`), change to:
+
 ```tsx
 import { CheckCheck, BookOpen } from "lucide-react";
 ```
@@ -817,6 +845,7 @@ git commit -m "feat(reader): conventional 3-column layout (list left, reader rig
 ### Task 12: Reskin discover page
 
 **Files:**
+
 - Modify: `app/(reader)/discover/page.tsx`
 
 - [ ] **Step 1: Route cards radius**
@@ -851,12 +880,14 @@ git commit -m "feat(discover): Geist radius pass"
 ### Task 13: Reskin login + register
 
 **Files:**
+
 - Modify: `app/(auth)/login/page.tsx`
 - Modify: `app/(auth)/register/page.tsx`
 
 - [ ] **Step 1: login — flatten logo + sharpen controls**
 
 In `app/(auth)/login/page.tsx`:
+
 - Logo block `size-12 rounded-2xl bg-primary ... shadow-lg` → `size-11 rounded-lg bg-primary flex items-center justify-center` (drop `shadow-lg`).
 - Heading `text-xl font-bold` → `text-xl font-semibold`.
 - All `Input className="rounded-xl h-10"` → `className="rounded-md h-10"`.
@@ -890,6 +921,7 @@ git commit -m "feat(auth): Geist login/register"
 ### Task 14: Extract + test cron describe, then i18n cron-builder
 
 **Files:**
+
 - Create: `lib/cron/describe.ts`
 - Create: `tests/cron/describe.test.ts`
 - Modify: `components/cron-builder.tsx`
@@ -1011,10 +1043,12 @@ Expected: PASS (all 9 assertions).
 - [ ] **Step 5: Rewire + i18n `components/cron-builder.tsx`**
 
 In `components/cron-builder.tsx`:
+
 1. Add at top: `import { describeCron, formatTimeList } from "@/lib/cron/describe";`
 2. Delete the local `formatTimeList` and `describeCron` function definitions (lines ~36–82).
 3. Keep `validateCron`, but change its message: `return "无效的 Cron 表达式";` → `return "Invalid cron expression";`
 4. Replace `WEEKDAYS` labels:
+
 ```ts
 const WEEKDAYS = [
   { value: 1, label: "Mon" },
@@ -1026,7 +1060,9 @@ const WEEKDAYS = [
   { value: 0, label: "Sun" },
 ];
 ```
+
 5. Replace `presets`:
+
 ```ts
   const presets: { key: CronPreset; label: string }[] = [
     { key: "daily", label: "Daily" },
@@ -1035,6 +1071,7 @@ const WEEKDAYS = [
     { key: "custom", label: "Custom" },
   ];
 ```
+
 6. JSX label strings: `时`→`Hour`, `分`→`Minute`, `日期`→`Day`, `{d}号`→`{d}`, `Cron 表达式`→`Cron expression`, hint `格式：分 时 日 月 周　例：` → `Format: min hour day month weekday — e.g. `, `（每天两次）` → ` (twice daily)`.
 7. Mode tab buttons `rounded-lg`, weekday buttons `rounded-lg` — keep (6px). No radius change needed.
 
@@ -1057,6 +1094,7 @@ git commit -m "feat(settings): extract+test cron describe, English cron-builder"
 ### Task 15: Create SettingRow + SettingsSubTabs primitives
 
 **Files:**
+
 - Create: `components/settings/setting-row.tsx`
 - Create: `components/settings/settings-sub-tabs.tsx`
 
@@ -1165,6 +1203,7 @@ git commit -m "feat(settings): add SettingRow + SettingsSubTabs primitives"
 ### Task 16: Reskin appearance-section with Segmented
 
 **Files:**
+
 - Modify: `components/settings/appearance-section.tsx`
 
 - [ ] **Step 1: Replace the body with a SettingRow + Segmented**
@@ -1233,6 +1272,7 @@ git commit -m "feat(settings): row + segmented appearance section"
 ### Task 17: Reskin feeds-section as rows
 
 **Files:**
+
 - Modify: `components/settings/feeds-section.tsx`
 
 - [ ] **Step 1: Card radius + button radius**
@@ -1240,10 +1280,13 @@ git commit -m "feat(settings): row + segmented appearance section"
 `Card className="rounded-2xl border-border/50"` → `className="rounded-lg"`. The three action `Button`s `rounded-xl` → `rounded-md`. The list wrapper `rounded-xl` → `rounded-md`; add `max-h-96 overflow-y-auto scrollbar-thin` to that wrapper so it scrolls internally:
 
 Replace:
+
 ```tsx
           <div className="border border-border/50 rounded-xl divide-y divide-border/50 overflow-hidden">
 ```
+
 with:
+
 ```tsx
           <div className="border border-border rounded-md divide-y divide-border overflow-y-auto scrollbar-thin max-h-96">
 ```
@@ -1269,6 +1312,7 @@ git commit -m "feat(settings): Geist feeds section with internal scroll"
 ### Task 18: Restructure digest-email-section into sub-tabs
 
 **Files:**
+
 - Modify: `components/settings/digest-email-section.tsx`
 
 This is the largest settings change: split the one tall card into General/Schedule/SMTP/Feeds sub-tabs, swap the hand-rolled toggles for `Switch`, convert fields to rows, and translate copy. All props and handlers are unchanged.
@@ -1276,12 +1320,15 @@ This is the largest settings change: split the one tall card into General/Schedu
 - [ ] **Step 1: Add imports + sub-tab state**
 
 At the top of the file add:
+
 ```tsx
 import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { SettingsSubTabs, type SettingsSubTab } from "@/components/settings/settings-sub-tabs";
 ```
+
 Inside `DigestEmailSection`, before the `return`, add:
+
 ```tsx
   const [tab, setTab] = useState("general");
   const enabled = emailSettings?.enabled ?? false;
@@ -1296,6 +1343,7 @@ Inside `DigestEmailSection`, before the `return`, add:
 - [ ] **Step 2: Replace the card body structure**
 
 Replace the `<Card ...>` opening and `CardContent` contents so that:
+
 - `Card className="rounded-2xl border-border/50"` → `className="rounded-lg"`.
 - After the loading guard, render the **General** tab content unconditionally inside `tab === "general"`, and when `enabled`, render `<SettingsSubTabs tabs={subTabs} active={tab} onChange={setTab} />` above the panels and gate Schedule/SMTP/Feeds panels by `tab`.
 
@@ -1528,6 +1576,7 @@ git commit -m "feat(settings): split digest into sub-tabs + Switch + English"
 ### Task 19: Reskin smart-digest-section
 
 **Files:**
+
 - Modify: `components/settings/smart-digest-section.tsx`
 
 - [ ] **Step 1: Switch + rows**
@@ -1660,6 +1709,7 @@ git commit -m "feat(settings): Geist smart-digest with Switch"
 ### Task 20: Reskin account-section as rows
 
 **Files:**
+
 - Modify: `components/settings/account-section.tsx`
 
 - [ ] **Step 1: Card radius + button radius**
@@ -1683,6 +1733,7 @@ git commit -m "feat(settings): Geist account section"
 ### Task 21: Reskin settings shell + English toast
 
 **Files:**
+
 - Modify: `app/(reader)/settings/page.tsx`
 
 - [ ] **Step 1: English toast**

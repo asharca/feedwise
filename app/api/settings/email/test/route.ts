@@ -25,22 +25,26 @@ export async function POST(req: Request) {
     const smtpConfig = await getUserSMTPConfig(session.user.id);
 
     if (!smtpConfig) {
-      return NextResponse.json({
-        success: false,
-        error: "SMTP not configured. Please configure your SMTP settings in the email settings.",
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "SMTP not configured. Please configure your SMTP settings in the email settings.",
+        },
+        { status: 400 },
+      );
     }
 
     console.log(`[test-digest] Sending test email to ${email} with ${articles.length} articles`);
     console.log(`[test-digest] SMTP config: ${smtpConfig.host}:${smtpConfig.port}`);
 
-    const subject = articles.length === 0
-      ? "📰 Your Feedwise Digest - No new articles today"
-      : `📰 Your Feedwise Digest - ${articles.length} article${articles.length === 1 ? "" : "s"} today`;
+    const subject =
+      articles.length === 0
+        ? "📰 Your Feedwise Digest - No new articles today"
+        : `📰 Your Feedwise Digest - ${articles.length} article${articles.length === 1 ? "" : "s"} today`;
 
     const digest = buildFallback(
       articles.map((a) => ({ primary: a, duplicates: [] })),
-      "no-config"
+      "no-config",
     );
 
     // Honor the user's click-behavior settings (mark-read / star). When

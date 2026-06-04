@@ -17,7 +17,10 @@ export async function POST(req: Request) {
     const feedUrls = parseOPML(text);
 
     if (feedUrls.length === 0) {
-      return NextResponse.json({ success: false, error: "No feeds found in OPML" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "No feeds found in OPML" },
+        { status: 400 },
+      );
     }
 
     const results: { url: string; ok: boolean }[] = [];

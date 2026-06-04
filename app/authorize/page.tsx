@@ -90,28 +90,22 @@ function AuthorizeForm() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-md bg-muted p-3 text-sm space-y-1">
-            <p><span className="text-muted-foreground">Client:</span> {clientId.slice(0, 8)}...</p>
-            <p><span className="text-muted-foreground">Redirect:</span> {redirectUri}</p>
+            <p>
+              <span className="text-muted-foreground">Client:</span> {clientId.slice(0, 8)}...
+            </p>
+            <p>
+              <span className="text-muted-foreground">Redirect:</span> {redirectUri}
+            </p>
           </div>
           <p className="text-sm text-muted-foreground">
             This will allow the application to read and manage your feeds and articles.
           </p>
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex gap-3">
-            <Button
-              variant="outline"
-              className="flex-1 rounded-md"
-              onClick={() => window.close()}
-            >
+            <Button variant="outline" className="flex-1 rounded-md" onClick={() => window.close()}>
               Deny
             </Button>
-            <Button
-              className="flex-1 rounded-md"
-              onClick={handleApprove}
-              disabled={loading}
-            >
+            <Button className="flex-1 rounded-md" onClick={handleApprove} disabled={loading}>
               {loading ? "Authorizing..." : "Approve"}
             </Button>
           </div>

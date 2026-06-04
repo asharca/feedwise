@@ -59,7 +59,7 @@ export async function GET() {
   } catch (err) {
     return NextResponse.json(
       { success: false, error: err instanceof Error ? err.message : "Failed to fetch routes" },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

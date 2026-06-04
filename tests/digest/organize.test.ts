@@ -6,17 +6,38 @@ import type { ClusterResponse } from "@/lib/digest/cluster-types";
 
 function ded(id: string, title: string): DedupedArticle {
   return {
-    primary: { id, title, url: `https://e.com/${id}`, summary: `s ${title}`, feedTitle: "feed", publishedAt: new Date("2026-05-25T00:00:00Z") },
+    primary: {
+      id,
+      title,
+      url: `https://e.com/${id}`,
+      summary: `s ${title}`,
+      aiSummary: null,
+      importance: null,
+      feedTitle: "feed",
+      feedId: "00000000-0000-4000-a000-000000000001",
+      publishedAt: new Date("2026-05-25T00:00:00Z"),
+      tags: [],
+    },
     duplicates: [],
   };
 }
 
-const uuid = (n: number) =>
-  `f47ac10b-58cc-4372-a567-${String(n).padStart(12, "0")}`;
+const uuid = (n: number) => `f47ac10b-58cc-4372-a567-${String(n).padStart(12, "0")}`;
 
 function art(id: string): DedupedArticle {
   return {
-    primary: { id, title: `T-${id.slice(-3)}`, url: `https://e.com/${id}`, summary: null, feedTitle: "f", publishedAt: new Date() },
+    primary: {
+      id,
+      title: `T-${id.slice(-3)}`,
+      url: `https://e.com/${id}`,
+      summary: null,
+      aiSummary: null,
+      importance: null,
+      feedTitle: "f",
+      feedId: "00000000-0000-4000-a000-000000000001",
+      publishedAt: new Date(),
+      tags: [],
+    },
     duplicates: [],
   };
 }
@@ -49,9 +70,9 @@ describe("organize", () => {
           for (const a of out.ungrouped) seen.add(a.id);
           expect(seen.size).toBe(nArticles);
           for (const id of ids) expect(seen.has(id)).toBe(true);
-        }
+        },
       ),
-      { numRuns: 50 }
+      { numRuns: 50 },
     );
   });
 
@@ -94,7 +115,9 @@ describe("organize", () => {
 
   it("mode = 'clustered' when clusters are provided", () => {
     const deduped = [art(uuid(1))];
-    const out = organize(deduped, { clusters: [{ topic: "T", headline: "h", importance: 5, articleIds: [uuid(1)] }] });
+    const out = organize(deduped, {
+      clusters: [{ topic: "T", headline: "h", importance: 5, articleIds: [uuid(1)] }],
+    });
     expect(out.mode).toBe("clustered");
   });
 });

@@ -96,14 +96,14 @@ drizzle/scripts/
 
 ### Failure handling
 
-| Failure                                | Behavior                                                         |
-| -------------------------------------- | ---------------------------------------------------------------- |
-| LLM network/timeout (30 s)             | catch -> fallback                                                |
-| LLM returns non-JSON                   | catch JSON.parse -> fallback                                     |
-| LLM returns JSON failing Zod schema    | safeParse fail -> fallback                                       |
-| LLM returns unknown article ids        | filter unknowns, remaining articles -> `ungrouped`               |
-| Zero candidate articles                | skip LLM, send current "No new articles" email                   |
-| Secret decryption fails                | throw `SecretDecryptionError`, fallback for LLM, log for SMTP    |
+| Failure                             | Behavior                                                      |
+| ----------------------------------- | ------------------------------------------------------------- |
+| LLM network/timeout (30 s)          | catch -> fallback                                             |
+| LLM returns non-JSON                | catch JSON.parse -> fallback                                  |
+| LLM returns JSON failing Zod schema | safeParse fail -> fallback                                    |
+| LLM returns unknown article ids     | filter unknowns, remaining articles -> `ungrouped`            |
+| Zero candidate articles             | skip LLM, send current "No new articles" email                |
+| Secret decryption fails             | throw `SecretDecryptionError`, fallback for LLM, log for SMTP |
 
 ## 5. LLM schema and prompt
 
@@ -173,6 +173,7 @@ Return clusters per schema.
 | 500      | ~60k         | ~10k          | ~$0.015                   |
 
 Batching: when candidate count > 150, slice by `publishedAt` descending into batches of <= 150, cluster each batch independently, then merge across batches:
+
 - Group resulting clusters by `topic.toLowerCase().trim()`.
 - For each merge group: concatenate `articleIds`, keep `headline` from the highest-importance member, set merged `importance` to the max of members.
 - After merge, if total distinct topics > 8, fold the lowest-importance topics into a single "Other" topic.
@@ -180,9 +181,11 @@ Batching: when candidate count > 150, slice by `publishedAt` descending into bat
 ### Fallback marker
 
 When fallback path runs, return a single pseudo-cluster:
+
 ```ts
 { topic: "All", headline: "", importance: 5, articleIds: [...all input ids] }
 ```
+
 Templates detect this via `OrganizedDigest.mode` rather than inspecting the cluster, so the rendering path stays clean.
 
 ## 6. Email template layout
@@ -220,16 +223,16 @@ Templates detect this via `OrganizedDigest.mode` rather than inspecting the clus
 
 ### Rendering rules
 
-| Element                    | Implementation                                            |
-| -------------------------- | --------------------------------------------------------- |
-| Numeric markers (1)(2)...  | Static ASCII, no images                                   |
-| `★ 9` importance           | Text + emoji (cross-client safe, no SVG)                  |
-| `[+5 other sources v]`     | `<details><summary>` (graceful degrade: always-expanded)  |
-| Topic header count         | Total articles in topic (includes folded duplicates)      |
-| Top headline anchors       | `<a href="#topic-ai">` to topic section                   |
-| Color                      | Black/gray + one accent; client controls theme            |
-| Images                     | Cluster primary's `imageUrl`, max-width 100%, max-h 320px |
-| Type sizes                 | Title 16px, body 14px, meta 12px                          |
+| Element                   | Implementation                                            |
+| ------------------------- | --------------------------------------------------------- |
+| Numeric markers (1)(2)... | Static ASCII, no images                                   |
+| `★ 9` importance          | Text + emoji (cross-client safe, no SVG)                  |
+| `[+5 other sources v]`    | `<details><summary>` (graceful degrade: always-expanded)  |
+| Topic header count        | Total articles in topic (includes folded duplicates)      |
+| Top headline anchors      | `<a href="#topic-ai">` to topic section                   |
+| Color                     | Black/gray + one accent; client controls theme            |
+| Images                    | Cluster primary's `imageUrl`, max-width 100%, max-h 320px |
+| Type sizes                | Title 16px, body 14px, meta 12px                          |
 
 ### Fallback template
 
@@ -288,6 +291,7 @@ All nullable / defaulted -> existing rows unaffected.
 ### Encryption coverage (this PR)
 
 All three secret fields encrypted at rest:
+
 - `email_subscriptions.smtp_pass`
 - `email_subscriptions.email_api_key`
 - `email_subscriptions.llm_api_key`
@@ -297,6 +301,7 @@ DB column types stay `text`. Version prefix `v1:` distinguishes encrypted from l
 ### Migration
 
 Drizzle migration:
+
 ```sql
 ALTER TABLE email_subscriptions
   ADD COLUMN llm_enabled boolean NOT NULL DEFAULT false,
@@ -306,6 +311,7 @@ ALTER TABLE email_subscriptions
 ```
 
 One-time script `drizzle/scripts/encrypt-existing-secrets.ts`:
+
 - Scans `smtp_pass`, `email_api_key` for rows whose value does not start with `v1:`
 - Encrypts in place
 - Idempotent: re-running is a no-op
@@ -337,6 +343,7 @@ New card below cron config:
 ```
 
 Interaction:
+
 - API Key field `type="password"`. Stored secrets render as masked (`sk-1234...wxyz`), never plaintext.
 - `[Test]` -> POST `/api/email/llm/test` runs minimal chat completion (`reply with the word OK`). Request body sends the API key from the current form input. If the field is untouched (masked placeholder), the server uses the stored encrypted key for this user instead. The masked placeholder string is never used as a real key.
 - Toggle off -> immediate effect, next digest uses fallback.
@@ -344,10 +351,10 @@ Interaction:
 
 ### API endpoints
 
-| Path                       | Method | Purpose                                              |
-| -------------------------- | ------ | ---------------------------------------------------- |
-| `/api/email/llm/config`    | PUT    | Save baseUrl/key/model/enabled (key encrypted on write) |
-| `/api/email/llm/test`      | POST   | Ping with current form values, do not persist        |
+| Path                    | Method | Purpose                                                 |
+| ----------------------- | ------ | ------------------------------------------------------- |
+| `/api/email/llm/config` | PUT    | Save baseUrl/key/model/enabled (key encrypted on write) |
+| `/api/email/llm/test`   | POST   | Ping with current form values, do not persist           |
 
 ## 8. Testing strategy
 
@@ -355,21 +362,21 @@ Coverage targets: new files >= 90%, modified files >= 80%. Stack: Vitest + @test
 
 ### Test matrix
 
-| File                                 | Type             | Key cases                                                                                                                                       |
-| ------------------------------------ | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/crypto/secrets.ts`              | unit             | roundtrip; wrong key -> SecretDecryptionError; format validation; v1 prefix detection; missing ENCRYPTION_KEY at import -> throw                |
-| `lib/digest/normalize-url.ts`        | unit             | strip utm/fbclid/ref; strip fragment; trailing slash; case-normalize host; invalid url                                                          |
-| `lib/digest/dedupe.ts`               | unit             | exact URL merge; Jaccard 0.84 not merged / 0.85 merged; empty/single input; primary = earliest publishedAt                                      |
-| `lib/digest/llm-client.ts`           | unit (mock fetch)| 30s timeout fires; 429 -> RateLimitError; bad JSON -> LlmParseError; missing config -> LlmNotConfiguredError; request body includes `response_format` |
-| `lib/digest/cluster.ts`              | unit (mock llm)  | prompt contains <=8-topic + importance-cap text; batching kicks in > 150; cross-batch topic merge; unknown article ids filtered                 |
-| `lib/digest/cluster-types.ts`        | unit             | Zod rejects missing/oversize/non-uuid; ClusterResponse max 50                                                                                   |
-| `lib/digest/organize.ts`             | unit             | property test (fast-check): all input ids present in output; Top 5 selection; padding when fewer than 5 importance>=8                           |
-| `lib/digest/fallback.ts`             | unit             | mode set correctly for `fallback-no-config` / `fallback-llm-failed`; single pseudo-cluster contains all ids                                     |
-| `lib/email/templates/digest.tsx`     | snapshot         | 3 fixtures: clustered / fallback-no-config / fallback-llm-failed                                                                                |
-| `lib/email/templates/digest-fallback.tsx` | snapshot    | 1 fixture                                                                                                                                       |
-| `lib/jobs/workers/digest-worker.ts`  | integration      | mock DB + LLM + SMTP: LLM success path passes ORIGINAL ids to markArticlesAsSent; LLM failure still sends; disabled LLM never calls llm-client  |
-| `app/api/email/llm/test/route.ts`    | integration      | success 200; timeout 504; decryption failure 500                                                                                                |
-| Settings UI                          | Playwright E2E   | enable -> fill -> Test -> Save -> reopen shows masked key                                                                                       |
+| File                                      | Type              | Key cases                                                                                                                                             |
+| ----------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/crypto/secrets.ts`                   | unit              | roundtrip; wrong key -> SecretDecryptionError; format validation; v1 prefix detection; missing ENCRYPTION_KEY at import -> throw                      |
+| `lib/digest/normalize-url.ts`             | unit              | strip utm/fbclid/ref; strip fragment; trailing slash; case-normalize host; invalid url                                                                |
+| `lib/digest/dedupe.ts`                    | unit              | exact URL merge; Jaccard 0.84 not merged / 0.85 merged; empty/single input; primary = earliest publishedAt                                            |
+| `lib/digest/llm-client.ts`                | unit (mock fetch) | 30s timeout fires; 429 -> RateLimitError; bad JSON -> LlmParseError; missing config -> LlmNotConfiguredError; request body includes `response_format` |
+| `lib/digest/cluster.ts`                   | unit (mock llm)   | prompt contains <=8-topic + importance-cap text; batching kicks in > 150; cross-batch topic merge; unknown article ids filtered                       |
+| `lib/digest/cluster-types.ts`             | unit              | Zod rejects missing/oversize/non-uuid; ClusterResponse max 50                                                                                         |
+| `lib/digest/organize.ts`                  | unit              | property test (fast-check): all input ids present in output; Top 5 selection; padding when fewer than 5 importance>=8                                 |
+| `lib/digest/fallback.ts`                  | unit              | mode set correctly for `fallback-no-config` / `fallback-llm-failed`; single pseudo-cluster contains all ids                                           |
+| `lib/email/templates/digest.tsx`          | snapshot          | 3 fixtures: clustered / fallback-no-config / fallback-llm-failed                                                                                      |
+| `lib/email/templates/digest-fallback.tsx` | snapshot          | 1 fixture                                                                                                                                             |
+| `lib/jobs/workers/digest-worker.ts`       | integration       | mock DB + LLM + SMTP: LLM success path passes ORIGINAL ids to markArticlesAsSent; LLM failure still sends; disabled LLM never calls llm-client        |
+| `app/api/email/llm/test/route.ts`         | integration       | success 200; timeout 504; decryption failure 500                                                                                                      |
+| Settings UI                               | Playwright E2E    | enable -> fill -> Test -> Save -> reopen shows masked key                                                                                             |
 
 ### Fixtures
 
@@ -408,13 +415,13 @@ test("invariant: every input article appears in OrganizedDigest", () => {
 
 ## 9. Rollback strategy
 
-| Layer            | Rollback                                                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Schema           | All new columns nullable / defaulted -> `DROP COLUMN` is safe; old data untouched                                     |
-| Secrets          | Encrypt-migration is idempotent. Inverse-decrypt script can be added if needed, also keyed on `v1:` prefix detection  |
-| LLM calls        | Per-user toggle off via DB update -> instant fallback for affected users without redeploy                             |
-| Template         | Fallback template kept; force `mode = "fallback-no-config"` in worker for kill-switch                                 |
-| Encryption key   | Compromise scenario: rotate key, re-encrypt all rows with new `v2:` prefix in a follow-up migration                   |
+| Layer          | Rollback                                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Schema         | All new columns nullable / defaulted -> `DROP COLUMN` is safe; old data untouched                                    |
+| Secrets        | Encrypt-migration is idempotent. Inverse-decrypt script can be added if needed, also keyed on `v1:` prefix detection |
+| LLM calls      | Per-user toggle off via DB update -> instant fallback for affected users without redeploy                            |
+| Template       | Fallback template kept; force `mode = "fallback-no-config"` in worker for kill-switch                                |
+| Encryption key | Compromise scenario: rotate key, re-encrypt all rows with new `v2:` prefix in a follow-up migration                  |
 
 ## 10. Gradual rollout
 

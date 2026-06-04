@@ -25,7 +25,7 @@ export function SearchSnippet({ parts, className, matchedOnly }: Props) {
           </mark>
         ) : (
           <span key={i}>{p.value}</span>
-        )
+        ),
       )}
     </span>
   );

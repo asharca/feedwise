@@ -1,9 +1,4 @@
-import type {
-  DigestArticle,
-  OrganizedDigest,
-  TopHeadline,
-  TopicGroup,
-} from "@/lib/digest/types";
+import type { DigestArticle, OrganizedDigest, TopHeadline, TopicGroup } from "@/lib/digest/types";
 
 const UNCATEGORIZED_LABEL = "Uncategorized";
 
@@ -30,7 +25,7 @@ function importanceToNumber(importance: DigestArticle["importance"]): number {
  */
 export function buildTagBasedDigest(
   articles: DigestArticle[],
-  now: Date = new Date()
+  now: Date = new Date(),
 ): OrganizedDigest {
   // Group articles by their first tag (primary). Articles with no tags drop
   // into the uncategorised bucket — they still appear in the digest.
@@ -53,7 +48,7 @@ export function buildTagBasedDigest(
 
   // Sort tag groups by size desc, then by name asc for a stable, scannable order.
   const sortedTagGroups = Array.from(byTag.values()).sort(
-    (a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name)
+    (a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name),
   );
 
   // Top headlines: any article scored "high" by the summarize call. Cap at 5.

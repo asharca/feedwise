@@ -81,7 +81,7 @@ export const folders = pgTable(
     position: integer("position").default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [unique().on(t.userId, t.name)]
+  (t) => [unique().on(t.userId, t.name)],
 );
 
 // ─── Feeds (global) ───────────────────────────────────────────
@@ -122,7 +122,7 @@ export const subscriptions = pgTable(
     position: integer("position").default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [unique().on(t.userId, t.feedId)]
+  (t) => [unique().on(t.userId, t.feedId)],
 );
 
 // ─── Articles ─────────────────────────────────────────────────
@@ -149,7 +149,7 @@ export const articles = pgTable(
   (t) => [
     unique().on(t.feedId, t.guid),
     index("articles_feed_published_idx").on(t.feedId, t.publishedAt),
-  ]
+  ],
 );
 
 // ─── User-Article State ───────────────────────────────────────
@@ -171,7 +171,7 @@ export const userArticles = pgTable(
   (t) => [
     unique().on(t.userId, t.articleId),
     index("user_articles_unread_idx").on(t.userId, t.isRead),
-  ]
+  ],
 );
 
 // ─── Tags ─────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ export const tags = pgTable(
     name: varchar("name", { length: 100 }).notNull(),
     color: varchar("color", { length: 7 }),
   },
-  (t) => [unique().on(t.userId, t.name)]
+  (t) => [unique().on(t.userId, t.name)],
 );
 
 export const articleTags = pgTable(
@@ -197,50 +197,43 @@ export const articleTags = pgTable(
     tagId: uuid("tag_id")
       .references(() => tags.id, { onDelete: "cascade" })
       .notNull(),
-    source: varchar("source", { length: 10 })
-      .$type<"user">()
-      .default("user"),
+    source: varchar("source", { length: 10 }).$type<"user">().default("user"),
   },
-  (t) => [primaryKey({ columns: [t.articleId, t.tagId] })]
+  (t) => [primaryKey({ columns: [t.articleId, t.tagId] })],
 );
 
 // ─── Email Subscriptions ──────────────────────────────────────────
-export const emailSubscriptions = pgTable(
-  "email_subscriptions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: text("user_id")
-      .references(() => users.id, { onDelete: "cascade" })
-      .notNull()
-      .unique(),
-    enabled: boolean("enabled").notNull().default(false),
-    sendTime: varchar("send_time", { length: 5 }).default("08:00"),
-    frequency: varchar("frequency", { length: 10 })
-      .$type<"daily" | "weekly">()
-      .default("daily"),
-    cronExpression: varchar("cron_expression", { length: 100 }),
-    nextScheduledAt: timestamp("next_scheduled_at"),
-    lastSentAt: timestamp("last_sent_at"),
-    smtpHost: varchar("smtp_host", { length: 255 }),
-    smtpPort: integer("smtp_port").default(587),
-    smtpUser: varchar("smtp_user", { length: 255 }),
-    smtpPass: text("smtp_pass"),
-    smtpFrom: varchar("smtp_from", { length: 255 }),
-    emailProvider: varchar("email_provider", { length: 20 }),
-    emailApiKey: text("email_api_key"),
-    llmEnabled: boolean("llm_enabled").notNull().default(false),
-    llmBaseUrl: varchar("llm_base_url", { length: 500 }),
-    llmApiKey: text("llm_api_key"),
-    llmModel: varchar("llm_model", { length: 100 }),
-    llmFormat: varchar("llm_format", { length: 20 }).default("openai"),
-    autoSummarize: boolean("auto_summarize").notNull().default(true),
-    autoTag: boolean("auto_tag").notNull().default(false),
-    autoSaveOnClick: boolean("auto_save_on_click").notNull().default(false),
-    markReadOnClick: boolean("mark_read_on_click").notNull().default(true),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  }
-);
+export const emailSubscriptions = pgTable("email_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(),
+  enabled: boolean("enabled").notNull().default(false),
+  sendTime: varchar("send_time", { length: 5 }).default("08:00"),
+  frequency: varchar("frequency", { length: 10 }).$type<"daily" | "weekly">().default("daily"),
+  cronExpression: varchar("cron_expression", { length: 100 }),
+  nextScheduledAt: timestamp("next_scheduled_at"),
+  lastSentAt: timestamp("last_sent_at"),
+  smtpHost: varchar("smtp_host", { length: 255 }),
+  smtpPort: integer("smtp_port").default(587),
+  smtpUser: varchar("smtp_user", { length: 255 }),
+  smtpPass: text("smtp_pass"),
+  smtpFrom: varchar("smtp_from", { length: 255 }),
+  emailProvider: varchar("email_provider", { length: 20 }),
+  emailApiKey: text("email_api_key"),
+  llmEnabled: boolean("llm_enabled").notNull().default(false),
+  llmBaseUrl: varchar("llm_base_url", { length: 500 }),
+  llmApiKey: text("llm_api_key"),
+  llmModel: varchar("llm_model", { length: 100 }),
+  llmFormat: varchar("llm_format", { length: 20 }).default("openai"),
+  autoSummarize: boolean("auto_summarize").notNull().default(true),
+  autoTag: boolean("auto_tag").notNull().default(false),
+  autoSaveOnClick: boolean("auto_save_on_click").notNull().default(false),
+  markReadOnClick: boolean("mark_read_on_click").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
 
 // User's selected tags for email delivery
 export const emailSubscriptionTags = pgTable(
@@ -255,7 +248,7 @@ export const emailSubscriptionTags = pgTable(
       .notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [unique().on(t.subscriptionId, t.tagId)]
+  (t) => [unique().on(t.subscriptionId, t.tagId)],
 );
 
 // User's selected feeds for email delivery
@@ -271,7 +264,7 @@ export const emailSubscriptionFeeds = pgTable(
       .notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [unique().on(t.subscriptionId, t.feedId)]
+  (t) => [unique().on(t.subscriptionId, t.feedId)],
 );
 
 // Track which articles have been sent to each user (prevents duplicates)
@@ -287,23 +280,20 @@ export const emailSentArticles = pgTable(
       .notNull(),
     sentAt: timestamp("sent_at").defaultNow().notNull(),
   },
-  (t) => [unique().on(t.userId, t.articleId)]
+  (t) => [unique().on(t.userId, t.articleId)],
 );
 
 // Log each digest send attempt for history and catch-up
-export const emailDigestLogs = pgTable(
-  "email_digest_logs",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: text("user_id")
-      .references(() => users.id, { onDelete: "cascade" })
-      .notNull(),
-    sentAt: timestamp("sent_at").defaultNow().notNull(),
-    articleCount: integer("article_count").default(0),
-    status: varchar("status", { length: 20 }).$type<"success" | "failed">().default("success"),
-    errorMessage: text("error_message"),
-  }
-);
+export const emailDigestLogs = pgTable("email_digest_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  articleCount: integer("article_count").default(0),
+  status: varchar("status", { length: 20 }).$type<"success" | "failed">().default("success"),
+  errorMessage: text("error_message"),
+});
 
 // Record the article set included in each digest send, so we can preview
 // and resend past digests with the exact same content.
@@ -317,5 +307,5 @@ export const emailDigestLogArticles = pgTable(
       .references(() => articles.id, { onDelete: "cascade" })
       .notNull(),
   },
-  (t) => [primaryKey({ columns: [t.logId, t.articleId] })]
+  (t) => [primaryKey({ columns: [t.logId, t.articleId] })],
 );

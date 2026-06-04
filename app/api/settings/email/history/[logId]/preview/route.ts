@@ -1,11 +1,7 @@
 // app/api/settings/email/history/[logId]/preview/route.ts
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
-import {
-  getArticlesForLog,
-  getDigestLogById,
-  getSubscriptionSettings,
-} from "@/lib/email/queries";
+import { getArticlesForLog, getDigestLogById, getSubscriptionSettings } from "@/lib/email/queries";
 import { assembleDigestForSubscription } from "@/lib/jobs/workers/digest-worker";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
@@ -13,10 +9,7 @@ import { buildEmailLinkFn } from "@/lib/email/click-link";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function GET(
-  req: Request,
-  ctx: { params: Promise<{ logId: string }> }
-) {
+export async function GET(req: Request, ctx: { params: Promise<{ logId: string }> }) {
   let session;
   try {
     session = await requireSession();

@@ -29,7 +29,7 @@ function SettingsSubTabs({ tabs, active, onChange, ...aria }: SettingsSubTabsPro
             "relative px-3 py-2 text-sm font-medium transition-colors -mb-px border-b-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
             active === t.key
               ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
           {t.label}

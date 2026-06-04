@@ -37,19 +37,15 @@ describe("lib/crypto/secrets", () => {
   });
 
   it("throws SecretDecryptionError on tampered ciphertext", async () => {
-    const { encryptSecret, decryptSecret, SecretDecryptionError } = await import(
-      "@/lib/crypto/secrets"
-    );
+    const { encryptSecret, decryptSecret, SecretDecryptionError } =
+      await import("@/lib/crypto/secrets");
     const ct = encryptSecret("hello");
     // Flip chars in the ciphertext segment to ensure real data bytes change (not just padding)
     const parts = ct.split(":");
     const firstChar = parts[2][0];
     const flippedFirst = firstChar === "A" ? "B" : "A";
     const tamperedCipher =
-      flippedFirst +
-      parts[2].slice(1, -2) +
-      (parts[2].endsWith("A") ? "B" : "A") +
-      "=";
+      flippedFirst + parts[2].slice(1, -2) + (parts[2].endsWith("A") ? "B" : "A") + "=";
     const tampered = `${parts[0]}:${parts[1]}:${tamperedCipher}:${parts[3]}`;
     expect(() => decryptSecret(tampered)).toThrow(SecretDecryptionError);
   });

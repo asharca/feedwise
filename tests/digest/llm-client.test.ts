@@ -34,10 +34,10 @@ describe("callChatCompletion", () => {
 
   it("posts to baseUrl/chat/completions with auth + body", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      )
+      new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const out = await callChatCompletion(OPENAI_CONFIG, {
@@ -58,57 +58,73 @@ describe("callChatCompletion", () => {
   });
 
   it("throws LlmTimeoutError after 30 s", async () => {
-    globalThis.fetch = vi.fn((_url, init: RequestInit | undefined) =>
-      new Promise<Response>((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => {
-          const err = new Error("aborted");
-          err.name = "AbortError";
-          reject(err);
-        });
-      })
+    globalThis.fetch = vi.fn(
+      (_url, init: RequestInit | undefined) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            const err = new Error("aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        }),
     ) as unknown as typeof fetch;
-    const p = callChatCompletion(OPENAI_CONFIG, { system: "", user: "", jsonSchema: { name: "X", schema: {} } });
+    const p = callChatCompletion(OPENAI_CONFIG, {
+      system: "",
+      user: "",
+      jsonSchema: { name: "X", schema: {} },
+    });
     const expectation = expect(p).rejects.toBeInstanceOf(LlmTimeoutError);
     await vi.advanceTimersByTimeAsync(30_000);
     await expectation;
   });
 
   it("throws LlmRateLimitError on 429", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response("rate limited", { status: 429 })
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response("rate limited", { status: 429 })) as unknown as typeof fetch;
     await expect(
-      callChatCompletion(OPENAI_CONFIG, { system: "", user: "", jsonSchema: { name: "X", schema: {} } })
+      callChatCompletion(OPENAI_CONFIG, {
+        system: "",
+        user: "",
+        jsonSchema: { name: "X", schema: {} },
+      }),
     ).rejects.toBeInstanceOf(LlmRateLimitError);
   });
 
   it("throws LlmHttpError on other non-2xx", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response("server error", { status: 500 })
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response("server error", { status: 500 })) as unknown as typeof fetch;
     await expect(
-      callChatCompletion(OPENAI_CONFIG, { system: "", user: "", jsonSchema: { name: "X", schema: {} } })
+      callChatCompletion(OPENAI_CONFIG, {
+        system: "",
+        user: "",
+        jsonSchema: { name: "X", schema: {} },
+      }),
     ).rejects.toBeInstanceOf(LlmHttpError);
   });
 
   it("throws LlmParseError on non-JSON content", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ choices: [{ message: { content: "not json" } }] }),
-        { status: 200 }
-      )
+      new Response(JSON.stringify({ choices: [{ message: { content: "not json" } }] }), {
+        status: 200,
+      }),
     ) as unknown as typeof fetch;
     await expect(
-      callChatCompletion(OPENAI_CONFIG, { system: "", user: "", jsonSchema: { name: "X", schema: {} } })
+      callChatCompletion(OPENAI_CONFIG, {
+        system: "",
+        user: "",
+        jsonSchema: { name: "X", schema: {} },
+      }),
     ).rejects.toBeInstanceOf(LlmParseError);
   });
 
   it("posts to /messages for anthropic format", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ content: [{ type: "text", text: '{"ok":true}' }] }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      )
+      new Response(JSON.stringify({ content: [{ type: "text", text: '{"ok":true}' }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const out = await callChatCompletion(ANTHROPIC_CONFIG, {
@@ -133,14 +149,17 @@ describe("callChatCompletion", () => {
   });
 
   it("throws LlmParseError when anthropic response has no text blocks", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ content: [{ type: "image", source: {} }] }),
-        { status: 200 }
-      )
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ content: [{ type: "image", source: {} }] }), { status: 200 }),
+      ) as unknown as typeof fetch;
     await expect(
-      callChatCompletion(ANTHROPIC_CONFIG, { system: "", user: "", jsonSchema: { name: "X", schema: {} } })
+      callChatCompletion(ANTHROPIC_CONFIG, {
+        system: "",
+        user: "",
+        jsonSchema: { name: "X", schema: {} },
+      }),
     ).rejects.toBeInstanceOf(LlmParseError);
   });
 
@@ -153,11 +172,13 @@ describe("callChatCompletion", () => {
             { type: "text", text: '{"ok":true}' },
           ],
         }),
-        { status: 200 }
-      )
+        { status: 200 },
+      ),
     ) as unknown as typeof fetch;
     const out = await callChatCompletion(ANTHROPIC_CONFIG, {
-      system: "", user: "", jsonSchema: { name: "X", schema: {} },
+      system: "",
+      user: "",
+      jsonSchema: { name: "X", schema: {} },
     });
     expect(out).toEqual({ ok: true });
   });
@@ -171,11 +192,13 @@ describe("callChatCompletion", () => {
             { type: "tool_use", id: "x", name: "y", input: {} },
           ],
         }),
-        { status: 200 }
-      )
+        { status: 200 },
+      ),
     ) as unknown as typeof fetch;
     const out = await callChatCompletion(ANTHROPIC_CONFIG, {
-      system: "", user: "", jsonSchema: { name: "X", schema: {} },
+      system: "",
+      user: "",
+      jsonSchema: { name: "X", schema: {} },
     });
     expect(out).toEqual({ ok: true });
   });
@@ -186,11 +209,13 @@ describe("callChatCompletion", () => {
         JSON.stringify({
           content: [{ type: "text", text: 'Here you go:\n```json\n{"ok":true}\n```\n' }],
         }),
-        { status: 200 }
-      )
+        { status: 200 },
+      ),
     ) as unknown as typeof fetch;
     const out = await callChatCompletion(ANTHROPIC_CONFIG, {
-      system: "", user: "", jsonSchema: { name: "X", schema: {} },
+      system: "",
+      user: "",
+      jsonSchema: { name: "X", schema: {} },
     });
     expect(out).toEqual({ ok: true });
   });
@@ -201,44 +226,54 @@ describe("callChatCompletion", () => {
         JSON.stringify({
           content: [{ type: "text", text: 'Sure — {"ok":true} is the answer.' }],
         }),
-        { status: 200 }
-      )
+        { status: 200 },
+      ),
     ) as unknown as typeof fetch;
     const out = await callChatCompletion(ANTHROPIC_CONFIG, {
-      system: "", user: "", jsonSchema: { name: "X", schema: {} },
+      system: "",
+      user: "",
+      jsonSchema: { name: "X", schema: {} },
     });
     expect(out).toEqual({ ok: true });
   });
 
   it("anthropic: accepts content as a plain string", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ content: '{"ok":true}' }),
-        { status: 200 }
-      )
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ content: '{"ok":true}' }), { status: 200 }),
+      ) as unknown as typeof fetch;
     const out = await callChatCompletion(ANTHROPIC_CONFIG, {
-      system: "", user: "", jsonSchema: { name: "X", schema: {} },
+      system: "",
+      user: "",
+      jsonSchema: { name: "X", schema: {} },
     });
     expect(out).toEqual({ ok: true });
   });
 
   it("anthropic: surfaces upstream error envelope", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ error: { type: "invalid_request_error", message: "model not found" } }),
-        { status: 200 }
-      )
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ error: { type: "invalid_request_error", message: "model not found" } }),
+          { status: 200 },
+        ),
+      ) as unknown as typeof fetch;
     await expect(
-      callChatCompletion(ANTHROPIC_CONFIG, { system: "", user: "", jsonSchema: { name: "X", schema: {} } })
+      callChatCompletion(ANTHROPIC_CONFIG, {
+        system: "",
+        user: "",
+        jsonSchema: { name: "X", schema: {} },
+      }),
     ).rejects.toThrow(/model not found/);
   });
 });
 
 describe("withLlmRetry", () => {
   it("retries transient errors then succeeds", async () => {
-    const fn = vi.fn()
+    const fn = vi
+      .fn()
       .mockRejectedValueOnce(new LlmTimeoutError())
       .mockRejectedValueOnce(new LlmRateLimitError())
       .mockResolvedValue("ok");
@@ -249,13 +284,17 @@ describe("withLlmRetry", () => {
 
   it("does not retry non-transient errors", async () => {
     const fn = vi.fn().mockRejectedValue(new LlmHttpError(400, "bad"));
-    await expect(withLlmRetry(fn, { retries: 2, baseDelayMs: 0 })).rejects.toBeInstanceOf(LlmHttpError);
+    await expect(withLlmRetry(fn, { retries: 2, baseDelayMs: 0 })).rejects.toBeInstanceOf(
+      LlmHttpError,
+    );
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it("throws after exhausting retries", async () => {
     const fn = vi.fn().mockRejectedValue(new LlmTimeoutError());
-    await expect(withLlmRetry(fn, { retries: 1, baseDelayMs: 0 })).rejects.toBeInstanceOf(LlmTimeoutError);
+    await expect(withLlmRetry(fn, { retries: 1, baseDelayMs: 0 })).rejects.toBeInstanceOf(
+      LlmTimeoutError,
+    );
     expect(fn).toHaveBeenCalledTimes(2);
   });
 });

@@ -9,8 +9,12 @@ function art(id: string): DedupedArticle {
       title: `t-${id}`,
       url: `https://e.com/${id}`,
       summary: null,
+      aiSummary: null,
+      importance: null,
       feedTitle: "f",
+      feedId: "00000000-0000-4000-a000-000000000001",
       publishedAt: new Date(),
+      tags: [],
     },
     duplicates: [],
   };

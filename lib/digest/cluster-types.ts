@@ -19,5 +19,5 @@ export type ClusterResponse = z.infer<typeof ClusterResponseSchema>;
 // structurally compatible at runtime, so cast away the surface mismatch.
 export const clusterResponseJsonSchema = zodToJsonSchema(
   ClusterResponseSchema as unknown as Parameters<typeof zodToJsonSchema>[0],
-  { name: "ClusterResponse", target: "openApi3" }
+  { name: "ClusterResponse", target: "openApi3" },
 );

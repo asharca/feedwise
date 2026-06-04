@@ -14,7 +14,7 @@ export async function POST() {
         await getFeedFetchQueue().add(
           "fetch",
           { feedId: sub.feedId, url: sub.url },
-          { jobId: `feed-${sub.feedId}-manual-${Date.now()}`, attempts: 3 }
+          { jobId: `feed-${sub.feedId}-manual-${Date.now()}`, attempts: 3 },
         );
         enqueued++;
       } catch {

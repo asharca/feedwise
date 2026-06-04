@@ -10,11 +10,17 @@ beforeAll(() => {
 describe("click-token", () => {
   it("round-trips userId + articleId", () => {
     const t = signClickToken("user-1", "11111111-1111-4111-a111-000000000001");
-    expect(verifyClickToken(t)).toEqual({ userId: "user-1", articleId: "11111111-1111-4111-a111-000000000001" });
+    expect(verifyClickToken(t)).toEqual({
+      userId: "user-1",
+      articleId: "11111111-1111-4111-a111-000000000001",
+    });
   });
   it("handles userIds containing colons", () => {
     const t = signClickToken("a:b:c", "11111111-1111-4111-a111-000000000001");
-    expect(verifyClickToken(t)).toEqual({ userId: "a:b:c", articleId: "11111111-1111-4111-a111-000000000001" });
+    expect(verifyClickToken(t)).toEqual({
+      userId: "a:b:c",
+      articleId: "11111111-1111-4111-a111-000000000001",
+    });
   });
   it("rejects a tampered signature", () => {
     const t = signClickToken("user-1", "id-1");

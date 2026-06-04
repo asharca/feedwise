@@ -8,7 +8,7 @@ const BLOCKED_HOSTS =
 // 1x1 transparent GIF — returned when upstream fails so browsers don't retry
 const TRANSPARENT_GIF = Buffer.from(
   "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
-  "base64"
+  "base64",
 );
 
 function placeholderResponse(upstreamStatus: number) {

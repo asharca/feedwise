@@ -42,9 +42,7 @@ export function describeCron(cron: string): string {
     return `Every ${WEEKDAY_NAMES[parseInt(weekday)] ?? weekday} at ${timeStr}`;
   }
   if (day === "*" && month === "*" && weekday.includes(",")) {
-    const days = weekday
-      .split(",")
-      .map((v) => WEEKDAY_NAMES[parseInt(v)] ?? v);
+    const days = weekday.split(",").map((v) => WEEKDAY_NAMES[parseInt(v)] ?? v);
     return `Every ${days.join(", ")} at ${timeStr}`;
   }
   if (/^\d+$/.test(day) && month === "*" && weekday === "*") {

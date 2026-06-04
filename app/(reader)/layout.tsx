@@ -6,11 +6,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { GlobalSettingsDialog } from "@/components/settings/global-settings-dialog";
 
-export default async function ReaderLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function ReaderLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -31,9 +27,7 @@ export default async function ReaderLayout({
             folders={folders.map((f) => ({ id: f.id, name: f.name }))}
           />
         </Suspense>
-        <SidebarInset className="flex-1 overflow-hidden bg-background">
-          {children}
-        </SidebarInset>
+        <SidebarInset className="flex-1 overflow-hidden bg-background">{children}</SidebarInset>
         <GlobalSettingsDialog />
       </div>
     </SidebarProvider>

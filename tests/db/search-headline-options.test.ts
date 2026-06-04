@@ -15,19 +15,16 @@ import { dirname, resolve } from "node:path";
 // These tests read the source and assert the invariant the database requires.
 
 const here = dirname(fileURLToPath(import.meta.url));
-const searchModule = readFileSync(
-  resolve(here, "../../lib/db/queries/search.ts"),
-  "utf8"
-);
+const searchModule = readFileSync(resolve(here, "../../lib/db/queries/search.ts"), "utf8");
 
-function extractOption(name) {
+function extractOption(name: string): string {
   const re = new RegExp("HEADLINE_OPTIONS_" + name + "\\s*=\\s*`([^`]+)`");
   const m = searchModule.match(re);
   if (!m) throw new Error("HEADLINE_OPTIONS_" + name + " not found");
   return m[1];
 }
 
-function parseOptNumber(opt, key) {
+function parseOptNumber(opt: string, key: string): number {
   const m = opt.match(new RegExp(key + "=(\\d+)"));
   if (!m) throw new Error(key + " not in " + opt);
   return parseInt(m[1], 10);

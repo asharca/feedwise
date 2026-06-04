@@ -10,12 +10,7 @@ import {
   Section,
   Text,
 } from "@react-email/components";
-import type {
-  DigestArticle,
-  OrganizedDigest,
-  TopHeadline,
-  TopicGroup,
-} from "@/lib/digest/types";
+import type { DigestArticle, OrganizedDigest, TopHeadline, TopicGroup } from "@/lib/digest/types";
 import { briefText } from "@/lib/email/brief";
 import { emailFont, emailTheme } from "@/lib/email/theme";
 
@@ -61,7 +56,8 @@ export function DigestEmail({ digest, buildLink = defaultLink }: DigestEmailProp
               Feedwise Digest
             </Heading>
             <Text style={styles.headerMeta}>
-              {dateStr} · {digest.totalArticles} article{digest.totalArticles === 1 ? "" : "s"} · {digest.topicCount} topic
+              {dateStr} · {digest.totalArticles} article{digest.totalArticles === 1 ? "" : "s"} ·{" "}
+              {digest.topicCount} topic
               {digest.topicCount === 1 ? "" : "s"}
             </Text>
           </Section>
@@ -120,28 +116,16 @@ function TopicSection({ group, link }: { group: TopicGroup; link: LinkFn }) {
   return (
     <Section style={styles.group}>
       <Heading as="h2" style={styles.h2}>
-        {group.topic}{" "}
-        <span style={styles.h2Count}>({group.totalCount})</span>
+        {group.topic} <span style={styles.h2Count}>({group.totalCount})</span>
       </Heading>
       {group.clusters.map((c, idx) => (
-        <ArticleItem
-          key={idx}
-          article={c.primary}
-          dupCount={c.duplicates.length}
-          link={link}
-        />
+        <ArticleItem key={idx} article={c.primary} dupCount={c.duplicates.length} link={link} />
       ))}
     </Section>
   );
 }
 
-function Ungrouped({
-  articles,
-  link,
-}: {
-  articles: DigestArticle[];
-  link: LinkFn;
-}) {
+function Ungrouped({ articles, link }: { articles: DigestArticle[]; link: LinkFn }) {
   if (articles.length === 0) return null;
   return (
     <Section style={styles.group}>

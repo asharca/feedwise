@@ -27,9 +27,7 @@ describe("describeCron", () => {
     expect(describeCron("0 8 * * 1-5")).toBe("Weekdays at 08:00");
   });
   it("multiple weekdays", () => {
-    expect(describeCron("0 8 * * 1,3,5")).toBe(
-      "Every Monday, Wednesday, Friday at 08:00"
-    );
+    expect(describeCron("0 8 * * 1,3,5")).toBe("Every Monday, Wednesday, Friday at 08:00");
   });
   it("monthly", () => {
     expect(describeCron("0 8 15 * *")).toBe("Day 15 of each month at 08:00");

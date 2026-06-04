@@ -9,7 +9,11 @@ import {
 import type { Cluster } from "@/lib/digest/cluster-types";
 
 const c = (over: Partial<Cluster>): Cluster => ({
-  topic: "T", headline: "h", importance: 5, articleIds: ["a"], ...over,
+  topic: "T",
+  headline: "h",
+  importance: 5,
+  articleIds: ["a"],
+  ...over,
 });
 
 describe("dedupeArticleAssignments", () => {
@@ -44,8 +48,18 @@ describe("dedupeArticleAssignments", () => {
 describe("mergeSameEventClusters", () => {
   it("merges clusters with same topic and near-identical headline (cross-batch)", () => {
     const out = mergeSameEventClusters([
-      c({ topic: "World", headline: "Ceasefire talks resume in capital", importance: 7, articleIds: ["a"] }),
-      c({ topic: "world", headline: "Ceasefire talks resume in the capital", importance: 9, articleIds: ["b"] }),
+      c({
+        topic: "World",
+        headline: "Ceasefire talks resume in capital",
+        importance: 7,
+        articleIds: ["a"],
+      }),
+      c({
+        topic: "world",
+        headline: "Ceasefire talks resume in the capital",
+        importance: 9,
+        articleIds: ["b"],
+      }),
     ]);
     expect(out).toHaveLength(1);
     expect(out[0].articleIds.sort()).toEqual(["a", "b"]);
@@ -56,7 +70,12 @@ describe("mergeSameEventClusters", () => {
   it("keeps distinct events under the same topic separate", () => {
     const out = mergeSameEventClusters([
       c({ topic: "World", headline: "Ceasefire talks resume", importance: 8, articleIds: ["a"] }),
-      c({ topic: "World", headline: "Major earthquake hits coast", importance: 8, articleIds: ["b"] }),
+      c({
+        topic: "World",
+        headline: "Major earthquake hits coast",
+        importance: 8,
+        articleIds: ["b"],
+      }),
     ]);
     expect(out).toHaveLength(2);
   });
@@ -93,7 +112,7 @@ describe("normalizeTopics", () => {
 describe("foldExtraTopics", () => {
   it("relabels overflow topics to 'Other' but keeps clusters separate", () => {
     const clusters = Array.from({ length: 10 }, (_, i) =>
-      c({ topic: `T${i}`, importance: 10 - i, articleIds: [`a${i}`] })
+      c({ topic: `T${i}`, importance: 10 - i, articleIds: [`a${i}`] }),
     );
     const out = foldExtraTopics(clusters, 8);
     const topics = new Set(out.map((k) => k.topic));

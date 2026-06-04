@@ -15,7 +15,17 @@ export interface ArticleFilter {
 }
 
 export async function getArticles(userId: string, filter: ArticleFilter = {}) {
-  const { feedId, folderId, tagId, unreadOnly, starredOnly, since, search, limit = 50, offset = 0 } = filter;
+  const {
+    feedId,
+    folderId,
+    tagId,
+    unreadOnly,
+    starredOnly,
+    since,
+    search,
+    limit = 50,
+    offset = 0,
+  } = filter;
 
   // Build base query joining through subscriptions to scope to user's feeds
   const rows = await db
@@ -38,17 +48,11 @@ export async function getArticles(userId: string, filter: ArticleFilter = {}) {
     .innerJoin(feeds, eq(articles.feedId, feeds.id))
     .innerJoin(
       subscriptions,
-      and(
-        eq(subscriptions.feedId, feeds.id),
-        eq(subscriptions.userId, userId)
-      )
+      and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, userId)),
     )
     .leftJoin(
       userArticles,
-      and(
-        eq(userArticles.articleId, articles.id),
-        eq(userArticles.userId, userId)
-      )
+      and(eq(userArticles.articleId, articles.id), eq(userArticles.userId, userId)),
     )
     .where(
       and(
@@ -60,9 +64,7 @@ export async function getArticles(userId: string, filter: ArticleFilter = {}) {
               where at.article_id = ${articles.id} and at.tag_id = ${tagId}
             )`
           : undefined,
-        unreadOnly
-          ? or(isNull(userArticles.isRead), eq(userArticles.isRead, false))
-          : undefined,
+        unreadOnly ? or(isNull(userArticles.isRead), eq(userArticles.isRead, false)) : undefined,
         starredOnly ? eq(userArticles.isStarred, true) : undefined,
         since
           ? sql`coalesce(${articles.publishedAt}, ${articles.createdAt}) >= ${since}`
@@ -82,8 +84,8 @@ export async function getArticles(userId: string, filter: ArticleFilter = {}) {
               ) @@ websearch_to_tsquery('simple', ${search})
               OR ${articles.title} ILIKE ${"%" + search + "%"}
             )`
-          : undefined
-      )
+          : undefined,
+      ),
     )
     // Sort by article time, falling back to fetch time so articles missing a
     // pubdate (common with hand-rolled feeds) still get a sensible position
@@ -118,17 +120,11 @@ export async function getArticleById(userId: string, articleId: string) {
     .innerJoin(feeds, eq(articles.feedId, feeds.id))
     .innerJoin(
       subscriptions,
-      and(
-        eq(subscriptions.feedId, feeds.id),
-        eq(subscriptions.userId, userId)
-      )
+      and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, userId)),
     )
     .leftJoin(
       userArticles,
-      and(
-        eq(userArticles.articleId, articles.id),
-        eq(userArticles.userId, userId)
-      )
+      and(eq(userArticles.articleId, articles.id), eq(userArticles.userId, userId)),
     )
     .where(eq(articles.id, articleId));
 
@@ -146,7 +142,7 @@ export async function getArticleById(userId: string, articleId: string) {
 export async function removeTagFromArticle(
   userId: string,
   articleId: string,
-  tagId: string
+  tagId: string,
 ): Promise<boolean> {
   // Verify the tag belongs to the user before unlinking
   const [owned] = await db
@@ -165,15 +161,17 @@ export async function removeTagFromArticle(
 export async function getUnsummarizedArticlesForUser(
   userId: string,
   sinceDays: number,
-  limit: number
-): Promise<Array<{
-  id: string;
-  title: string | null;
-  summary: string | null;
-  aiSummary: string | null;
-  contentText: string | null;
-  contentHtml: string | null;
-}>> {
+  limit: number,
+): Promise<
+  Array<{
+    id: string;
+    title: string | null;
+    summary: string | null;
+    aiSummary: string | null;
+    contentText: string | null;
+    contentHtml: string | null;
+  }>
+> {
   const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
   return db
     .select({
@@ -187,17 +185,9 @@ export async function getUnsummarizedArticlesForUser(
     .from(articles)
     .innerJoin(
       subscriptions,
-      and(
-        eq(subscriptions.feedId, articles.feedId),
-        eq(subscriptions.userId, userId)
-      )
+      and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
     )
-    .where(
-      and(
-        gte(articles.createdAt, since),
-        isNull(articles.aiSummary)
-      )
-    )
+    .where(and(gte(articles.createdAt, since), isNull(articles.aiSummary)))
     .orderBy(desc(articles.createdAt))
     .limit(limit);
 }
@@ -205,15 +195,17 @@ export async function getUnsummarizedArticlesForUser(
 export async function getUntaggedArticlesForUser(
   userId: string,
   sinceDays: number,
-  limit: number
-): Promise<Array<{
-  id: string;
-  title: string | null;
-  summary: string | null;
-  aiSummary: string | null;
-  contentText: string | null;
-  contentHtml: string | null;
-}>> {
+  limit: number,
+): Promise<
+  Array<{
+    id: string;
+    title: string | null;
+    summary: string | null;
+    aiSummary: string | null;
+    contentText: string | null;
+    contentHtml: string | null;
+  }>
+> {
   const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
   // Articles that the user is subscribed to AND have no article_tags rows.
   // gte on createdAt (not publishedAt) so historical-pub articles still get
@@ -230,10 +222,7 @@ export async function getUntaggedArticlesForUser(
     .from(articles)
     .innerJoin(
       subscriptions,
-      and(
-        eq(subscriptions.feedId, articles.feedId),
-        eq(subscriptions.userId, userId)
-      )
+      and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
     )
     .where(
       and(
@@ -241,8 +230,8 @@ export async function getUntaggedArticlesForUser(
         sql`not exists (
           select 1 from ${articleTags} at
           where at.article_id = ${articles.id}
-        )`
-      )
+        )`,
+      ),
     )
     .orderBy(desc(articles.createdAt))
     .limit(limit);
@@ -267,7 +256,7 @@ export async function getUserTagsWithCounts(userId: string) {
 export async function addTagToArticle(
   userId: string,
   articleId: string,
-  tagName: string
+  tagName: string,
 ): Promise<{ tagId: string; name: string }> {
   const trimmed = tagName.trim().slice(0, 100);
   if (!trimmed) throw new Error("Tag name is required");
@@ -278,10 +267,7 @@ export async function addTagToArticle(
     .onConflictDoUpdate({ target: [tags.userId, tags.name], set: { name: trimmed } })
     .returning({ id: tags.id, name: tags.name });
 
-  await db
-    .insert(articleTags)
-    .values({ articleId, tagId: tag.id })
-    .onConflictDoNothing();
+  await db.insert(articleTags).values({ articleId, tagId: tag.id }).onConflictDoNothing();
 
   return { tagId: tag.id, name: tag.name };
 }
@@ -292,7 +278,7 @@ export async function setArticleAiSummary(articleId: string, aiSummary: string):
 
 export async function setArticleImportance(
   articleId: string,
-  importance: "high" | "med" | "low"
+  importance: "high" | "med" | "low",
 ): Promise<void> {
   await db.update(articles).set({ importance }).where(eq(articles.id, articleId));
 }
@@ -300,7 +286,7 @@ export async function setArticleImportance(
 export async function markArticle(
   userId: string,
   articleId: string,
-  data: { isRead?: boolean; isStarred?: boolean; readProgress?: number }
+  data: { isRead?: boolean; isStarred?: boolean; readProgress?: number },
 ) {
   await db
     .insert(userArticles)
@@ -355,17 +341,11 @@ export async function getArticlesGroupedByFolder(userId: string, limit = 6) {
     .innerJoin(feeds, eq(articles.feedId, feeds.id))
     .innerJoin(
       subscriptions,
-      and(
-        eq(subscriptions.feedId, feeds.id),
-        eq(subscriptions.userId, userId)
-      )
+      and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, userId)),
     )
     .leftJoin(
       userArticles,
-      and(
-        eq(userArticles.articleId, articles.id),
-        eq(userArticles.userId, userId)
-      )
+      and(eq(userArticles.articleId, articles.id), eq(userArticles.userId, userId)),
     )
     .orderBy(sql`coalesce(${articles.publishedAt}, ${articles.createdAt}) desc`)
     .limit(200);
@@ -420,33 +400,25 @@ export async function markAllRead(userId: string, feedId?: string, folderId?: st
     .from(articles)
     .innerJoin(
       subscriptions,
-      and(
-        eq(subscriptions.feedId, articles.feedId),
-        eq(subscriptions.userId, userId)
-      )
+      and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
     )
     .leftJoin(
       userArticles,
-      and(
-        eq(userArticles.articleId, articles.id),
-        eq(userArticles.userId, userId)
-      )
+      and(eq(userArticles.articleId, articles.id), eq(userArticles.userId, userId)),
     )
     .where(
       and(
         feedId ? eq(articles.feedId, feedId) : undefined,
         folderId ? eq(subscriptions.folderId, folderId) : undefined,
-        isNull(userArticles.id)
-      )
+        isNull(userArticles.id),
+      ),
     );
 
   if (unread.length === 0) return;
 
   await db
     .insert(userArticles)
-    .values(
-      unread.map((a) => ({ userId, articleId: a.id, isRead: true, readAt: new Date() }))
-    )
+    .values(unread.map((a) => ({ userId, articleId: a.id, isRead: true, readAt: new Date() })))
     .onConflictDoUpdate({
       target: [userArticles.userId, userArticles.articleId],
       set: { isRead: true, readAt: new Date() },

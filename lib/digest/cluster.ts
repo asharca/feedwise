@@ -35,7 +35,7 @@ async function clusterBatch(batch: DedupedArticle[], client: ClientFn): Promise<
       system: SYSTEM_PROMPT,
       user: buildUserPrompt(batch),
       jsonSchema: { name: "ClusterResponse", schema: clusterResponseJsonSchema },
-    })
+    }),
   );
   const parsed = ClusterResponseSchema.safeParse(raw);
   if (!parsed.success) {
@@ -46,7 +46,7 @@ async function clusterBatch(batch: DedupedArticle[], client: ClientFn): Promise<
 
 export async function runClustering(
   deduped: DedupedArticle[],
-  client: ClientFn
+  client: ClientFn,
 ): Promise<ClusterResponse> {
   const knownIds = new Set(deduped.map((d) => d.primary.id));
   const batches: DedupedArticle[][] = [];

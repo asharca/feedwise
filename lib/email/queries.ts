@@ -57,7 +57,9 @@ export async function getUserSubscription(userId: string) {
   return sub ?? null;
 }
 
-export async function getSubscriptionSettings(userId: string): Promise<SubscriptionSettings | null> {
+export async function getSubscriptionSettings(
+  userId: string,
+): Promise<SubscriptionSettings | null> {
   const sub = await getUserSubscription(userId);
   if (!sub) return null;
 
@@ -92,7 +94,7 @@ export async function getSubscriptionSettings(userId: string): Promise<Subscript
 
 export async function updateSubscriptionSettings(
   userId: string,
-  settings: Partial<SubscriptionSettings>
+  settings: Partial<SubscriptionSettings>,
 ): Promise<SubscriptionSettings> {
   const existing = await getUserSubscription(userId);
 
@@ -117,7 +119,7 @@ export async function updateSubscriptionSettings(
       })
       .returning();
     await syncSubscriptionEntities(created.id, settings);
-    return await getSubscriptionSettings(userId) as SubscriptionSettings;
+    return (await getSubscriptionSettings(userId)) as SubscriptionSettings;
   }
 
   await db
@@ -126,14 +128,22 @@ export async function updateSubscriptionSettings(
       enabled: settings.enabled ?? existing.enabled,
       sendTime: settings.sendTime ?? existing.sendTime,
       frequency: settings.frequency ?? existing.frequency,
-      cronExpression: settings.cronExpression !== undefined ? settings.cronExpression : existing.cronExpression,
+      cronExpression:
+        settings.cronExpression !== undefined ? settings.cronExpression : existing.cronExpression,
       smtpHost: settings.smtpHost !== undefined ? settings.smtpHost : existing.smtpHost,
       smtpPort: settings.smtpPort !== undefined ? settings.smtpPort : existing.smtpPort,
       smtpUser: settings.smtpUser !== undefined ? settings.smtpUser : existing.smtpUser,
-      smtpPass: settings.smtpPass !== undefined ? encryptIfPresent(settings.smtpPass) ?? null : existing.smtpPass,
+      smtpPass:
+        settings.smtpPass !== undefined
+          ? (encryptIfPresent(settings.smtpPass) ?? null)
+          : existing.smtpPass,
       smtpFrom: settings.smtpFrom !== undefined ? settings.smtpFrom : existing.smtpFrom,
-      emailProvider: settings.emailProvider !== undefined ? settings.emailProvider : existing.emailProvider,
-      emailApiKey: settings.emailApiKey !== undefined ? encryptIfPresent(settings.emailApiKey) ?? null : existing.emailApiKey,
+      emailProvider:
+        settings.emailProvider !== undefined ? settings.emailProvider : existing.emailProvider,
+      emailApiKey:
+        settings.emailApiKey !== undefined
+          ? (encryptIfPresent(settings.emailApiKey) ?? null)
+          : existing.emailApiKey,
       autoSaveOnClick: settings.autoSaveOnClick ?? existing.autoSaveOnClick,
       markReadOnClick: settings.markReadOnClick ?? existing.markReadOnClick,
       updatedAt: new Date(),
@@ -141,7 +151,7 @@ export async function updateSubscriptionSettings(
     .where(eq(emailSubscriptions.id, existing.id));
 
   await syncSubscriptionEntities(existing.id, settings);
-  return await getSubscriptionSettings(userId) as SubscriptionSettings;
+  return (await getSubscriptionSettings(userId)) as SubscriptionSettings;
 }
 
 export async function updateNextScheduledAt(userId: string, nextAt: Date) {
@@ -151,35 +161,42 @@ export async function updateNextScheduledAt(userId: string, nextAt: Date) {
     .where(eq(emailSubscriptions.userId, userId));
 }
 
-async function syncSubscriptionEntities(subscriptionId: string, settings: Partial<SubscriptionSettings>) {
+async function syncSubscriptionEntities(
+  subscriptionId: string,
+  settings: Partial<SubscriptionSettings>,
+) {
   if (settings.selectedTags !== undefined) {
-    await db.delete(emailSubscriptionTags).where(eq(emailSubscriptionTags.subscriptionId, subscriptionId));
+    await db
+      .delete(emailSubscriptionTags)
+      .where(eq(emailSubscriptionTags.subscriptionId, subscriptionId));
     if (settings.selectedTags.length > 0) {
       await db.insert(emailSubscriptionTags).values(
         settings.selectedTags.map((tagId) => ({
           subscriptionId,
           tagId,
-        }))
+        })),
       );
     }
   }
 
   if (settings.selectedFeeds !== undefined) {
-    await db.delete(emailSubscriptionFeeds).where(eq(emailSubscriptionFeeds.subscriptionId, subscriptionId));
+    await db
+      .delete(emailSubscriptionFeeds)
+      .where(eq(emailSubscriptionFeeds.subscriptionId, subscriptionId));
     if (settings.selectedFeeds.length > 0) {
       const validFeeds = await db
         .select({ id: feeds.id })
         .from(feeds)
         .where(sql`${feeds.id} in ${settings.selectedFeeds}`);
-      const validFeedIds = new Set(validFeeds.map(f => f.id));
-      const filteredFeedIds = settings.selectedFeeds.filter(id => validFeedIds.has(id));
+      const validFeedIds = new Set(validFeeds.map((f) => f.id));
+      const filteredFeedIds = settings.selectedFeeds.filter((id) => validFeedIds.has(id));
 
       if (filteredFeedIds.length > 0) {
         await db.insert(emailSubscriptionFeeds).values(
           filteredFeedIds.map((feedId) => ({
             subscriptionId,
             feedId,
-          }))
+          })),
         );
       }
     }
@@ -189,7 +206,7 @@ async function syncSubscriptionEntities(subscriptionId: string, settings: Partia
 export async function getArticlesForEmail(
   userId: string,
   fromDate?: Date,
-  toDate?: Date
+  toDate?: Date,
 ): Promise<EmailArticle[]> {
   const settings = await getSubscriptionSettings(userId);
   if (!settings) return [];
@@ -218,22 +235,25 @@ export async function getArticlesForEmail(
     .innerJoin(feeds, eq(articles.feedId, feeds.id))
     .innerJoin(
       subscriptions,
-      and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, userId))
+      and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, userId)),
     )
     .where(
       and(
         dateCondition,
-        not(exists(
-          db.select({ one: sql`1` })
-            .from(emailSentArticles)
-            .where(
-              and(
-                eq(emailSentArticles.userId, userId),
-                eq(emailSentArticles.articleId, articles.id)
-              )
-            )
-        ))
-      )
+        not(
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(emailSentArticles)
+              .where(
+                and(
+                  eq(emailSentArticles.userId, userId),
+                  eq(emailSentArticles.articleId, articles.id),
+                ),
+              ),
+          ),
+        ),
+      ),
     );
 
   const rows = await query;
@@ -251,36 +271,34 @@ export async function getArticlesForEmail(
   const hasSelectedFeeds = settings.selectedFeeds.length > 0;
   const hasSelectedTags = settings.selectedTags.length > 0;
 
-  const matched = !hasSelectedFeeds && !hasSelectedTags
-    ? rows
-    : rows.filter((row) => {
-        const feedMatch = hasSelectedFeeds && settings.selectedFeeds.includes(row.feedId as string);
-        const tagMatch = hasSelectedTags && taggedArticleIds.has(row.id);
-        if (hasSelectedFeeds && hasSelectedTags) return feedMatch || tagMatch;
-        if (hasSelectedFeeds) return feedMatch;
-        if (hasSelectedTags) return tagMatch;
-        return false;
-      });
+  const matched =
+    !hasSelectedFeeds && !hasSelectedTags
+      ? rows
+      : rows.filter((row) => {
+          const feedMatch =
+            hasSelectedFeeds && settings.selectedFeeds.includes(row.feedId as string);
+          const tagMatch = hasSelectedTags && taggedArticleIds.has(row.id);
+          if (hasSelectedFeeds && hasSelectedTags) return feedMatch || tagMatch;
+          if (hasSelectedFeeds) return feedMatch;
+          if (hasSelectedTags) return tagMatch;
+          return false;
+        });
 
   // Batch-fetch tags for the in-window articles so the digest can group by tag
   // without an N+1 lookup downstream.
   const articleIds = matched.map((r) => r.id);
-  const tagRows = articleIds.length === 0
-    ? []
-    : await db
-        .select({
-          articleId: articleTags.articleId,
-          tagId: tags.id,
-          tagName: tags.name,
-        })
-        .from(articleTags)
-        .innerJoin(tags, eq(articleTags.tagId, tags.id))
-        .where(
-          and(
-            inArray(articleTags.articleId, articleIds),
-            eq(tags.userId, userId)
-          )
-        );
+  const tagRows =
+    articleIds.length === 0
+      ? []
+      : await db
+          .select({
+            articleId: articleTags.articleId,
+            tagId: tags.id,
+            tagName: tags.name,
+          })
+          .from(articleTags)
+          .innerJoin(tags, eq(articleTags.tagId, tags.id))
+          .where(and(inArray(articleTags.articleId, articleIds), eq(tags.userId, userId)));
 
   const tagsByArticle = new Map<string, Array<{ id: string; name: string }>>();
   for (const t of tagRows) {
@@ -304,20 +322,23 @@ export async function getArticlesForEmail(
 
 export async function markArticlesAsSent(userId: string, articleIds: string[]) {
   if (articleIds.length === 0) return;
-  await db.insert(emailSentArticles).values(
-    articleIds.map((articleId) => ({
-      userId,
-      articleId,
-      sentAt: new Date(),
-    }))
-  ).onConflictDoNothing();
+  await db
+    .insert(emailSentArticles)
+    .values(
+      articleIds.map((articleId) => ({
+        userId,
+        articleId,
+        sentAt: new Date(),
+      })),
+    )
+    .onConflictDoNothing();
 }
 
 export async function logDigestSend(
   userId: string,
   articleCount: number,
   status: "success" | "failed",
-  errorMessage?: string
+  errorMessage?: string,
 ): Promise<string> {
   return logDigestSendWithArticles(userId, [], articleCount, status, errorMessage);
 }
@@ -336,12 +357,7 @@ export async function getUsersWithAutoTagEnabled(): Promise<string[]> {
   const rows = await db
     .select({ userId: emailSubscriptions.userId })
     .from(emailSubscriptions)
-    .where(
-      and(
-        eq(emailSubscriptions.autoTag, true),
-        eq(emailSubscriptions.llmEnabled, true)
-      )
-    );
+    .where(and(eq(emailSubscriptions.autoTag, true), eq(emailSubscriptions.llmEnabled, true)));
   return rows.map((r) => r.userId);
 }
 
@@ -350,10 +366,7 @@ export async function getUsersWithAutoSummarizeEnabled(): Promise<string[]> {
     .select({ userId: emailSubscriptions.userId })
     .from(emailSubscriptions)
     .where(
-      and(
-        eq(emailSubscriptions.autoSummarize, true),
-        eq(emailSubscriptions.llmEnabled, true)
-      )
+      and(eq(emailSubscriptions.autoSummarize, true), eq(emailSubscriptions.llmEnabled, true)),
     );
   return rows.map((r) => r.userId);
 }
@@ -383,12 +396,7 @@ export async function getDigestLogById(logId: string, userId: string) {
       errorMessage: emailDigestLogs.errorMessage,
     })
     .from(emailDigestLogs)
-    .where(
-      and(
-        eq(emailDigestLogs.id, logId),
-        eq(emailDigestLogs.userId, userId)
-      )
-    )
+    .where(and(eq(emailDigestLogs.id, logId), eq(emailDigestLogs.userId, userId)))
     .limit(1);
   return row ?? null;
 }
@@ -398,7 +406,7 @@ export async function logDigestSendWithArticles(
   articleIds: string[],
   articleCount: number,
   status: "success" | "failed",
-  errorMessage?: string
+  errorMessage?: string,
 ): Promise<string> {
   return db.transaction(async (tx) => {
     const [log] = await tx
@@ -412,14 +420,14 @@ export async function logDigestSendWithArticles(
       })
       .returning({ id: emailDigestLogs.id });
 
-      if (articleIds.length > 0) {
+    if (articleIds.length > 0) {
       await tx
         .insert(emailDigestLogArticles)
         .values(
           articleIds.map((articleId) => ({
             logId: log.id,
             articleId,
-          }))
+          })),
         )
         .onConflictDoNothing();
     }
@@ -428,10 +436,7 @@ export async function logDigestSendWithArticles(
   });
 }
 
-export async function getArticlesForLog(
-  logId: string,
-  userId: string
-): Promise<EmailArticle[]> {
+export async function getArticlesForLog(logId: string, userId: string): Promise<EmailArticle[]> {
   // Defensive ownership check: the join returns no rows if the log is owned
   // by a different user, even if the caller passes a guessed logId.
   const rows = await db
@@ -451,10 +456,7 @@ export async function getArticlesForLog(
     .innerJoin(feeds, eq(articles.feedId, feeds.id))
     .innerJoin(
       emailDigestLogs,
-      and(
-        eq(emailDigestLogs.id, emailDigestLogArticles.logId),
-        eq(emailDigestLogs.userId, userId)
-      )
+      and(eq(emailDigestLogs.id, emailDigestLogArticles.logId), eq(emailDigestLogs.userId, userId)),
     )
     .where(eq(emailDigestLogArticles.logId, logId));
 
@@ -589,7 +591,7 @@ export async function updateUserLlmConfig(userId: string, input: LlmConfigInput)
   const existing = await getUserSubscription(userId);
   const apiKeyToStore =
     input.apiKey === undefined
-      ? existing?.llmApiKey ?? null
+      ? (existing?.llmApiKey ?? null)
       : input.apiKey === ""
         ? null
         : encryptSecret(input.apiKey);

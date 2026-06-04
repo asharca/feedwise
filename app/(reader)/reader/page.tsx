@@ -86,21 +86,24 @@ function ReaderContent() {
   const showDashboard = view === "all" && !feedId && !folderId && !tagId && !search;
   const inSearchMode = Boolean(search);
 
-  const fetchArticles = useCallback(async (pageOffset: number, signal?: AbortSignal) => {
-    const params = new URLSearchParams();
-    if (feedId) params.set("feedId", feedId);
-    if (folderId) params.set("folderId", folderId);
-    if (tagId) params.set("tag", tagId);
-    if (view === "unread") params.set("unread", "true");
-    if (view === "starred") params.set("starred", "true");
-    if (search) params.set("search", search);
-    params.set("limit", String(PAGE_SIZE));
-    params.set("offset", String(pageOffset));
-    const res = await fetch(`/api/articles?${params}`, { signal });
-    const data = await res.json();
-    if (data.success) return data.data as Article[];
-    return [];
-  }, [feedId, folderId, tagId, view, search, PAGE_SIZE]);
+  const fetchArticles = useCallback(
+    async (pageOffset: number, signal?: AbortSignal) => {
+      const params = new URLSearchParams();
+      if (feedId) params.set("feedId", feedId);
+      if (folderId) params.set("folderId", folderId);
+      if (tagId) params.set("tag", tagId);
+      if (view === "unread") params.set("unread", "true");
+      if (view === "starred") params.set("starred", "true");
+      if (search) params.set("search", search);
+      params.set("limit", String(PAGE_SIZE));
+      params.set("offset", String(pageOffset));
+      const res = await fetch(`/api/articles?${params}`, { signal });
+      const data = await res.json();
+      if (data.success) return data.data as Article[];
+      return [];
+    },
+    [feedId, folderId, tagId, view, search, PAGE_SIZE],
+  );
 
   // Reset and reload the LIST when filters change. The currently-open article
   // is driven separately by the articleId URL param, so we don't touch it here.
@@ -157,7 +160,7 @@ function ReaderContent() {
           }).catch(() => {});
           // Reflect read state in the list + sidebar counter
           setArticleList((prev) =>
-            prev.map((a) => (a.id === articleId ? { ...a, isRead: true } : a))
+            prev.map((a) => (a.id === articleId ? { ...a, isRead: true } : a)),
           );
           if (data.data.feedId) dispatchUnreadDelta(data.data.feedId, -1);
         }
@@ -214,7 +217,11 @@ function ReaderContent() {
   }
 
   function dispatchMarkAllRead(targetFeedId?: string, targetFolderId?: string) {
-    window.dispatchEvent(new CustomEvent("feedwise:mark-all-read", { detail: { feedId: targetFeedId, folderId: targetFolderId } }));
+    window.dispatchEvent(
+      new CustomEvent("feedwise:mark-all-read", {
+        detail: { feedId: targetFeedId, folderId: targetFolderId },
+      }),
+    );
   }
 
   function handleSelect(id: string) {
@@ -229,11 +236,9 @@ function ReaderContent() {
   }
 
   async function handleStar(id: string, starred: boolean) {
-    setArticleList((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, isStarred: starred } : a))
-    );
+    setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isStarred: starred } : a)));
     if (activeArticle?.id === id) {
-      setActiveArticle((prev) => prev ? { ...prev, isStarred: starred } : prev);
+      setActiveArticle((prev) => (prev ? { ...prev, isStarred: starred } : prev));
     }
     await fetch(`/api/articles/${id}`, {
       method: "PATCH",
@@ -245,11 +250,9 @@ function ReaderContent() {
   async function handleMarkRead(id: string, read: boolean) {
     const article = articleList.find((a) => a.id === id);
     const wasRead = article?.isRead ?? false;
-    setArticleList((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, isRead: read } : a))
-    );
+    setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: read } : a)));
     if (activeArticle?.id === id) {
-      setActiveArticle((prev) => prev ? { ...prev, isRead: read } : prev);
+      setActiveArticle((prev) => (prev ? { ...prev, isRead: read } : prev));
     }
     if (article && wasRead !== read) {
       dispatchUnreadDelta(article.feedId, read ? -1 : 1);
@@ -277,10 +280,7 @@ function ReaderContent() {
   if (inSearchMode) {
     return (
       <div className="flex h-full">
-        <div className={cn(
-          "shrink-0",
-          activeArticle ? "hidden md:block" : "w-full md:w-auto"
-        )}>
+        <div className={cn("shrink-0", activeArticle ? "hidden md:block" : "w-full md:w-auto")}>
           <SearchResultsPage
             search={search!}
             activeArticle={activeArticle}
@@ -292,10 +292,12 @@ function ReaderContent() {
             onLoadMore={handleLoadMore}
           />
         </div>
-        <div className={cn(
-          "flex-1 min-w-0 overflow-hidden border-l border-border",
-          !activeArticle && "hidden md:block"
-        )}>
+        <div
+          className={cn(
+            "flex-1 min-w-0 overflow-hidden border-l border-border",
+            !activeArticle && "hidden md:block",
+          )}
+        >
           {activeArticle ? (
             <ArticleReader
               article={{
@@ -381,10 +383,12 @@ function ReaderContent() {
       {/* Article list panel — left. Always visible on desktop so the feed
           catalogue is one click away while reading; collapses on mobile only
           when an article is open (screen room is tight). */}
-      <div className={cn(
-        "flex flex-col border-r border-border bg-background shrink-0 md:w-80",
-        activeArticle ? "hidden md:flex" : "w-full"
-      )}>
+      <div
+        className={cn(
+          "flex flex-col border-r border-border bg-background shrink-0 md:w-80",
+          activeArticle ? "hidden md:flex" : "w-full",
+        )}
+      >
         <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border">
           <SidebarTrigger className="md:hidden" />
           <h2 className="text-sm font-semibold tracking-tight truncate">{viewTitle}</h2>
@@ -420,10 +424,7 @@ function ReaderContent() {
       </div>
 
       {/* Reader panel — right */}
-      <div className={cn(
-        "flex-1 min-w-0 overflow-hidden",
-        !activeArticle && "hidden md:block"
-      )}>
+      <div className={cn("flex-1 min-w-0 overflow-hidden", !activeArticle && "hidden md:block")}>
         {activeArticle ? (
           <ArticleReader
             article={{

@@ -47,17 +47,17 @@ Open http://localhost:3000, create an account, and start adding feeds.
 
 ### Scripts
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start Next.js dev server |
-| `pnpm worker` | Start background feed workers |
-| `pnpm dev:all` | Run both dev server + workers |
-| `pnpm build` | Production build |
-| `pnpm start` | Start production server |
-| `pnpm mcp` | Start MCP server (stdio) |
-| `pnpm db:push` | Push schema to database |
-| `pnpm db:generate` | Generate migration files |
-| `pnpm db:migrate` | Run migrations |
+| Command                   | Description                                              |
+| ------------------------- | -------------------------------------------------------- |
+| `pnpm dev`                | Start Next.js dev server                                 |
+| `pnpm worker`             | Start background feed workers                            |
+| `pnpm dev:all`            | Run both dev server + workers                            |
+| `pnpm build`              | Production build                                         |
+| `pnpm start`              | Start production server                                  |
+| `pnpm mcp`                | Start MCP server (stdio)                                 |
+| `pnpm db:push`            | Push schema to database                                  |
+| `pnpm db:generate`        | Generate migration files                                 |
+| `pnpm db:migrate`         | Run migrations                                           |
 | `pnpm db:encrypt-secrets` | One-time encrypt existing plaintext secrets (idempotent) |
 
 ## Deployment (Docker)
@@ -82,14 +82,14 @@ pnpm worker &
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `j` | Next article |
-| `k` | Previous article |
-| `s` | Toggle star |
-| `m` | Toggle read |
-| `o` | Open original in new tab |
-| `Escape` | Close article |
+| Key      | Action                   |
+| -------- | ------------------------ |
+| `j`      | Next article             |
+| `k`      | Previous article         |
+| `s`      | Toggle star              |
+| `m`      | Toggle read              |
+| `o`      | Open original in new tab |
+| `Escape` | Close article            |
 
 ## License
 

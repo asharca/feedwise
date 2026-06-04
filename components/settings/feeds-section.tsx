@@ -1,7 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, Download, Upload, Clock, Trash2, Sparkles, FolderTree, Loader2 } from "lucide-react";
+import {
+  RefreshCw,
+  Download,
+  Upload,
+  Clock,
+  Trash2,
+  Sparkles,
+  FolderTree,
+  Loader2,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -94,7 +103,7 @@ export function FeedsSection({
         return;
       }
       toast.success(
-        `Moved ${data.data?.subscriptionsMoved ?? 0} feed${data.data?.subscriptionsMoved === 1 ? "" : "s"} into ${data.data?.foldersTouched ?? 0} folder${data.data?.foldersTouched === 1 ? "" : "s"}.`
+        `Moved ${data.data?.subscriptionsMoved ?? 0} feed${data.data?.subscriptionsMoved === 1 ? "" : "s"} into ${data.data?.foldersTouched ?? 0} folder${data.data?.foldersTouched === 1 ? "" : "s"}.`,
       );
       setGroupOpen(false);
     } catch (err) {
@@ -104,10 +113,8 @@ export function FeedsSection({
     }
   }
 
-  const totalFeedsInProposal =
-    proposal?.reduce((sum, f) => sum + f.feedIds.length, 0) ?? 0;
-  const uncoveredCount =
-    proposal !== null ? Math.max(0, subs.length - totalFeedsInProposal) : 0;
+  const totalFeedsInProposal = proposal?.reduce((sum, f) => sum + f.feedIds.length, 0) ?? 0;
+  const uncoveredCount = proposal !== null ? Math.max(0, subs.length - totalFeedsInProposal) : 0;
 
   return (
     <Card className="rounded-lg">
@@ -127,21 +134,11 @@ export function FeedsSection({
             <RefreshCw className={cn("size-4", syncing && "animate-spin")} />
             {syncing ? "Syncing..." : "Sync All"}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-md"
-            onClick={onImportOPML}
-          >
+          <Button variant="outline" size="sm" className="rounded-md" onClick={onImportOPML}>
             <Download className="size-4" />
             Import OPML
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-md"
-            onClick={onExportOPML}
-          >
+          <Button variant="outline" size="sm" className="rounded-md" onClick={onExportOPML}>
             <Upload className="size-4" />
             Export OPML
           </Button>
@@ -208,16 +205,15 @@ export function FeedsSection({
       </CardContent>
 
       <Dialog open={groupOpen} onOpenChange={setGroupOpen}>
-        <DialogContent
-          className="!max-w-none rounded-lg w-[min(95vw,860px)] h-[min(85vh,720px)] overflow-hidden flex flex-col"
-        >
+        <DialogContent className="!max-w-none rounded-lg w-[min(95vw,860px)] h-[min(85vh,720px)] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 pr-6">
               <FolderTree className="size-4" />
               <span>AI folder proposal</span>
               {proposal && (
                 <span className="text-xs font-normal text-muted-foreground tabular-nums">
-                  {proposal.length} folder{proposal.length === 1 ? "" : "s"} · {totalFeedsInProposal}/{subs.length} feeds
+                  {proposal.length} folder{proposal.length === 1 ? "" : "s"} ·{" "}
+                  {totalFeedsInProposal}/{subs.length} feeds
                 </span>
               )}
             </DialogTitle>
@@ -240,10 +236,7 @@ export function FeedsSection({
             ) : (
               <div className="p-2 space-y-3">
                 {proposal.map((folder) => (
-                  <div
-                    key={folder.name}
-                    className="rounded-md border border-border bg-card"
-                  >
+                  <div key={folder.name} className="rounded-md border border-border bg-card">
                     <div className="px-3 py-2 border-b border-border flex items-center justify-between">
                       <div className="text-sm font-semibold tracking-tight">{folder.name}</div>
                       <div className="text-[11px] tabular-nums text-muted-foreground">
@@ -254,10 +247,7 @@ export function FeedsSection({
                       {folder.feedIds.map((feedId) => {
                         const sub = subByFeedId.get(feedId);
                         return (
-                          <li
-                            key={feedId}
-                            className="flex items-center gap-2.5 px-3 py-2 text-sm"
-                          >
+                          <li key={feedId} className="flex items-center gap-2.5 px-3 py-2 text-sm">
                             {sub?.iconUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
@@ -286,7 +276,8 @@ export function FeedsSection({
                 ))}
                 {uncoveredCount > 0 && (
                   <p className="text-[11px] text-muted-foreground px-1">
-                    {uncoveredCount} feed{uncoveredCount === 1 ? "" : "s"} not in the proposal will keep their current folder.
+                    {uncoveredCount} feed{uncoveredCount === 1 ? "" : "s"} not in the proposal will
+                    keep their current folder.
                   </p>
                 )}
               </div>
@@ -296,7 +287,8 @@ export function FeedsSection({
           {proposal && proposal.length > 0 && (
             <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
               <p className="text-[11px] text-muted-foreground">
-                Existing folders with the same name are reused. Applying won&rsquo;t delete anything.
+                Existing folders with the same name are reused. Applying won&rsquo;t delete
+                anything.
               </p>
               <div className="flex gap-2">
                 <Button
@@ -308,12 +300,7 @@ export function FeedsSection({
                 >
                   Cancel
                 </Button>
-                <Button
-                  size="sm"
-                  className="rounded-md"
-                  onClick={handleApply}
-                  disabled={applying}
-                >
+                <Button size="sm" className="rounded-md" onClick={handleApply} disabled={applying}>
                   {applying ? "Applying…" : "Apply"}
                 </Button>
               </div>

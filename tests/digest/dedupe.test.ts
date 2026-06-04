@@ -8,15 +8,27 @@ function art(over: Partial<DigestArticle> = {}): DigestArticle {
     title: over.title ?? "default",
     url: over.url ?? "https://example.com/" + (over.id ?? "x"),
     summary: over.summary ?? null,
+    aiSummary: over.aiSummary ?? null,
+    importance: over.importance ?? null,
     feedTitle: over.feedTitle ?? "feed",
+    feedId: over.feedId ?? "00000000-0000-4000-a000-000000000001",
     publishedAt: over.publishedAt ?? new Date("2026-05-19T00:00:00Z"),
+    tags: over.tags ?? [],
   };
 }
 
 describe("dedupeByCanonicalUrl", () => {
   it("merges exact-URL duplicates, primary = earliest publishedAt", () => {
-    const a = art({ id: "a", url: "https://e.com/x?utm_source=hn", publishedAt: new Date("2026-05-19T05:00:00Z") });
-    const b = art({ id: "b", url: "https://e.com/x", publishedAt: new Date("2026-05-19T03:00:00Z") });
+    const a = art({
+      id: "a",
+      url: "https://e.com/x?utm_source=hn",
+      publishedAt: new Date("2026-05-19T05:00:00Z"),
+    });
+    const b = art({
+      id: "b",
+      url: "https://e.com/x",
+      publishedAt: new Date("2026-05-19T03:00:00Z"),
+    });
     const c = art({ id: "c", url: "https://e.com/y" });
     const out = dedupeByCanonicalUrl([a, b, c]);
     expect(out).toHaveLength(2);
@@ -45,8 +57,14 @@ describe("dedupeByCanonicalUrl", () => {
 
 describe("dedupeByTitleSimilarity", () => {
   it("merges high-similarity titles (Jaccard >= 0.85)", () => {
-    const a = { primary: art({ id: "a", title: "OpenAI launches GPT-5 with vision support" }), duplicates: [] };
-    const b = { primary: art({ id: "b", title: "OpenAI launches GPT-5 with vision support today" }), duplicates: [] };
+    const a = {
+      primary: art({ id: "a", title: "OpenAI launches GPT-5 with vision support" }),
+      duplicates: [],
+    };
+    const b = {
+      primary: art({ id: "b", title: "OpenAI launches GPT-5 with vision support today" }),
+      duplicates: [],
+    };
     const out = dedupeByTitleSimilarity([a, b], 0.85);
     expect(out).toHaveLength(1);
     expect(out[0].duplicates.map((d) => d.id)).toContain("b");
@@ -54,14 +72,31 @@ describe("dedupeByTitleSimilarity", () => {
 
   it("keeps distinct titles separate (Jaccard < 0.85)", () => {
     const a = { primary: art({ id: "a", title: "OpenAI launches GPT-5" }), duplicates: [] };
-    const b = { primary: art({ id: "b", title: "Anthropic releases new Claude model" }), duplicates: [] };
+    const b = {
+      primary: art({ id: "b", title: "Anthropic releases new Claude model" }),
+      duplicates: [],
+    };
     const out = dedupeByTitleSimilarity([a, b], 0.85);
     expect(out).toHaveLength(2);
   });
 
   it("primary keeps earlier publishedAt when merging", () => {
-    const a = { primary: art({ id: "a", title: "Bun 2.0 released today with new features", publishedAt: new Date("2026-05-19T10:00:00Z") }), duplicates: [] };
-    const b = { primary: art({ id: "b", title: "Bun 2.0 released today with new features now", publishedAt: new Date("2026-05-19T08:00:00Z") }), duplicates: [] };
+    const a = {
+      primary: art({
+        id: "a",
+        title: "Bun 2.0 released today with new features",
+        publishedAt: new Date("2026-05-19T10:00:00Z"),
+      }),
+      duplicates: [],
+    };
+    const b = {
+      primary: art({
+        id: "b",
+        title: "Bun 2.0 released today with new features now",
+        publishedAt: new Date("2026-05-19T08:00:00Z"),
+      }),
+      duplicates: [],
+    };
     const out = dedupeByTitleSimilarity([a, b], 0.85);
     expect(out).toHaveLength(1);
     expect(out[0].primary.id).toBe("b");

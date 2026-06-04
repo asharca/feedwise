@@ -1,6 +1,4 @@
-export type SnippetPart =
-  | { type: "text"; value: string }
-  | { type: "match"; value: string };
+export type SnippetPart = { type: "text"; value: string } | { type: "match"; value: string };
 
 const START = "⟦";
 const END = "⟧";
