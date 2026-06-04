@@ -55,9 +55,17 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
     modeRef.current = mode;
   }, [mode]);
 
+  // Track the cron string we last emitted, so the round-trip through the
+  // parent (onChange → value) doesn't re-trigger the parse effect and
+  // create a setState feedback loop.
+  const lastEmittedRef = useRef<string | null>(null);
+
   // Parse value on load / external change — but never override user's custom mode
   useEffect(() => {
     if (!value) return;
+
+    // Our own echo — parent re-emitted what we just sent. Skip to break the loop.
+    if (value === lastEmittedRef.current) return;
 
     // User is in custom mode: just keep the draft in sync, don't switch modes
     if (modeRef.current === "custom") {
@@ -119,6 +127,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
     }
 
     if (cron && cron !== value) {
+      lastEmittedRef.current = cron;
       onChangeRef.current(cron);
     }
   }, [mode, hour, minute, weekday, monthDay, value]);
