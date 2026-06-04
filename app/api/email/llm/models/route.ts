@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     const text = await res.text().catch(() => "");
     return NextResponse.json(
       { error: `HTTP ${res.status}: ${text.slice(0, 200)}` },
-      { status: 502 }
+      { status: 502 },
     );
   }
 

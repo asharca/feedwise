@@ -21,7 +21,10 @@ export async function POST(req: Request) {
 
     // Verify registration code
     if (parsed.code !== REGISTER_CODE) {
-      return NextResponse.json({ success: false, error: "Invalid registration code" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Invalid registration code" },
+        { status: 400 },
+      );
     }
 
     // Check if email already exists
@@ -31,7 +34,10 @@ export async function POST(req: Request) {
       .where(eq(users.email, parsed.email));
 
     if (existing.length > 0) {
-      return NextResponse.json({ success: false, error: "Email already registered" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Email already registered" },
+        { status: 400 },
+      );
     }
 
     // Use better-auth to create user

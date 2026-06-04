@@ -51,7 +51,10 @@ export async function PUT(req: Request) {
         .where(eq(users.email, parsed.email));
 
       if (existing.length > 0 && existing[0].id !== session.user.id) {
-        return NextResponse.json({ success: false, error: "Email already in use" }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: "Email already in use" },
+          { status: 400 },
+        );
       }
       updateData.email = parsed.email;
     }

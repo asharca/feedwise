@@ -102,10 +102,18 @@ export function SettingsContent({
     loadedOnceRef.current = true;
 
     Promise.all([
-      fetch("/api/feeds").then((r) => r.json()).catch(() => ({ success: false })),
-      fetch("/api/settings/email").then((r) => r.json()).catch(() => ({ success: false })),
-      fetch("/api/settings/account").then((r) => r.json()).catch(() => ({ success: false })),
-      fetch("/api/email/llm/config").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch("/api/feeds")
+        .then((r) => r.json())
+        .catch(() => ({ success: false })),
+      fetch("/api/settings/email")
+        .then((r) => r.json())
+        .catch(() => ({ success: false })),
+      fetch("/api/settings/account")
+        .then((r) => r.json())
+        .catch(() => ({ success: false })),
+      fetch("/api/email/llm/config")
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
     ])
       .then(([feedsData, emailData, accountData, llmData]) => {
         if (feedsData.success) setSubs(feedsData.data || []);
@@ -228,13 +236,13 @@ export function SettingsContent({
       body: JSON.stringify({ fetchIntervalMinutes: minutes }),
     });
     setSubs((prev) =>
-      prev.map((s) => (s.id === sub.id ? { ...s, fetchIntervalMinutes: minutes } : s))
+      prev.map((s) => (s.id === sub.id ? { ...s, fetchIntervalMinutes: minutes } : s)),
     );
   }
 
   async function handleDeleteFeed(sub: Sub) {
     const confirmed = window.confirm(
-      `Unsubscribe from "${sub.title ?? sub.feedTitle ?? sub.url}"?`
+      `Unsubscribe from "${sub.title ?? sub.feedTitle ?? sub.url}"?`,
     );
     if (!confirmed) return;
     await fetch(`/api/feeds/${sub.id}`, { method: "DELETE" });
@@ -576,7 +584,7 @@ export function SettingsContent({
                 "text-left px-3 py-2 rounded-md text-sm font-medium transition-colors",
                 active === s.key
                   ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
               )}
             >
               {s.label}

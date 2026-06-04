@@ -1,13 +1,6 @@
 import { and, eq, gte, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import {
-  articleTags,
-  articles,
-  feeds,
-  subscriptions,
-  tags,
-  userArticles,
-} from "@/lib/db/schema";
+import { articleTags, articles, feeds, subscriptions, tags, userArticles } from "@/lib/db/schema";
 
 export interface DashboardStats {
   subscriptions: number;
@@ -27,14 +20,7 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [
-    subsRow,
-    failingRow,
-    unreadRow,
-    newRow,
-    readRow,
-    tagsRow,
-  ] = await Promise.all([
+  const [subsRow, failingRow, unreadRow, newRow, readRow, tagsRow] = await Promise.all([
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(subscriptions)
@@ -47,8 +33,8 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
       .where(
         and(
           eq(subscriptions.userId, userId),
-          or(isNotNull(feeds.lastFetchError), sql`${feeds.consecutiveFailures} > 0`)
-        )
+          or(isNotNull(feeds.lastFetchError), sql`${feeds.consecutiveFailures} > 0`),
+        ),
       ),
 
     db
@@ -56,17 +42,11 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
       .from(articles)
       .innerJoin(
         subscriptions,
-        and(
-          eq(subscriptions.feedId, articles.feedId),
-          eq(subscriptions.userId, userId)
-        )
+        and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
       )
       .leftJoin(
         userArticles,
-        and(
-          eq(userArticles.articleId, articles.id),
-          eq(userArticles.userId, userId)
-        )
+        and(eq(userArticles.articleId, articles.id), eq(userArticles.userId, userId)),
       )
       .where(or(isNull(userArticles.isRead), eq(userArticles.isRead, false))),
 
@@ -75,10 +55,7 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
       .from(articles)
       .innerJoin(
         subscriptions,
-        and(
-          eq(subscriptions.feedId, articles.feedId),
-          eq(subscriptions.userId, userId)
-        )
+        and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
       )
       .where(gte(articles.createdAt, since24h)),
 
@@ -89,14 +66,11 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
         and(
           eq(userArticles.userId, userId),
           eq(userArticles.isRead, true),
-          gte(userArticles.readAt, since7d)
-        )
+          gte(userArticles.readAt, since7d),
+        ),
       ),
 
-    db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(tags)
-      .where(eq(tags.userId, userId)),
+    db.select({ n: sql<number>`count(*)::int` }).from(tags).where(eq(tags.userId, userId)),
   ]);
 
   return {
@@ -134,7 +108,7 @@ const MAX_DAYS = 365;
 export async function getDashboardTimeline(
   userId: string,
   from: Date,
-  to: Date
+  to: Date,
 ): Promise<DashboardTimeline> {
   // Normalise to UTC midnight, clamp ordering, cap window length
   const startDate = new Date(from);
@@ -175,17 +149,9 @@ export async function getDashboardTimeline(
     .from(articles)
     .innerJoin(
       subscriptions,
-      and(
-        eq(subscriptions.feedId, articles.feedId),
-        eq(subscriptions.userId, userId)
-      )
+      and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
     )
-    .where(
-      and(
-        gte(articles.createdAt, startDate),
-        sql`${articles.createdAt} < ${endExclusive}`
-      )
-    )
+    .where(and(gte(articles.createdAt, startDate), sql`${articles.createdAt} < ${endExclusive}`))
     .groupBy(sql`date_trunc('day', ${articles.createdAt})`);
 
   // Reads per day
@@ -200,8 +166,8 @@ export async function getDashboardTimeline(
         eq(userArticles.userId, userId),
         eq(userArticles.isRead, true),
         gte(userArticles.readAt, startDate),
-        sql`${userArticles.readAt} < ${endExclusive}`
-      )
+        sql`${userArticles.readAt} < ${endExclusive}`,
+      ),
     )
     .groupBy(sql`date_trunc('day', ${userArticles.readAt})`);
 
@@ -218,10 +184,7 @@ export async function getDashboardTimeline(
     .innerJoin(articles, eq(articles.id, articleTags.articleId))
     .innerJoin(
       subscriptions,
-      and(
-        eq(subscriptions.feedId, articles.feedId),
-        eq(subscriptions.userId, userId)
-      )
+      and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
     )
     .where(and(eq(tags.userId, userId), gte(articles.createdAt, startDate)))
     .groupBy(tags.id, tags.name, sql`date_trunc('day', ${articles.createdAt})`);
@@ -241,10 +204,7 @@ export async function getDashboardTimeline(
   }
 
   // Aggregate per-tag totals + per-day series, then keep the top-N tags.
-  const byTag = new Map<
-    string,
-    { id: string; name: string; total: number; counts: number[] }
-  >();
+  const byTag = new Map<string, { id: string; name: string; total: number; counts: number[] }>();
   for (const r of tagRows) {
     let agg = byTag.get(r.tagId);
     if (!agg) {

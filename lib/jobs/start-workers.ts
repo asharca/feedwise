@@ -64,7 +64,7 @@ const autoTagTimer = setInterval(runAutoTagWorker, AUTO_TAG_INTERVAL_MS);
 const autoSummaryTimer = setInterval(runAutoSummaryWorker, AUTO_SUMMARY_INTERVAL_MS);
 
 console.log(
-  "[workers] Feed worker + scheduler (15m), digest worker (1m), auto-tag worker (5m), auto-summary worker (5m) started"
+  "[workers] Feed worker + scheduler (15m), digest worker (1m), auto-tag worker (5m), auto-summary worker (5m) started",
 );
 
 // Graceful shutdown

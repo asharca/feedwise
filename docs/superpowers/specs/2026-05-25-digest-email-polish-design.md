@@ -25,11 +25,13 @@ Make the daily digest email more refined and make its smart clustering accurate.
 ## 1. Clustering Accuracy (`lib/digest/`)
 
 ### Root cause
+
 `mergeByTopic` (`cluster.ts:48`) groups clusters by topic string and flattens each topic into a **single** cluster with all `articleIds` combined. Downstream, `organize.ts` then has one cluster per topic, so every event after the first becomes a "duplicate source" of the primary and is hidden behind the `+N other sources` expander. This is both inaccurate (distinct events mislabeled as duplicates) and incompatible with layout A (which needs multiple title+brief items per topic).
 
 `organize.ts` already supports many clusters per topic (`TopicGroup.clusters` is an array). The fix is in `cluster.ts`.
 
 ### Changes (all pure functions, unit-testable)
+
 1. **Remove the topic-flattening `mergeByTopic`.** Replace cross-batch consolidation with **same-event merging only**: merge two clusters when their headline token-set Jaccard ≥ `EVENT_MERGE_THRESHOLD` (reuse the `jaccard`/`tokenize` approach from `dedupe.ts`). Distinct events stay as distinct clusters even under the same topic.
 2. **Normalize topic labels** so `organize.ts` grouping is robust: canonicalize by trimmed, case-insensitive key; display label = first-seen casing. Events are never merged by this step — only their topic label is unified.
 3. **Deduplicate article assignment**: each `articleId` belongs to exactly one cluster (the highest-`importance` cluster that claims it); strip it from others. Drop clusters left empty.
@@ -38,6 +40,7 @@ Make the daily digest email more refined and make its smart clustering accurate.
 6. **Transient-failure retry**: wrap the per-batch LLM call (`clusterBatch` / `callChatCompletion`) with limited retries + exponential backoff on `LlmRateLimitError` and `LlmTimeoutError`, so a single hiccup doesn't degrade the whole digest to fallback.
 
 ### Pipeline order after change
+
 `clusterBatch` per batch → concat → dedupe article assignment → merge same-event clusters (cross-batch) → normalize topics → fold extra topics (relabel) → `organize`.
 
 ## 2. Email Layout A (`lib/email/templates/digest-html.ts`)
@@ -52,6 +55,7 @@ Rebuild the HTML (table-based, inline styles, email-safe) as:
 - **No images anywhere.**
 
 ### Link construction
+
 `renderDigestHtml` accepts an injected `buildLink(article: DigestArticle) => string`. The worker chooses the implementation based on the user's `autoSaveOnClick` setting (see §3). Default builder returns `article.url`.
 
 ## 3. Click-to-Auto-Save

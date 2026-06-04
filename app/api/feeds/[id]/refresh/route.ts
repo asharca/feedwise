@@ -3,10 +3,7 @@ import { requireSession } from "@/lib/auth/session";
 import { getFeedFromSubscription } from "@/lib/db/queries/feeds";
 import { getFeedFetchQueue } from "@/lib/jobs/queue";
 
-export async function POST(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
     session = await requireSession();
@@ -30,13 +27,13 @@ export async function POST(
         attempts: 1,
         removeOnComplete: 100,
         removeOnFail: 200,
-      }
+      },
     );
   } catch (queueErr) {
     console.error("[feeds/refresh] Failed to enqueue manual fetch:", queueErr);
     return NextResponse.json(
       { success: false, error: "Queue unavailable, please try again" },
-      { status: 503 }
+      { status: 503 },
     );
   }
 

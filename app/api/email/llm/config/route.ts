@@ -59,7 +59,7 @@ export async function PUT(req: Request) {
   if (!parsed.success) {
     return NextResponse.json(
       { error: "invalid input", details: parsed.error.format() },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

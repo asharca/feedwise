@@ -15,11 +15,7 @@ vi.mock("@/lib/email/templates/digest-fallback-html", () => ({ renderFallbackHtm
 vi.mock("@/lib/email/click-link", () => ({ buildEmailLinkFn: vi.fn() }));
 
 import { requireSession } from "@/lib/auth/session";
-import {
-  getArticlesForLog,
-  getDigestLogById,
-  getSubscriptionSettings,
-} from "@/lib/email/queries";
+import { getArticlesForLog, getDigestLogById, getSubscriptionSettings } from "@/lib/email/queries";
 import { assembleDigestForSubscription } from "@/lib/jobs/workers/digest-worker";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
@@ -30,17 +26,18 @@ const LOG_ID = "11111111-1111-4111-a111-000000000001";
 const USER_ID = "user-1";
 
 function call() {
-  return GET(
-    new Request(`http://localhost/api/settings/email/history/${LOG_ID}/preview`),
-    { params: Promise.resolve({ logId: LOG_ID }) }
-  );
+  return GET(new Request(`http://localhost/api/settings/email/history/${LOG_ID}/preview`), {
+    params: Promise.resolve({ logId: LOG_ID }),
+  });
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requireSession).mockResolvedValue({ user: { id: USER_ID } });
   vi.mocked(getSubscriptionSettings).mockResolvedValue(null);
-  vi.mocked(buildEmailLinkFn).mockReturnValue(((a: { url: string | null }) => a.url ?? "") as never);
+  vi.mocked(buildEmailLinkFn).mockReturnValue(
+    ((a: { url: string | null }) => a.url ?? "") as never,
+  );
 });
 
 describe("GET /api/settings/email/history/[logId]/preview", () => {
@@ -51,10 +48,9 @@ describe("GET /api/settings/email/history/[logId]/preview", () => {
   });
 
   it("400 for an invalid logId", async () => {
-    const res = await GET(
-      new Request("http://localhost/api/.../preview"),
-      { params: Promise.resolve({ logId: "not-a-uuid" }) }
-    );
+    const res = await GET(new Request("http://localhost/api/.../preview"), {
+      params: Promise.resolve({ logId: "not-a-uuid" }),
+    });
     expect(res.status).toBe(400);
   });
 
@@ -66,8 +62,11 @@ describe("GET /api/settings/email/history/[logId]/preview", () => {
 
   it("200 with empty-state HTML for a log with no articles", async () => {
     vi.mocked(getDigestLogById).mockResolvedValue({
-      id: LOG_ID, sentAt: new Date("2026-06-03"), articleCount: 0,
-      status: "success", errorMessage: null,
+      id: LOG_ID,
+      sentAt: new Date("2026-06-03"),
+      articleCount: 0,
+      status: "success",
+      errorMessage: null,
     });
     vi.mocked(getArticlesForLog).mockResolvedValue([]);
     const res = await call();
@@ -79,12 +78,25 @@ describe("GET /api/settings/email/history/[logId]/preview", () => {
 
   it("200 with clustered render when mode is clustered", async () => {
     vi.mocked(getDigestLogById).mockResolvedValue({
-      id: LOG_ID, sentAt: new Date("2026-06-03"), articleCount: 2,
-      status: "success", errorMessage: null,
+      id: LOG_ID,
+      sentAt: new Date("2026-06-03"),
+      articleCount: 2,
+      status: "success",
+      errorMessage: null,
     });
     vi.mocked(getArticlesForLog).mockResolvedValue([
-      { id: "a1", title: "T", url: "u", summary: null, aiSummary: null,
-        importance: null, feedTitle: "F", feedId: "f", publishedAt: null, tags: [] },
+      {
+        id: "a1",
+        title: "T",
+        url: "u",
+        summary: null,
+        aiSummary: null,
+        importance: null,
+        feedTitle: "F",
+        feedId: "f",
+        publishedAt: null,
+        tags: [],
+      },
     ]);
     vi.mocked(assembleDigestForSubscription).mockResolvedValue({
       digest: { mode: "clustered" } as never,
@@ -100,12 +112,25 @@ describe("GET /api/settings/email/history/[logId]/preview", () => {
 
   it("200 with fallback render when mode is fallback", async () => {
     vi.mocked(getDigestLogById).mockResolvedValue({
-      id: LOG_ID, sentAt: new Date("2026-06-03"), articleCount: 1,
-      status: "failed", errorMessage: "boom",
+      id: LOG_ID,
+      sentAt: new Date("2026-06-03"),
+      articleCount: 1,
+      status: "failed",
+      errorMessage: "boom",
     });
     vi.mocked(getArticlesForLog).mockResolvedValue([
-      { id: "a1", title: "T", url: "u", summary: null, aiSummary: null,
-        importance: null, feedTitle: "F", feedId: "f", publishedAt: null, tags: [] },
+      {
+        id: "a1",
+        title: "T",
+        url: "u",
+        summary: null,
+        aiSummary: null,
+        importance: null,
+        feedTitle: "F",
+        feedId: "f",
+        publishedAt: null,
+        tags: [],
+      },
     ]);
     vi.mocked(assembleDigestForSubscription).mockResolvedValue({
       digest: { mode: "fallback" } as never,

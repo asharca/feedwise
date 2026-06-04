@@ -45,7 +45,7 @@ export function startFeedWorker() {
               summary: a.summary ?? undefined,
               imageUrl: a.imageUrl ?? undefined,
               publishedAt: a.publishedAt ?? undefined,
-            }))
+            })),
           )
           .onConflictDoNothing();
       } catch (rawError) {
@@ -66,7 +66,7 @@ export function startFeedWorker() {
         throw feedError;
       }
     },
-    { connection: getConnection(), concurrency: 5 }
+    { connection: getConnection(), concurrency: 5 },
   );
 
   worker.on("completed", (job) => {

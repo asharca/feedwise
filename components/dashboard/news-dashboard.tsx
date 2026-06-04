@@ -23,7 +23,10 @@ interface Article {
   folderName: string | null;
 }
 
-function displayedAt(article: { publishedAt: string | null; createdAt: string | null }): string | null {
+function displayedAt(article: {
+  publishedAt: string | null;
+  createdAt: string | null;
+}): string | null {
   return article.publishedAt ?? article.createdAt;
 }
 
@@ -56,11 +59,13 @@ function ArticleCard({
         role="button"
         tabIndex={0}
         onClick={() => onSelect(article.id)}
-        onKeyDown={(e) => { if (e.key === "Enter") onSelect(article.id); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onSelect(article.id);
+        }}
         className={cn(
           "group relative rounded-lg overflow-hidden cursor-pointer transition-colors duration-150 hover:border-foreground/20",
           "bg-card border border-border",
-          article.isRead && "opacity-70"
+          article.isRead && "opacity-70",
         )}
       >
         {article.imageUrl && (
@@ -77,7 +82,13 @@ function ArticleCard({
           <div className="flex items-center gap-1.5 mb-2">
             {article.feedIconUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={proxyImg(article.feedIconUrl)} alt="" loading="lazy" decoding="async" className="size-3.5 rounded-sm" />
+              <img
+                src={proxyImg(article.feedIconUrl)}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="size-3.5 rounded-sm"
+              />
             )}
             <span className="text-[11px] text-muted-foreground font-medium">
               {article.feedTitle}
@@ -91,16 +102,16 @@ function ArticleCard({
               </>
             )}
           </div>
-          <h3 className={cn(
-            "text-lg font-semibold leading-snug mb-2 line-clamp-2 group-hover:text-primary transition-colors",
-            !article.isRead && "text-foreground"
-          )}>
+          <h3
+            className={cn(
+              "text-lg font-semibold leading-snug mb-2 line-clamp-2 group-hover:text-primary transition-colors",
+              !article.isRead && "text-foreground",
+            )}
+          >
             {article.title ?? "(No title)"}
           </h3>
           {excerpt && (
-            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
-              {excerpt}
-            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">{excerpt}</p>
           )}
         </div>
         {article.isStarred && (
@@ -116,10 +127,12 @@ function ArticleCard({
         role="button"
         tabIndex={0}
         onClick={() => onSelect(article.id)}
-        onKeyDown={(e) => { if (e.key === "Enter") onSelect(article.id); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onSelect(article.id);
+        }}
         className={cn(
           "group flex gap-3 p-3 rounded-md cursor-pointer transition-colors duration-150 hover:bg-accent/50",
-          article.isRead && "opacity-60"
+          article.isRead && "opacity-60",
         )}
       >
         <div className="flex-1 min-w-0">
@@ -134,10 +147,12 @@ function ArticleCard({
               </>
             )}
           </div>
-          <p className={cn(
-            "text-[13px] leading-snug line-clamp-2 group-hover:text-primary transition-colors",
-            !article.isRead ? "font-semibold" : "font-normal"
-          )}>
+          <p
+            className={cn(
+              "text-[13px] leading-snug line-clamp-2 group-hover:text-primary transition-colors",
+              !article.isRead ? "font-semibold" : "font-normal",
+            )}
+          >
             {article.title ?? "(No title)"}
           </p>
         </div>
@@ -161,11 +176,13 @@ function ArticleCard({
       role="button"
       tabIndex={0}
       onClick={() => onSelect(article.id)}
-      onKeyDown={(e) => { if (e.key === "Enter") onSelect(article.id); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onSelect(article.id);
+      }}
       className={cn(
         "group rounded-md overflow-hidden cursor-pointer transition-colors duration-150 hover:border-foreground/20",
         "bg-card border border-border",
-        article.isRead && "opacity-65"
+        article.isRead && "opacity-65",
       )}
     >
       {article.imageUrl && (
@@ -192,10 +209,12 @@ function ArticleCard({
             </>
           )}
         </div>
-        <h3 className={cn(
-          "text-sm leading-snug line-clamp-2 group-hover:text-primary transition-colors",
-          !article.isRead ? "font-semibold" : "font-normal"
-        )}>
+        <h3
+          className={cn(
+            "text-sm leading-snug line-clamp-2 group-hover:text-primary transition-colors",
+            !article.isRead ? "font-semibold" : "font-normal",
+          )}
+        >
           {article.title ?? "(No title)"}
         </h3>
         {excerpt && (
@@ -207,7 +226,6 @@ function ArticleCard({
     </div>
   );
 }
-
 
 interface Stats {
   subscriptions: number;
@@ -248,21 +266,19 @@ function StatCard({
       {...wrapperProps}
       className={cn(
         "rounded-lg border border-border bg-card px-3.5 py-3 text-left transition-colors",
-        clickable && "hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
+        clickable && "hover:border-primary/40 hover:bg-primary/5 cursor-pointer",
       )}
     >
       <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
         {icon}
         {label}
       </div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums leading-none">
-        {value}
-      </div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums leading-none">{value}</div>
       {sublabel && (
         <div
           className={cn(
             "mt-1 text-[11px]",
-            sublabelTone === "warn" ? "text-destructive" : "text-muted-foreground/70"
+            sublabelTone === "warn" ? "text-destructive" : "text-muted-foreground/70",
           )}
         >
           {sublabelTone === "warn" && (
@@ -288,10 +304,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
           fetch("/api/articles/grouped"),
           fetch("/api/dashboard/stats"),
         ]);
-        const [groupedData, statsData] = await Promise.all([
-          groupedRes.json(),
-          statsRes.json(),
-        ]);
+        const [groupedData, statsData] = await Promise.all([groupedRes.json(), statsRes.json()]);
         if (groupedData.success) setGroups(groupedData.data);
         if (statsData.success) setStats(statsData.data);
       } finally {
@@ -317,9 +330,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
         </div>
         <div className="text-center space-y-1">
           <p className="text-sm font-medium">No articles yet</p>
-          <p className="text-xs text-muted-foreground/70">
-            Add your first RSS feed to get started
-          </p>
+          <p className="text-xs text-muted-foreground/70">Add your first RSS feed to get started</p>
         </div>
       </div>
     );
@@ -346,9 +357,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
         {/* Header */}
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Today&apos;s News</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Your personalized news feed
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">Your personalized news feed</p>
         </div>
 
         {/* Charts (own date range) */}
@@ -382,9 +391,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
                 label="Feeds"
                 value={stats.subscriptions}
                 sublabel={
-                  stats.failingFeeds > 0
-                    ? `${stats.failingFeeds} need attention`
-                    : "all healthy"
+                  stats.failingFeeds > 0 ? `${stats.failingFeeds} need attention` : "all healthy"
                 }
                 sublabelTone={stats.failingFeeds > 0 ? "warn" : undefined}
               />

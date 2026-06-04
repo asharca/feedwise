@@ -36,15 +36,15 @@ pnpm dev:all      # dev + worker concurrently
 
 ## Key Directories
 
-| Directory | Purpose |
-|-----------|---------|
-| `app/` | Next.js App Router pages + API routes |
-| `lib/db/` | Drizzle schema + queries |
+| Directory     | Purpose                                                |
+| ------------- | ------------------------------------------------------ |
+| `app/`        | Next.js App Router pages + API routes                  |
+| `lib/db/`     | Drizzle schema + queries                               |
 | `lib/digest/` | Digest pipeline (normalize, dedupe, cluster, organize) |
-| `lib/email/` | Email templates + sender |
-| `lib/jobs/` | BullMQ workers + job definitions |
-| `lib/feeds/` | RSS feed parsing + fetching |
-| `lib/auth/` | better-auth configuration |
-| `components/` | Shared React components |
-| `drizzle/` | Migration files |
-| `docs/` | Design specs and decisions |
+| `lib/email/`  | Email templates + sender                               |
+| `lib/jobs/`   | BullMQ workers + job definitions                       |
+| `lib/feeds/`  | RSS feed parsing + fetching                            |
+| `lib/auth/`   | better-auth configuration                              |
+| `components/` | Shared React components                                |
+| `drizzle/`    | Migration files                                        |
+| `docs/`       | Design specs and decisions                             |

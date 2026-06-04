@@ -58,7 +58,7 @@ function sinceToIso(s: SearchFilters["since"]): string | undefined {
 export function useSearch(
   query: string,
   filters: SearchFilters,
-  enabled: boolean
+  enabled: boolean,
 ): { data: SearchData | null; loading: boolean } {
   const [data, setData] = useState<SearchData | null>(null);
   const [loading, setLoading] = useState(false);

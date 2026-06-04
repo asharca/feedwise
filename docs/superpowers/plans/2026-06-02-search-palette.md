@@ -58,6 +58,7 @@ Independent PR. After this slice, `/api/search` works end-to-end but no UI calls
 ### Task 1: Pure snippet parser
 
 **Files:**
+
 - Create: `lib/search/parse-snippet.ts`
 - Test: `tests/search/parse-snippet.test.ts`
 
@@ -176,6 +177,7 @@ git commit -m "feat(search): pure snippet parser for ts_headline output"
 ### Task 2: `searchArticles` query
 
 **Files:**
+
 - Create: `lib/db/queries/search.ts`
 
 - [ ] **Step 1: Scaffold the file and the article query**
@@ -322,6 +324,7 @@ git commit -m "feat(search): searchArticles query with snippet + rank ordering"
 ### Task 3: `searchFeedsByName` query
 
 **Files:**
+
 - Modify: `lib/db/queries/search.ts` (append)
 
 - [ ] **Step 1: Append the feed search to `lib/db/queries/search.ts`**
@@ -391,6 +394,7 @@ git commit -m "feat(search): searchFeedsByName over user subscriptions"
 ### Task 4: `searchTagsByName` query
 
 **Files:**
+
 - Modify: `lib/db/queries/search.ts` (append)
 
 - [ ] **Step 1: Append the tag search**
@@ -444,6 +448,7 @@ git commit -m "feat(search): searchTagsByName over user tags"
 ### Task 5: `/api/search` route
 
 **Files:**
+
 - Create: `app/api/search/route.ts`
 - Create: `tests/api/search.test.ts`
 
@@ -660,11 +665,13 @@ Expected: build succeeds, all tests pass.
 - [ ] **Step 6: Manual smoke test**
 
 Start dev server:
+
 ```bash
 pnpm dev
 ```
 
 In another terminal (with a logged-in session cookie copied from the browser, or via `curl` against the dev server while logged in via browser session):
+
 ```bash
 curl -i 'http://localhost:3000/api/search?q=test' -b "<your-session-cookie>"
 ```
@@ -691,6 +698,7 @@ Independent PR. After this slice, users see sectioned results with snippet highl
 ### Task 6: `useSearch` hook
 
 **Files:**
+
 - Create: `lib/hooks/use-search.ts`
 
 - [ ] **Step 1: Create the hook**
@@ -839,6 +847,7 @@ git commit -m "feat(search): useSearch hook with debounce and abort"
 ### Task 7: `SearchSnippet` component
 
 **Files:**
+
 - Create: `components/search/search-snippet.tsx`
 
 - [ ] **Step 1: Create the component**
@@ -897,6 +906,7 @@ git commit -m "feat(search): SearchSnippet renderer with mark highlighting"
 ### Task 8: `SearchInput` and `SearchResults`
 
 **Files:**
+
 - Create: `components/search/search-input.tsx`
 - Create: `components/search/search-results.tsx`
 
@@ -1234,6 +1244,7 @@ git commit -m "feat(search): SearchInput and sectioned SearchResults"
 ### Task 9: `SearchPalette` container
 
 **Files:**
+
 - Create: `components/search/search-palette.tsx`
 
 - [ ] **Step 1: Create the palette**
@@ -1442,6 +1453,7 @@ git commit -m "feat(search): SearchPalette container with reducer-driven nav"
 ### Task 10: Refactor `SidebarSearch` to shell
 
 **Files:**
+
 - Modify: `components/layout/sidebar-search.tsx` (full rewrite to ~50 LOC)
 
 - [ ] **Step 1: Rewrite the sidebar trigger as a thin shell**
@@ -1522,13 +1534,14 @@ pnpm dev
 ```
 
 In browser:
+
 1. Open the app, log in.
 2. Press `⌘K` (or `Ctrl+K`). Palette opens.
 3. Type "the" (or any common term). Expect ~5 articles with snippet text, plus matching feeds and tags if any.
 4. `↑` / `↓` moves selection across sections.
 5. Enter on a feed result → URL becomes `/reader?feedId=…`, palette closes.
 6. Re-open with `⌘K`, Esc closes.
-7. Confirm `<mark>` highlights are visible in light *and* dark mode.
+7. Confirm `<mark>` highlights are visible in light _and_ dark mode.
 
 - [ ] **Step 4: Commit**
 
@@ -1550,6 +1563,7 @@ Independent PR. Adds chip-bar above the input with Feed / Folder / Tag / Date dr
 ### Task 11: Reducer extensions for filter actions
 
 **Files:**
+
 - Modify: `components/search/search-palette.tsx`
 
 - [ ] **Step 1: Extend the reducer and add commit-with-filters**
@@ -1650,6 +1664,7 @@ git commit -m "feat(search): palette reducer filter actions + URL folding"
 ### Task 12: `FilterDropdown` reusable component
 
 **Files:**
+
 - Create: `components/search/filter-dropdown.tsx`
 
 - [ ] **Step 1: Create the dropdown component**
@@ -1785,6 +1800,7 @@ git commit -m "feat(search): reusable FilterDropdown with lazy options"
 ### Task 13: `SearchFilterBar` composition
 
 **Files:**
+
 - Create: `components/search/search-filter-bar.tsx`
 
 - [ ] **Step 1: Build the filter bar**
@@ -1945,6 +1961,7 @@ git commit -m "feat(search): SearchFilterBar with lazy dropdowns and toggle chip
 ### Task 14: Wire the filter bar into the palette
 
 **Files:**
+
 - Modify: `components/search/search-palette.tsx`
 
 - [ ] **Step 1: Import and render `SearchFilterBar` between input and results**
@@ -1991,6 +2008,7 @@ pnpm dev
 ```
 
 In browser:
+
 1. `⌘K` opens palette. Chip bar visible above input.
 2. Click `Feed` → dropdown lists your feeds → pick one → chip turns active. Articles section narrows to that feed only.
 3. Click `×` on the chip → filter clears, results widen.
@@ -2017,9 +2035,11 @@ git commit -m "feat(search): wire filter bar into palette"
 - [ ] **Step 1: Full type-check + tests + build**
 
 Run:
+
 ```bash
 pnpm build && pnpm test
 ```
+
 Expected: everything green.
 
 - [ ] **Step 2: Full acceptance checklist (from spec §10)**
@@ -2034,11 +2054,12 @@ Run `pnpm dev` and walk through:
 - [ ] Add `[Feed: …]` chip → Articles section narrows to that feed
 - [ ] "See all results" → URL has `search`, `feedId`, `tag`, `view=unread/starred` as appropriate
 - [ ] Esc closes; reopening starts fresh (chips discarded)
-- [ ] Highlight visible in light *and* dark mode
+- [ ] Highlight visible in light _and_ dark mode
 
 - [ ] **Step 3: Final commit if any cleanup was needed**
 
 If the manual run surfaced typos or small bugs not caught by the type checker, fix them and commit:
+
 ```bash
 git add -p
 git commit -m "fix(search): <specific issue>"
@@ -2048,21 +2069,21 @@ git commit -m "fix(search): <specific issue>"
 
 ## Spec Coverage Check
 
-| Spec section | Covered by |
-|---|---|
-| §1 Goal & Boundaries | Whole plan (in/out of scope honored) |
-| §2 File Layout | "File Map" + tasks 1, 2, 5, 6, 7, 8, 9, 10, 12, 13 |
-| §3 API Contract | Tasks 5 (route + zod), 6 (DTOs match) |
-| §4 Query Layer | Tasks 2, 3, 4 |
-| §5 Snippet Parser | Task 1 |
-| §6 Frontend Composition | Tasks 6, 7, 8, 9, 10, 12, 13, 14 |
-| §6 State machine (reducer) | Tasks 9, 11 |
-| §6 Lazy dropdown options | Tasks 12, 13 |
-| §6 Snippet rendering | Task 7 |
-| §6 Keyboard & mouse map | Tasks 8 (mouse), 9 (keys) |
-| §6 URL folding on commit | Task 11 |
-| §6 Mutual exclusivity unread/starred | Task 11 reducer |
-| §7 Phasing | Three explicit slice sections |
+| Spec section                         | Covered by                                                   |
+| ------------------------------------ | ------------------------------------------------------------ |
+| §1 Goal & Boundaries                 | Whole plan (in/out of scope honored)                         |
+| §2 File Layout                       | "File Map" + tasks 1, 2, 5, 6, 7, 8, 9, 10, 12, 13           |
+| §3 API Contract                      | Tasks 5 (route + zod), 6 (DTOs match)                        |
+| §4 Query Layer                       | Tasks 2, 3, 4                                                |
+| §5 Snippet Parser                    | Task 1                                                       |
+| §6 Frontend Composition              | Tasks 6, 7, 8, 9, 10, 12, 13, 14                             |
+| §6 State machine (reducer)           | Tasks 9, 11                                                  |
+| §6 Lazy dropdown options             | Tasks 12, 13                                                 |
+| §6 Snippet rendering                 | Task 7                                                       |
+| §6 Keyboard & mouse map              | Tasks 8 (mouse), 9 (keys)                                    |
+| §6 URL folding on commit             | Task 11                                                      |
+| §6 Mutual exclusivity unread/starred | Task 11 reducer                                              |
+| §7 Phasing                           | Three explicit slice sections                                |
 | §8 Testing (project-reality aligned) | Task 1 unit tests + Task 5 route tests; documented deviation |
-| §9 Risks | Acknowledged in "Testing Strategy" preamble |
-| §10 Verification Checklist | "Final Verification" |
+| §9 Risks                             | Acknowledged in "Testing Strategy" preamble                  |
+| §10 Verification Checklist           | "Final Verification"                                         |

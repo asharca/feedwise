@@ -9,7 +9,7 @@ const Schema = z.object({
       z.object({
         name: z.string().min(1).max(60),
         feedIds: z.array(z.string().uuid()),
-      })
+      }),
     )
     .max(20),
 });

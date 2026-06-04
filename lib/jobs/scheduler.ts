@@ -12,11 +12,8 @@ export async function scheduleFeedRefreshes() {
     .where(
       or(
         isNull(feeds.lastFetchedAt),
-        lt(
-          feeds.lastFetchedAt,
-          sql`now() - (${feeds.fetchIntervalMinutes} * interval '1 minute')`
-        )
-      )
+        lt(feeds.lastFetchedAt, sql`now() - (${feeds.fetchIntervalMinutes} * interval '1 minute')`),
+      ),
     );
 
   let enqueued = 0;
@@ -32,7 +29,7 @@ export async function scheduleFeedRefreshes() {
         backoff: { type: "exponential", delay: 5000 },
         removeOnComplete: 100,
         removeOnFail: 200,
-      }
+      },
     );
     enqueued++;
   }

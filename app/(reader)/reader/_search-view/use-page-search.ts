@@ -30,14 +30,14 @@ export function usePageSearch(q: string) {
       applyFiltersToParams(params, next);
       router.replace(`/reader?${params.toString()}`);
     },
-    [router, searchParams]
+    [router, searchParams],
   );
 
   const setFilter = useCallback(
     (key: "feedId" | "folderId" | "tagId" | "since", value: string | undefined) => {
       writeFilters({ ...filters, [key]: value });
     },
-    [writeFilters, filters]
+    [writeFilters, filters],
   );
 
   const toggleFilter = useCallback(
@@ -51,7 +51,7 @@ export function usePageSearch(q: string) {
         writeFilters({ ...filters, starred: next, unread: next ? false : filters.unread });
       }
     },
-    [writeFilters, filters]
+    [writeFilters, filters],
   );
 
   const clearFilters = useCallback(() => {

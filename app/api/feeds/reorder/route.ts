@@ -23,9 +23,6 @@ export async function PATCH(req: Request) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
-    return NextResponse.json(
-      { success: false, error: "Failed to reorder feeds" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to reorder feeds" }, { status: 500 });
   }
 }

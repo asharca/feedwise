@@ -23,13 +23,13 @@ export async function POST() {
   } catch {
     return NextResponse.json(
       { success: false, error: "LLM key could not be decrypted" },
-      { status: 500 }
+      { status: 500 },
     );
   }
   if (!llmConfig) {
     return NextResponse.json(
       { success: false, error: "No LLM configured — set one in Settings → Smart Digest" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

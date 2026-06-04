@@ -21,12 +21,7 @@ interface Props {
   onEmailSave: () => void;
 }
 
-export function AccountSection({
-  userAccount,
-  onAccountChange,
-  onNameSave,
-  onEmailSave,
-}: Props) {
+export function AccountSection({ userAccount, onAccountChange, onNameSave, onEmailSave }: Props) {
   return (
     <Card className="rounded-lg">
       <CardHeader>
@@ -54,41 +49,41 @@ export function AccountSection({
               <span>Joined {new Date(userAccount.createdAt).toLocaleDateString()}</span>
             </div>
             <div className="pt-2 border-t border-border">
-              <label htmlFor="user-name" className="text-xs text-muted-foreground block mb-1">Display Name</label>
+              <label htmlFor="user-name" className="text-xs text-muted-foreground block mb-1">
+                Display Name
+              </label>
               <div className="flex gap-2">
                 <input
                   id="user-name"
                   type="text"
                   placeholder="Enter your name"
                   value={userAccount.name || ""}
-                  onChange={(e) => onAccountChange(prev => prev ? { ...prev, name: e.target.value } : null)}
+                  onChange={(e) =>
+                    onAccountChange((prev) => (prev ? { ...prev, name: e.target.value } : null))
+                  }
                   className="flex-1 text-sm bg-muted rounded-lg px-3 py-2 outline-none"
                 />
-                <Button
-                  size="sm"
-                  className="rounded-md"
-                  onClick={onNameSave}
-                >
+                <Button size="sm" className="rounded-md" onClick={onNameSave}>
                   Save
                 </Button>
               </div>
             </div>
             <div className="pt-2 border-t border-border">
-              <label htmlFor="user-email" className="text-xs text-muted-foreground block mb-1">Email</label>
+              <label htmlFor="user-email" className="text-xs text-muted-foreground block mb-1">
+                Email
+              </label>
               <div className="flex gap-2">
                 <input
                   id="user-email"
                   type="email"
                   placeholder="Enter your email"
                   value={userAccount.email || ""}
-                  onChange={(e) => onAccountChange(prev => prev ? { ...prev, email: e.target.value } : null)}
+                  onChange={(e) =>
+                    onAccountChange((prev) => (prev ? { ...prev, email: e.target.value } : null))
+                  }
                   className="flex-1 text-sm bg-muted rounded-lg px-3 py-2 outline-none"
                 />
-                <Button
-                  size="sm"
-                  className="rounded-md"
-                  onClick={onEmailSave}
-                >
+                <Button size="sm" className="rounded-md" onClick={onEmailSave}>
                   Save
                 </Button>
               </div>

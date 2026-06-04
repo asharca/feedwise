@@ -10,11 +10,7 @@ vi.mock("@/lib/db/queries/search", () => ({
 }));
 
 import { requireSession } from "@/lib/auth/session";
-import {
-  searchArticles,
-  searchFeedsByName,
-  searchTagsByName,
-} from "@/lib/db/queries/search";
+import { searchArticles, searchFeedsByName, searchTagsByName } from "@/lib/db/queries/search";
 import { GET } from "@/app/api/search/route";
 
 const mockSession = { user: { id: "user-1" } };

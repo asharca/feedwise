@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/oxfmt/.schema.json",
+  "semi": true,
+  "singleQuote": false,
+  "tabWidth": 2,
+  "useTabs": false,
+  "trailingComma": "all",
+  "printWidth": 100,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "ignore": ["node_modules", ".next", "drizzle", "coverage", "dist", "build", "pnpm-lock.yaml"]
+}

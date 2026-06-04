@@ -40,7 +40,7 @@ function tokenize(title: string): Set<string> {
       .toLowerCase()
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .split(/\s+/)
-      .filter(Boolean)
+      .filter(Boolean),
   );
 }
 
@@ -54,7 +54,7 @@ function jaccard(a: Set<string>, b: Set<string>): number {
 
 export function dedupeByTitleSimilarity(
   items: DedupedArticle[],
-  threshold: number
+  threshold: number,
 ): DedupedArticle[] {
   const result: DedupedArticle[] = [];
   for (const item of items) {

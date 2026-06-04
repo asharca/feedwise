@@ -42,15 +42,32 @@ function Highlight({ text, query }: { text: string; query?: string }) {
   return (
     <>
       {parts.map((part, i) =>
-        part.toLowerCase() === query.toLowerCase()
-          ? <mark key={i} className="bg-yellow-200 dark:bg-yellow-500/40 text-inherit rounded-[2px] px-px">{part}</mark>
-          : part
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark
+            key={i}
+            className="bg-yellow-200 dark:bg-yellow-500/40 text-inherit rounded-[2px] px-px"
+          >
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
       )}
     </>
   );
 }
 
-export function ArticleList({ articles, activeId, onSelect, onStar, compact = false, hasMore, loadingMore, onLoadMore, searchQuery }: ArticleListProps) {
+export function ArticleList({
+  articles,
+  activeId,
+  onSelect,
+  onStar,
+  compact = false,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+  searchQuery,
+}: ArticleListProps) {
   // Callback ref state so InfiniteScrollSentinel can use the actual scroll
   // container (not the viewport) as the IntersectionObserver root — the list
   // is inside an overflow-y-auto wrapper.
@@ -72,7 +89,6 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
       <div ref={setScrollRoot} className="overflow-y-auto h-full scrollbar-thin">
         <div className="flex flex-col gap-px p-1.5">
           {articles.map((article) => (
-
             <div
               key={article.id}
               role="button"
@@ -80,10 +96,8 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
               onClick={() => onSelect(article.id)}
               className={cn(
                 "group relative flex gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-100",
-                activeId === article.id
-                  ? "bg-accent"
-                  : "hover:bg-accent/50",
-                article.isRead && activeId !== article.id && "opacity-55"
+                activeId === article.id ? "bg-accent" : "hover:bg-accent/50",
+                article.isRead && activeId !== article.id && "opacity-55",
               )}
             >
               {!article.isRead && (
@@ -93,7 +107,13 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
                 <div className="flex items-center gap-1 mb-0.5">
                   {article.feedIconUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={proxyImg(article.feedIconUrl)} alt="" loading="lazy" decoding="async" className="size-3 rounded-sm shrink-0" />
+                    <img
+                      src={proxyImg(article.feedIconUrl)}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="size-3 rounded-sm shrink-0"
+                    />
                   )}
                   <span className="text-[10px] text-muted-foreground/70 truncate">
                     {article.feedTitle ?? "Unknown"}
@@ -104,16 +124,24 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
                     </span>
                   )}
                 </div>
-                <p className={cn(
-                  "text-[12px] leading-snug line-clamp-2",
-                  !article.isRead ? "font-semibold" : "font-normal text-foreground/75"
-                )}>
+                <p
+                  className={cn(
+                    "text-[12px] leading-snug line-clamp-2",
+                    !article.isRead ? "font-semibold" : "font-normal text-foreground/75",
+                  )}
+                >
                   <Highlight text={article.title ?? "(No title)"} query={searchQuery} />
                 </p>
               </div>
               {article.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={proxyImg(article.imageUrl)} alt="" loading="lazy" decoding="async" className="size-10 rounded-md object-cover shrink-0 self-center" />
+                <img
+                  src={proxyImg(article.imageUrl)}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="size-10 rounded-md object-cover shrink-0 self-center"
+                />
               )}
               {article.isStarred && (
                 <Star className="absolute top-2 right-2 size-2.5 fill-yellow-400 text-yellow-400" />
@@ -151,18 +179,30 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
                 activeId === article.id
                   ? "border-primary"
                   : "border-border hover:border-foreground/20",
-                article.isRead && activeId !== article.id && "opacity-55"
+                article.isRead && activeId !== article.id && "opacity-55",
               )}
             >
               {article.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={proxyImg(article.imageUrl)} alt="" loading="lazy" decoding="async" className="w-full h-32 object-cover shrink-0" />
+                <img
+                  src={proxyImg(article.imageUrl)}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-32 object-cover shrink-0"
+                />
               )}
               <div className="flex flex-col flex-1 p-3">
                 <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
                   {article.feedIconUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={proxyImg(article.feedIconUrl)} alt="" loading="lazy" decoding="async" className="size-3 rounded-sm shrink-0" />
+                    <img
+                      src={proxyImg(article.feedIconUrl)}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="size-3 rounded-sm shrink-0"
+                    />
                   )}
                   <span className="text-[10px] text-muted-foreground/80 font-medium truncate">
                     {article.feedTitle ?? "Unknown"}
@@ -176,10 +216,14 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
                     </>
                   )}
                 </div>
-                <p className={cn(
-                  "text-[13px] leading-snug line-clamp-3 mb-1",
-                  !article.isRead ? "font-semibold text-foreground" : "font-normal text-foreground/75"
-                )}>
+                <p
+                  className={cn(
+                    "text-[13px] leading-snug line-clamp-3 mb-1",
+                    !article.isRead
+                      ? "font-semibold text-foreground"
+                      : "font-normal text-foreground/75",
+                  )}
+                >
                   <Highlight text={article.title ?? "(No title)"} query={searchQuery} />
                 </p>
                 {excerpt && (
@@ -196,7 +240,10 @@ export function ArticleList({ articles, activeId, onSelect, onStar, compact = fa
               ) : (
                 <button
                   className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded-md hover:bg-accent"
-                  onClick={(e) => { e.stopPropagation(); onStar(article.id, true); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStar(article.id, true);
+                  }}
                 >
                   <Star className="size-3 text-muted-foreground/40 hover:text-yellow-400 transition-colors" />
                 </button>
@@ -247,7 +294,7 @@ function InfiniteScrollSentinel({
           }
         }
       },
-      { root: root ?? null, rootMargin: "400px 0px" }
+      { root: root ?? null, rootMargin: "400px 0px" },
     );
     observer.observe(target);
     return () => observer.disconnect();

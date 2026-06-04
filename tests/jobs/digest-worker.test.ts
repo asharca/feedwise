@@ -2,10 +2,7 @@ import { describe, it, expect } from "vitest";
 import { assembleDigestForSubscription } from "@/lib/jobs/workers/digest-worker";
 import type { DigestArticle } from "@/lib/digest/types";
 
-function art(
-  n: number,
-  opts: Partial<DigestArticle> = {}
-): DigestArticle {
+function art(n: number, opts: Partial<DigestArticle> = {}): DigestArticle {
   return {
     id: `f47ac10b-58cc-4372-a567-${String(n).padStart(12, "0")}`,
     title: `T-${n}`,
@@ -54,7 +51,7 @@ describe("assembleDigestForSubscription (tag-based, LLM-free)", () => {
       art(i + 1, {
         importance: "high",
         tags: [{ id: "x", name: "x" }],
-      })
+      }),
     );
     const out = await assembleDigestForSubscription("user", articles);
     expect(out.digest.topHeadlines).toHaveLength(5);

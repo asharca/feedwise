@@ -11,6 +11,7 @@
 **Spec:** `docs/superpowers/specs/2026-05-25-digest-email-polish-design.md`
 
 **Conventions:**
+
 - Tests live in `tests/**` mirroring `lib/**`. `@` = repo root.
 - Run all tests: `pnpm test`. Run one file: `pnpm exec vitest run <path>`. Run one test: `pnpm exec vitest run <path> -t "<name>"`.
 - Commit per task (conventional commits). Work on a feature branch/worktree, not `main`.
@@ -24,6 +25,7 @@ New module `lib/digest/consolidate.ts` holds the pure post-LLM consolidation fun
 ### Task 1: `consolidate.ts` — dedupe article assignment
 
 **Files:**
+
 - Create: `lib/digest/consolidate.ts`
 - Test: `tests/digest/consolidate.test.ts`
 
@@ -113,6 +115,7 @@ git commit -m "feat(digest): add dedupeArticleAssignments consolidation"
 ### Task 2: `consolidate.ts` — merge same-event clusters
 
 **Files:**
+
 - Modify: `lib/digest/consolidate.ts`
 - Test: `tests/digest/consolidate.test.ts`
 
@@ -229,6 +232,7 @@ git commit -m "feat(digest): merge same-event clusters, preserve distinct events
 ### Task 3: `consolidate.ts` — normalize topics + fold extra topics (relabel)
 
 **Files:**
+
 - Modify: `lib/digest/consolidate.ts`
 - Test: `tests/digest/consolidate.test.ts`
 
@@ -349,6 +353,7 @@ git commit -m "feat(digest): normalize topics + relabel-not-merge overflow"
 ### Task 4: Add retryable LLM wrapper
 
 **Files:**
+
 - Modify: `lib/digest/llm-client.ts`
 - Test: `tests/digest/llm-client.test.ts`
 
@@ -439,6 +444,7 @@ git commit -m "feat(digest): add withLlmRetry for transient LLM failures"
 ### Task 5: Rewire `cluster.ts` to use consolidation + retry, tighten prompt
 
 **Files:**
+
 - Modify: `lib/digest/cluster.ts`
 - Test: `tests/digest/cluster.test.ts` (existing tests must stay green; add new ones)
 
@@ -581,6 +587,7 @@ git commit -m "refactor(digest): preserve events via consolidateClusters; tighte
 ### Task 6: organize regression — multiple clusters per topic
 
 **Files:**
+
 - Test: `tests/digest/organize.test.ts`
 
 - [ ] **Step 1: Add the failing/guard test**
@@ -635,6 +642,7 @@ git commit -m "test(digest): guard multiple event clusters per topic group"
 ### Task 7: `brief.ts` — plain-text brief helper
 
 **Files:**
+
 - Create: `lib/email/brief.ts`
 - Test: `tests/email/brief.test.ts`
 
@@ -706,6 +714,7 @@ git commit -m "feat(email): add briefText plain-text summary helper"
 ### Task 8: Rewrite `digest-html.ts` to layout A + `buildLink`
 
 **Files:**
+
 - Modify: `lib/email/templates/digest-html.ts`
 - Test: `tests/email/templates/digest-html.test.ts` (update for new layout)
 
@@ -884,6 +893,7 @@ git commit -m "feat(email): layout A digest (title+brief, no images/expand, buil
 ### Task 9: DB column `autoSaveOnClick` + settings plumbing
 
 **Files:**
+
 - Modify: `lib/db/schema.ts` (emailSubscriptions table, after `llmModel`)
 - Modify: `lib/email/queries.ts` (`SubscriptionSettings`, `getSubscriptionSettings`, `updateSubscriptionSettings` insert + update, `getAllActiveSubscriptions` select)
 - Modify: `app/api/settings/email/route.ts` (`updateSchema`)
@@ -905,22 +915,31 @@ Expected: a new file in `drizzle/` adding `auto_save_on_click`; migrate applies 
 - [ ] **Step 3: Plumb through queries (`lib/email/queries.ts`)**
 
 In `SubscriptionSettings` interface add:
+
 ```ts
   autoSaveOnClick?: boolean;
 ```
+
 In `getSubscriptionSettings` return object add:
+
 ```ts
     autoSaveOnClick: sub.autoSaveOnClick ?? false,
 ```
+
 In `updateSubscriptionSettings` insert `.values({...})` add:
+
 ```ts
         autoSaveOnClick: settings.autoSaveOnClick ?? false,
 ```
+
 In `updateSubscriptionSettings` update `.set({...})` add:
+
 ```ts
       autoSaveOnClick: settings.autoSaveOnClick ?? existing.autoSaveOnClick,
 ```
+
 In `getAllActiveSubscriptions` select object add:
+
 ```ts
       autoSaveOnClick: emailSubscriptions.autoSaveOnClick,
 ```
@@ -928,9 +947,11 @@ In `getAllActiveSubscriptions` select object add:
 - [ ] **Step 4: Accept the field in the API (`app/api/settings/email/route.ts`)**
 
 In `updateSchema` add:
+
 ```ts
   autoSaveOnClick: z.boolean().optional(),
 ```
+
 (The GET already returns the full settings object via `sanitizeSettings`, so `autoSaveOnClick` flows out automatically.)
 
 - [ ] **Step 5: Verify build + existing tests**
@@ -950,6 +971,7 @@ git commit -m "feat(email): persist autoSaveOnClick subscription setting"
 ### Task 10: Signed click-token util
 
 **Files:**
+
 - Create: `lib/email/click-token.ts`
 - Test: `tests/email/click-token.test.ts`
 
@@ -1056,6 +1078,7 @@ git commit -m "feat(email): HMAC-signed click tokens for email links"
 ### Task 11: Article-url lookup query
 
 **Files:**
+
 - Modify: `lib/db/queries/articles.ts` (add `getArticleUrlById`)
 
 - [ ] **Step 1: Implement (append near `getArticleById`)**
@@ -1090,6 +1113,7 @@ git commit -m "feat(db): add getArticleUrlById lookup"
 ### Task 12: `/api/r` redirect endpoint
 
 **Files:**
+
 - Create: `app/api/r/route.ts`
 - Test: `tests/api/r.test.ts`
 
@@ -1199,18 +1223,22 @@ git commit -m "feat(api): /api/r signed redirect that auto-stars on click"
 ### Task 13: Wire `buildLink` into the digest worker
 
 **Files:**
+
 - Modify: `lib/jobs/workers/digest-worker.ts` (`sendDigestForDate`)
 
 - [ ] **Step 1: Implement the wiring**
 
 At the top of `digest-worker.ts`, add imports:
+
 ```ts
 import { signClickToken } from "@/lib/email/click-token";
 import type { DigestArticle } from "@/lib/digest/types"; // already imported — keep single import
 ```
+
 (`DigestArticle` is already imported on line 21; do not duplicate.)
 
 In `sendDigestForDate`, replace the `const html = ...` line with:
+
 ```ts
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
   const buildLink =
@@ -1247,6 +1275,7 @@ git commit -m "feat(jobs): digest links auto-save when subscription opts in"
 > UI refactor: no harness test framework for React components exists (vitest config includes only `tests/**/*.test.ts`, no jsdom/RTL). Verification = `pnpm build` + manual smoke. Keep all existing behavior and API calls byte-for-byte; only move JSX into section components and add the new toggle.
 
 **Files:**
+
 - Create: `components/settings/appearance-section.tsx`
 - Create: `components/settings/feeds-section.tsx`
 - Create: `components/settings/digest-email-section.tsx`
@@ -1282,7 +1311,7 @@ export function AppearanceSection({ theme, mounted, onSelect }: Props) {
 }
 ```
 
-Repeat for `feeds-section.tsx` (subs, sync/OPML/list/interval/delete handlers), `digest-email-section.tsx` (emailSettings + SMTP + CronBuilder + feed select + test send), `smart-digest-section.tsx` (llm* state + save/test), `account-section.tsx` (userAccount + save handlers). Pass each its state and the existing handler functions as props; the handlers stay defined in `page.tsx`.
+Repeat for `feeds-section.tsx` (subs, sync/OPML/list/interval/delete handlers), `digest-email-section.tsx` (emailSettings + SMTP + CronBuilder + feed select + test send), `smart-digest-section.tsx` (llm\* state + save/test), `account-section.tsx` (userAccount + save handlers). Pass each its state and the existing handler functions as props; the handlers stay defined in `page.tsx`.
 
 - [ ] **Step 2: Add the auto-save toggle to `digest-email-section.tsx`**
 

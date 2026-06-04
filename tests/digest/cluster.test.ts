@@ -10,8 +10,12 @@ function makeDeduped(n: number): DedupedArticle[] {
       title: `Title ${i}`,
       url: `https://e.com/${i}`,
       summary: `Summary ${i}`,
+      aiSummary: null,
+      importance: null,
       feedTitle: "feed",
+      feedId: "00000000-0000-4000-a000-000000000001",
       publishedAt: new Date("2026-05-19T00:00:00Z"),
+      tags: [],
     },
     duplicates: [],
   }));
@@ -96,8 +100,18 @@ describe("runClustering — event preservation", () => {
     const deduped = makeDeduped(2);
     const client = vi.fn().mockResolvedValue({
       clusters: [
-        { topic: "World", headline: "Ceasefire talks resume", importance: 8, articleIds: [deduped[0].primary.id] },
-        { topic: "World", headline: "Major earthquake hits coast", importance: 7, articleIds: [deduped[1].primary.id] },
+        {
+          topic: "World",
+          headline: "Ceasefire talks resume",
+          importance: 8,
+          articleIds: [deduped[0].primary.id],
+        },
+        {
+          topic: "World",
+          headline: "Major earthquake hits coast",
+          importance: 7,
+          articleIds: [deduped[1].primary.id],
+        },
       ],
     });
     const out = await runClustering(deduped, client);
@@ -107,10 +121,18 @@ describe("runClustering — event preservation", () => {
 
   it("retries a transient LLM failure within a batch", async () => {
     const deduped = makeDeduped(2);
-    const client = vi.fn()
+    const client = vi
+      .fn()
       .mockRejectedValueOnce(new LlmTimeoutError())
       .mockResolvedValue({
-        clusters: [{ topic: "X", headline: "h", importance: 5, articleIds: deduped.map((d) => d.primary.id) }],
+        clusters: [
+          {
+            topic: "X",
+            headline: "h",
+            importance: 5,
+            articleIds: deduped.map((d) => d.primary.id),
+          },
+        ],
       });
     const out = await runClustering(deduped, client);
     expect(client).toHaveBeenCalledTimes(2);

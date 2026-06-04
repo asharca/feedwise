@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
-import { getSubscriptionSettings, updateSubscriptionSettings, updateNextScheduledAt } from "@/lib/email/queries";
+import {
+  getSubscriptionSettings,
+  updateSubscriptionSettings,
+  updateNextScheduledAt,
+} from "@/lib/email/queries";
 import { z } from "zod";
 import { CronExpressionParser } from "cron-parser";
 
 const updateSchema = z.object({
   enabled: z.boolean().optional(),
-  sendTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional(),
+  sendTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/)
+    .optional(),
   frequency: z.enum(["daily", "weekly"]).optional(),
   cronExpression: z.string().optional(),
   selectedTags: z.array(z.string()).optional(),
@@ -22,9 +29,7 @@ const updateSchema = z.object({
   markReadOnClick: z.boolean().optional(),
 });
 
-function sanitizeSettings(
-  settings: Awaited<ReturnType<typeof getSubscriptionSettings>>
-) {
+function sanitizeSettings(settings: Awaited<ReturnType<typeof getSubscriptionSettings>>) {
   if (!settings) return settings;
 
   const hasSmtpPass = Boolean(settings.smtpPass && settings.smtpPass.trim().length > 0);
@@ -59,7 +64,7 @@ export async function PUT(req: Request) {
       } catch {
         return NextResponse.json(
           { success: false, error: "Invalid cron expression" },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }

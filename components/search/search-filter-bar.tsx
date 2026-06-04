@@ -7,10 +7,7 @@ import type { SearchFilters } from "@/lib/hooks/use-search";
 
 interface Props {
   filters: SearchFilters;
-  onSetFilter: (
-    key: "feedId" | "folderId" | "tagId" | "since",
-    value: string | undefined
-  ) => void;
+  onSetFilter: (key: "feedId" | "folderId" | "tagId" | "since", value: string | undefined) => void;
   onToggleFilter: (key: "unread" | "starred") => void;
   onClearAll: () => void;
 }
@@ -54,12 +51,7 @@ const SINCE_OPTIONS: DropdownOption[] = [
   { id: "30d", label: "Past 30 days" },
 ];
 
-export function SearchFilterBar({
-  filters,
-  onSetFilter,
-  onToggleFilter,
-  onClearAll,
-}: Props) {
+export function SearchFilterBar({ filters, onSetFilter, onToggleFilter, onClearAll }: Props) {
   const loadSince = useCallback(async () => SINCE_OPTIONS, []);
 
   const anyActive =
@@ -103,7 +95,7 @@ export function SearchFilterBar({
           "inline-flex items-center h-6 rounded-full px-2 text-[11px] border transition-colors",
           filters.unread
             ? "bg-primary/10 border-primary/30 text-primary"
-            : "bg-muted border-transparent hover:border-border text-muted-foreground"
+            : "bg-muted border-transparent hover:border-border text-muted-foreground",
         )}
       >
         Unread
@@ -115,7 +107,7 @@ export function SearchFilterBar({
           "inline-flex items-center h-6 rounded-full px-2 text-[11px] border transition-colors",
           filters.starred
             ? "bg-primary/10 border-primary/30 text-primary"
-            : "bg-muted border-transparent hover:border-border text-muted-foreground"
+            : "bg-muted border-transparent hover:border-border text-muted-foreground",
         )}
       >
         Starred

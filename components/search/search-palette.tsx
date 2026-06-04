@@ -24,7 +24,11 @@ type Action =
   | { type: "clear" }
   | { type: "set-active"; key: string }
   | { type: "move-active"; dir: 1 | -1; keys: string[] }
-  | { type: "set-filter"; key: "feedId" | "folderId" | "tagId" | "since"; value: string | undefined }
+  | {
+      type: "set-filter";
+      key: "feedId" | "folderId" | "tagId" | "since";
+      value: string | undefined;
+    }
   | { type: "toggle-filter"; key: "unread" | "starred" }
   | { type: "clear-filters" };
 
@@ -55,7 +59,11 @@ function reducer(state: PaletteState, action: Action): PaletteState {
         const next = !state.filters.unread;
         return {
           ...state,
-          filters: { ...state.filters, unread: next, starred: next ? false : state.filters.starred },
+          filters: {
+            ...state.filters,
+            unread: next,
+            starred: next ? false : state.filters.starred,
+          },
           activeKey: null,
         };
       }
@@ -182,7 +190,7 @@ export function SearchPalette({ initialQuery, onClose }: Props) {
       dispatch({ type: "move-active", dir: -1, keys: flatKeys });
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if ((e.metaKey || e.ctrlKey) || !state.activeKey) {
+      if (e.metaKey || e.ctrlKey || !state.activeKey) {
         commitFullSearch();
       } else {
         onActivateByKey(state.activeKey);
@@ -224,15 +232,17 @@ export function SearchPalette({ initialQuery, onClose }: Props) {
         onOpenFeed={openFeed}
         onOpenTag={openTag}
       />
-      {state.query.trim().length > 0 && data && (data.articles.length > 0 || data.feeds.length > 0 || data.tags.length > 0) && (
-        <button
-          type="button"
-          onClick={commitFullSearch}
-          className="w-full text-left px-3 py-2 text-xs font-medium border-t border-border text-primary hover:bg-primary/5 transition-colors"
-        >
-          See all results for &ldquo;{state.query.trim()}&rdquo; →
-        </button>
-      )}
+      {state.query.trim().length > 0 &&
+        data &&
+        (data.articles.length > 0 || data.feeds.length > 0 || data.tags.length > 0) && (
+          <button
+            type="button"
+            onClick={commitFullSearch}
+            className="w-full text-left px-3 py-2 text-xs font-medium border-t border-border text-primary hover:bg-primary/5 transition-colors"
+          >
+            See all results for &ldquo;{state.query.trim()}&rdquo; →
+          </button>
+        )}
     </>
   );
 }

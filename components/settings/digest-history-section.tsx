@@ -154,7 +154,11 @@ export function DigestHistorySection() {
                         className="shrink-0 text-muted-foreground"
                         aria-label={expanded ? "Hide error" : "Show error"}
                       >
-                        {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                        {expanded ? (
+                          <ChevronDown className="size-4" />
+                        ) : (
+                          <ChevronRight className="size-4" />
+                        )}
                       </button>
                     )}
                   </div>
@@ -162,7 +166,7 @@ export function DigestHistorySection() {
                     <pre
                       className={cn(
                         "mt-2 ml-7 text-xs whitespace-pre-wrap break-words rounded-md bg-muted px-3 py-2",
-                        "text-muted-foreground"
+                        "text-muted-foreground",
                       )}
                     >
                       {log.errorMessage}
@@ -173,11 +177,7 @@ export function DigestHistorySection() {
             })}
           </ul>
         )}
-        <EmailPreviewDialog
-          open={previewOpen}
-          onOpenChange={setPreviewOpen}
-          logId={previewLogId}
-        />
+        <EmailPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} logId={previewLogId} />
       </CardContent>
     </Card>
   );

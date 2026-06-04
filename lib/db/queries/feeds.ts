@@ -2,7 +2,6 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { feeds, subscriptions, folders, articles, userArticles } from "@/lib/db/schema";
 
-
 export async function getSubscriptions(userId: string) {
   return db
     .select({
@@ -35,27 +34,18 @@ export async function getSubscriptions(userId: string) {
 }
 
 export async function getFolders(userId: string) {
-  return db
-    .select()
-    .from(folders)
-    .where(eq(folders.userId, userId))
-    .orderBy(folders.position);
+  return db.select().from(folders).where(eq(folders.userId, userId)).orderBy(folders.position);
 }
 
 export async function getFeedFromSubscription(
   userId: string,
-  subscriptionId: string
+  subscriptionId: string,
 ): Promise<{ feedId: string; url: string } | null> {
   const [row] = await db
     .select({ feedId: feeds.id, url: feeds.url })
     .from(subscriptions)
     .innerJoin(feeds, eq(subscriptions.feedId, feeds.id))
-    .where(
-      and(
-        eq(subscriptions.id, subscriptionId),
-        eq(subscriptions.userId, userId)
-      )
-    );
+    .where(and(eq(subscriptions.id, subscriptionId), eq(subscriptions.userId, userId)));
   return row ?? null;
 }
 
@@ -74,7 +64,7 @@ export async function findFeedByUrl(url: string) {
 export async function subscribeFeed(
   userId: string,
   feedUrl: string,
-  folderId?: string
+  folderId?: string,
 ): Promise<{ feedId: string; subscriptionId: string }> {
   // Upsert the global feed record
   const [feed] = await db
@@ -96,28 +86,18 @@ export async function subscribeFeed(
 export async function unsubscribeFeed(userId: string, subscriptionId: string) {
   await db
     .delete(subscriptions)
-    .where(
-      and(
-        eq(subscriptions.id, subscriptionId),
-        eq(subscriptions.userId, userId)
-      )
-    );
+    .where(and(eq(subscriptions.id, subscriptionId), eq(subscriptions.userId, userId)));
 }
 
 export async function updateSubscription(
   userId: string,
   subscriptionId: string,
-  data: { customTitle?: string; folderId?: string | null }
+  data: { customTitle?: string; folderId?: string | null },
 ) {
   const [updated] = await db
     .update(subscriptions)
     .set(data)
-    .where(
-      and(
-        eq(subscriptions.id, subscriptionId),
-        eq(subscriptions.userId, userId)
-      )
-    )
+    .where(and(eq(subscriptions.id, subscriptionId), eq(subscriptions.userId, userId)))
     .returning();
   return updated;
 }
@@ -125,17 +105,12 @@ export async function updateSubscription(
 export async function updateFeedInterval(
   userId: string,
   subscriptionId: string,
-  intervalMinutes: number
+  intervalMinutes: number,
 ): Promise<{ feedId: string } | null> {
   const [sub] = await db
     .select({ feedId: subscriptions.feedId })
     .from(subscriptions)
-    .where(
-      and(
-        eq(subscriptions.id, subscriptionId),
-        eq(subscriptions.userId, userId)
-      )
-    );
+    .where(and(eq(subscriptions.id, subscriptionId), eq(subscriptions.userId, userId)));
 
   if (!sub) return null;
 
@@ -147,22 +122,15 @@ export async function updateFeedInterval(
   return { feedId: sub.feedId };
 }
 
-export async function createFolder(
-  userId: string,
-  name: string,
-  parentId?: string
-) {
-  const [folder] = await db
-    .insert(folders)
-    .values({ userId, name, parentId })
-    .returning();
+export async function createFolder(userId: string, name: string, parentId?: string) {
+  const [folder] = await db.insert(folders).values({ userId, name, parentId }).returning();
   return folder;
 }
 
 export async function updateFolder(
   userId: string,
   folderId: string,
-  data: { name?: string; parentId?: string | null }
+  data: { name?: string; parentId?: string | null },
 ): Promise<{ id: string; name: string } | null> {
   const updates: { name?: string; parentId?: string | null } = {};
   if (data.name !== undefined) updates.name = data.name;
@@ -207,7 +175,7 @@ export async function reorderFolders(userId: string, folderIds: string[]): Promi
 
 export async function reorderSubscriptions(
   userId: string,
-  subscriptionIds: string[]
+  subscriptionIds: string[],
 ): Promise<void> {
   if (subscriptionIds.length === 0) return;
   await db.transaction(async (tx) => {
@@ -215,12 +183,7 @@ export async function reorderSubscriptions(
       await tx
         .update(subscriptions)
         .set({ position: i })
-        .where(
-          and(
-            eq(subscriptions.id, subscriptionIds[i]),
-            eq(subscriptions.userId, userId)
-          )
-        );
+        .where(and(eq(subscriptions.id, subscriptionIds[i]), eq(subscriptions.userId, userId)));
     }
   });
 }
@@ -246,7 +209,7 @@ export async function getSubscriptionsForGrouping(userId: string) {
  */
 export async function applyFolderProposal(
   userId: string,
-  proposed: Array<{ name: string; feedIds: string[] }>
+  proposed: Array<{ name: string; feedIds: string[] }>,
 ): Promise<{ foldersTouched: number; subscriptionsMoved: number }> {
   let foldersTouched = 0;
   let subscriptionsMoved = 0;
@@ -259,12 +222,7 @@ export async function applyFolderProposal(
     const result = await db
       .update(subscriptions)
       .set({ folderId: folder.id })
-      .where(
-        and(
-          eq(subscriptions.userId, userId),
-          inArray(subscriptions.feedId, p.feedIds)
-        )
-      )
+      .where(and(eq(subscriptions.userId, userId), inArray(subscriptions.feedId, p.feedIds)))
       .returning({ id: subscriptions.id });
     subscriptionsMoved += result.length;
   }
@@ -288,18 +246,13 @@ export async function getOrCreateFolder(userId: string, name: string) {
 export async function updateFeedUrl(
   userId: string,
   subscriptionId: string,
-  newUrl: string
+  newUrl: string,
 ): Promise<{ feedId: string; url: string } | null> {
   // Get feedId for this subscription (verify ownership)
   const [sub] = await db
     .select({ feedId: subscriptions.feedId })
     .from(subscriptions)
-    .where(
-      and(
-        eq(subscriptions.id, subscriptionId),
-        eq(subscriptions.userId, userId)
-      )
-    );
+    .where(and(eq(subscriptions.id, subscriptionId), eq(subscriptions.userId, userId)));
 
   if (!sub) return null;
 

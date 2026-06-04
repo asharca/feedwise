@@ -12,10 +12,7 @@ const PatchSchema = z
     message: "Provide at least one field to update",
   });
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
     session = await requireSession();
@@ -32,7 +29,7 @@ export async function PATCH(
     if (data.parentId === id) {
       return NextResponse.json(
         { success: false, error: "A folder cannot be its own parent" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -49,20 +46,14 @@ export async function PATCH(
     if (error instanceof Error && /unique|duplicate/i.test(error.message)) {
       return NextResponse.json(
         { success: false, error: "A folder with that name already exists" },
-        { status: 409 }
+        { status: 409 },
       );
     }
-    return NextResponse.json(
-      { success: false, error: "Failed to update folder" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to update folder" }, { status: 500 });
   }
 }
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
     session = await requireSession();

@@ -14,7 +14,7 @@ RUN echo "frozen-lockfile=true" >> .npmrc && \
     pnpm config set fetch-retry-mintimeout 10000 && \
     pnpm config set fetch-retry-maxtimeout 60000 && \
     pnpm config set fetch-retry-factor 2 && \
-    pnpm install
+    pnpm install --ignore-scripts
 
 # Build Next.js
 FROM base AS builder
@@ -36,8 +36,8 @@ RUN echo "frozen-lockfile=true" >> .npmrc && \
     pnpm config set fetch-retry-mintimeout 10000 && \
     pnpm config set fetch-retry-maxtimeout 60000 && \
     pnpm config set fetch-retry-factor 2 && \
-    pnpm install --prod && \
-    pnpm add tsx esbuild drizzle-kit
+    pnpm install --prod --ignore-scripts && \
+    pnpm add --ignore-scripts tsx esbuild drizzle-kit
 
 # Production runner
 FROM base AS runner

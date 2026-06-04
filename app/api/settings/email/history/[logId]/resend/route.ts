@@ -20,10 +20,7 @@ import { mapSmtpError } from "@/lib/email/smtp-error";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function POST(
-  req: Request,
-  ctx: { params: Promise<{ logId: string }> }
-) {
+export async function POST(req: Request, ctx: { params: Promise<{ logId: string }> }) {
   let session;
   try {
     session = await requireSession();
@@ -45,15 +42,18 @@ export async function POST(
   if (articleIds.length === 0) {
     return NextResponse.json(
       { success: false, error: "Nothing to resend — the original digest had no articles" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   const smtpConfig = await getUserSMTPConfig(session.user.id);
   if (!smtpConfig) {
     return NextResponse.json(
-      { success: false, error: "SMTP not configured. Please configure your SMTP settings in the email settings." },
-      { status: 400 }
+      {
+        success: false,
+        error: "SMTP not configured. Please configure your SMTP settings in the email settings.",
+      },
+      { status: 400 },
     );
   }
 
@@ -83,7 +83,7 @@ export async function POST(
       session.user.id,
       articleIds.map((a) => a.id),
       articleIds.length,
-      "success"
+      "success",
     );
     return NextResponse.json({
       success: true,
@@ -97,11 +97,8 @@ export async function POST(
       articleIds.map((a) => a.id),
       articleIds.length,
       "failed",
-      message
+      message,
     );
-    return NextResponse.json(
-      { success: false, error: mapSmtpError(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: mapSmtpError(err) }, { status: 500 });
   }
 }

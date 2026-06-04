@@ -4,13 +4,13 @@ import { canonicalizeUrl } from "@/lib/digest/normalize-url";
 describe("canonicalizeUrl", () => {
   it("strips utm_* tracking params", () => {
     expect(canonicalizeUrl("https://example.com/a?utm_source=x&utm_medium=y&id=1")).toBe(
-      "https://example.com/a?id=1"
+      "https://example.com/a?id=1",
     );
   });
 
   it("strips fbclid, gclid, ref, ref_src", () => {
     expect(canonicalizeUrl("https://example.com/a?fbclid=abc&gclid=def&ref=g&ref_src=h&id=1")).toBe(
-      "https://example.com/a?id=1"
+      "https://example.com/a?id=1",
     );
   });
 

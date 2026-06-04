@@ -19,6 +19,5 @@ export const emailTheme = {
 } as const;
 
 export const emailFont = {
-  family:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,Helvetica,Arial,sans-serif',
+  family: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,Helvetica,Arial,sans-serif',
 } as const;

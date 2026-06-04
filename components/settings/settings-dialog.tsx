@@ -1,10 +1,7 @@
 "use client";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  SettingsContent,
-  type SettingsSectionKey,
-} from "@/components/settings/settings-content";
+import { SettingsContent, type SettingsSectionKey } from "@/components/settings/settings-content";
 
 interface SettingsDialogProps {
   open: boolean;

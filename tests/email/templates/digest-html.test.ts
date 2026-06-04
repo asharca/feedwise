@@ -3,26 +3,46 @@ import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import type { OrganizedDigest, DigestArticle } from "@/lib/digest/types";
 
 function art(id: string, title: string): DigestArticle {
-  return { id, title, url: `https://e.com/${id}`, summary: `<p>Brief for ${title}</p>`, feedTitle: "Reuters", publishedAt: new Date("2026-05-25T08:00:00Z") };
+  return {
+    id,
+    title,
+    url: `https://e.com/${id}`,
+    summary: `<p>Brief for ${title}</p>`,
+    aiSummary: null,
+    importance: null,
+    feedTitle: "Reuters",
+    feedId: "00000000-0000-4000-a000-000000000001",
+    publishedAt: new Date("2026-05-25T08:00:00Z"),
+    tags: [],
+  };
 }
 
 function digest(): OrganizedDigest {
   const a = art("a", "Ceasefire talks resume");
   const b = art("b", "Earthquake hits coast");
-  const cluster = (topic: string, headline: string, importance: number) => ({ topic, headline, importance, articleIds: [] as string[] });
+  const cluster = (topic: string, headline: string, importance: number) => ({
+    topic,
+    headline,
+    importance,
+    articleIds: [] as string[],
+  });
   return {
     date: new Date("2026-05-25T08:00:00Z"),
     totalArticles: 2,
     topicCount: 1,
-    topHeadlines: [{ cluster: cluster("World", "Ceasefire talks resume", 9), primaryArticle: a, sourceCount: 3 }],
-    topicGroups: [{
-      topic: "World",
-      totalCount: 2,
-      clusters: [
-        { cluster: cluster("World", "Ceasefire talks resume", 9), primary: a, duplicates: [] },
-        { cluster: cluster("World", "Earthquake hits coast", 8), primary: b, duplicates: [] },
-      ],
-    }],
+    topHeadlines: [
+      { cluster: cluster("World", "Ceasefire talks resume", 9), primaryArticle: a, sourceCount: 3 },
+    ],
+    topicGroups: [
+      {
+        topic: "World",
+        totalCount: 2,
+        clusters: [
+          { cluster: cluster("World", "Ceasefire talks resume", 9), primary: a, duplicates: [] },
+          { cluster: cluster("World", "Earthquake hits coast", 8), primary: b, duplicates: [] },
+        ],
+      },
+    ],
     ungrouped: [],
     mode: "clustered",
   };

@@ -39,7 +39,7 @@ export default function RegisterPage() {
         body: JSON.stringify({ name, email, password, code }),
       });
       const data = await res.json();
-      
+
       if (!data.success) {
         setError(data.error ?? "Registration failed");
       } else {
@@ -128,7 +128,10 @@ export default function RegisterPage() {
 
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="text-primary font-medium hover:underline underline-offset-4">
+          <Link
+            href="/login"
+            className="text-primary font-medium hover:underline underline-offset-4"
+          >
             Sign in
           </Link>
         </p>

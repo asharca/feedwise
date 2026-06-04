@@ -7,10 +7,7 @@ const AddTagSchema = z.object({
   name: z.string().min(1).max(100),
 });
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
     session = await requireSession();
@@ -37,7 +34,7 @@ export async function POST(
     }
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : "Failed to add tag" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

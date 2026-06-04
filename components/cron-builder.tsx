@@ -45,11 +45,15 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onChangeRef = useRef(onChange);
-  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   // Track current mode without making it a dep of the parse effect
   const modeRef = useRef(mode);
-  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // Parse value on load / external change — but never override user's custom mode
   useEffect(() => {
@@ -103,9 +107,15 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
 
     let cron = "";
     switch (mode) {
-      case "daily":   cron = `${m} ${h} * * *`; break;
-      case "weekly":  cron = `${m} ${h} * * ${weekday}`; break;
-      case "monthly": cron = `${m} ${h} ${monthDay} * *`; break;
+      case "daily":
+        cron = `${m} ${h} * * *`;
+        break;
+      case "weekly":
+        cron = `${m} ${h} * * ${weekday}`;
+        break;
+      case "monthly":
+        cron = `${m} ${h} ${monthDay} * *`;
+        break;
     }
 
     if (cron && cron !== value) {
@@ -114,7 +124,9 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
   }, [mode, hour, minute, weekday, monthDay, value]);
 
   useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   const handleCustomChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,20 +145,23 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
     }, 600);
   }, []);
 
-  const handleModeChange = useCallback((newMode: CronPreset) => {
-    if (newMode === "custom") {
-      setCustomDraft(value || "0 8 * * *");
-      setCustomError(null);
-    }
-    setMode(newMode);
-    modeRef.current = newMode;
-  }, [value]);
+  const handleModeChange = useCallback(
+    (newMode: CronPreset) => {
+      if (newMode === "custom") {
+        setCustomDraft(value || "0 8 * * *");
+        setCustomError(null);
+      }
+      setMode(newMode);
+      modeRef.current = newMode;
+    },
+    [value],
+  );
 
   const presets: { key: CronPreset; label: string }[] = [
-    { key: "daily",   label: "Daily" },
-    { key: "weekly",  label: "Weekly" },
+    { key: "daily", label: "Daily" },
+    { key: "weekly", label: "Weekly" },
     { key: "monthly", label: "Monthly" },
-    { key: "custom",  label: "Custom" },
+    { key: "custom", label: "Custom" },
   ];
 
   return (
@@ -160,9 +175,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
             onClick={() => handleModeChange(p.key)}
             className={cn(
               "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
-              mode === p.key
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted hover:bg-accent"
+              mode === p.key ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-accent",
             )}
           >
             {p.label}
@@ -181,7 +194,9 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
               className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer min-w-[64px]"
             >
               {Array.from({ length: 24 }, (_, i) => (
-                <option key={i} value={i}>{String(i).padStart(2, "0")}</option>
+                <option key={i} value={i}>
+                  {String(i).padStart(2, "0")}
+                </option>
               ))}
             </select>
           </div>
@@ -194,7 +209,9 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
               className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer min-w-[64px]"
             >
               {[0, 15, 30, 45].map((m) => (
-                <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
+                <option key={m} value={m}>
+                  {String(m).padStart(2, "0")}
+                </option>
               ))}
             </select>
           </div>
@@ -213,7 +230,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
                 "px-3 py-1.5 rounded-lg text-sm transition-colors",
                 weekday === wd.value
                   ? "bg-primary text-primary-foreground"
-                  : "bg-muted hover:bg-accent"
+                  : "bg-muted hover:bg-accent",
               )}
             >
               {wd.label}
@@ -232,7 +249,9 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
             className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer"
           >
             {MONTH_DAYS.map((d) => (
-              <option key={d} value={d}>{d}</option>
+              <option key={d} value={d}>
+                {d}
+              </option>
             ))}
           </select>
         </div>
@@ -249,7 +268,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
             placeholder="0 8 * * *"
             className={cn(
               "w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none font-mono",
-              customError && "ring-1 ring-destructive"
+              customError && "ring-1 ring-destructive",
             )}
             spellCheck={false}
           />
@@ -257,7 +276,8 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
             <p className="text-[11px] text-destructive mt-1">{customError}</p>
           ) : (
             <p className="text-[11px] text-muted-foreground mt-1">
-              Format: min hour day month weekday — e.g. <span className="font-mono">0 8,18 * * *</span> (twice daily)
+              Format: min hour day month weekday — e.g.{" "}
+              <span className="font-mono">0 8,18 * * *</span> (twice daily)
             </p>
           )}
         </div>

@@ -1,13 +1,6 @@
 import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import {
-  articles,
-  articleTags,
-  feeds,
-  subscriptions,
-  tags,
-  userArticles,
-} from "@/lib/db/schema";
+import { articles, articleTags, feeds, subscriptions, tags, userArticles } from "@/lib/db/schema";
 import {
   parseSnippet,
   SNIPPET_START,
@@ -44,7 +37,7 @@ export interface ArticleHit {
 
 export async function searchArticles(
   userId: string,
-  opts: SearchArticleOpts
+  opts: SearchArticleOpts,
 ): Promise<ArticleHit[]> {
   const { q, feedId, folderId, tagId, unreadOnly, starredOnly, since } = opts;
   const limit = Math.min(opts.limit ?? 5, 20);
@@ -74,11 +67,11 @@ export async function searchArticles(
     .innerJoin(feeds, eq(articles.feedId, feeds.id))
     .innerJoin(
       subscriptions,
-      and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, userId))
+      and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, userId)),
     )
     .leftJoin(
       userArticles,
-      and(eq(userArticles.articleId, articles.id), eq(userArticles.userId, userId))
+      and(eq(userArticles.articleId, articles.id), eq(userArticles.userId, userId)),
     )
     .where(
       and(
@@ -90,18 +83,16 @@ export async function searchArticles(
               where at.article_id = ${articles.id} and at.tag_id = ${tagId}
             )`
           : undefined,
-        unreadOnly
-          ? or(isNull(userArticles.isRead), eq(userArticles.isRead, false))
-          : undefined,
+        unreadOnly ? or(isNull(userArticles.isRead), eq(userArticles.isRead, false)) : undefined,
         starredOnly ? eq(userArticles.isStarred, true) : undefined,
         since
           ? sql`coalesce(${articles.publishedAt}, ${articles.createdAt}) >= ${since}`
           : undefined,
-        sql`(${tsv} @@ ${tsq} OR ${articles.title} ILIKE ${"%" + q + "%"})`
-      )
+        sql`(${tsv} @@ ${tsq} OR ${articles.title} ILIKE ${"%" + q + "%"})`,
+      ),
     )
     .orderBy(
-      sql`ts_rank_cd(${tsv}, ${tsq}) DESC NULLS LAST, coalesce(${articles.publishedAt}, ${articles.createdAt}) DESC`
+      sql`ts_rank_cd(${tsv}, ${tsq}) DESC NULLS LAST, coalesce(${articles.publishedAt}, ${articles.createdAt}) DESC`,
     )
     .limit(limit);
 
@@ -126,11 +117,7 @@ export interface FeedHit {
   unreadCount: number;
 }
 
-export async function searchFeedsByName(
-  userId: string,
-  q: string,
-  limit = 5
-): Promise<FeedHit[]> {
+export async function searchFeedsByName(userId: string, q: string, limit = 5): Promise<FeedHit[]> {
   const like = "%" + q + "%";
   return db
     .select({
@@ -153,12 +140,12 @@ export async function searchFeedsByName(
         or(
           ilike(feeds.title, like),
           ilike(subscriptions.customTitle, like),
-          ilike(feeds.description, like)
-        )
-      )
+          ilike(feeds.description, like),
+        ),
+      ),
     )
     .orderBy(
-      sql`(case when coalesce(${subscriptions.customTitle}, ${feeds.title}) ILIKE ${q + "%"} then 0 else 1 end), coalesce(${subscriptions.customTitle}, ${feeds.title})`
+      sql`(case when coalesce(${subscriptions.customTitle}, ${feeds.title}) ILIKE ${q + "%"} then 0 else 1 end), coalesce(${subscriptions.customTitle}, ${feeds.title})`,
     )
     .limit(Math.min(limit, 20));
 }
@@ -170,11 +157,7 @@ export interface TagHit {
   articleCount: number;
 }
 
-export async function searchTagsByName(
-  userId: string,
-  q: string,
-  limit = 5
-): Promise<TagHit[]> {
+export async function searchTagsByName(userId: string, q: string, limit = 5): Promise<TagHit[]> {
   return db
     .select({
       id: tags.id,

@@ -25,7 +25,7 @@ export async function PATCH(req: Request) {
     }
     return NextResponse.json(
       { success: false, error: "Failed to reorder folders" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -11,6 +11,7 @@
 **Source spec:** `docs/superpowers/specs/2026-05-19-digest-llm-clustering-design.md`
 
 **Deviations from spec captured here:**
+
 - Email templates are `.ts` string renderers, not `.tsx` (matches existing `lib/email/sender.ts` pattern; avoids react-email dependency)
 - Playwright E2E demoted to a manual smoke checklist (Task 14); adding Playwright is its own follow-up
 
@@ -74,12 +75,14 @@ package.json                                    Add zod-to-json-schema, fast-che
 ## Task 0: Preflight & dependencies
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `.env.example`
 
 - [ ] **Step 1: Install new deps**
 
 Run:
+
 ```bash
 cd /Users/ashark/Code/my-apps/apps/feedwise
 pnpm add zod-to-json-schema
@@ -91,6 +94,7 @@ Expected: both installed successfully.
 - [ ] **Step 2: Verify Vitest baseline still runs**
 
 Run:
+
 ```bash
 pnpm test --reporter=basic
 ```
@@ -120,6 +124,7 @@ git commit -m "chore: add zod-to-json-schema, fast-check, ENCRYPTION_KEY guidanc
 ## Task 1: lib/crypto/secrets.ts (encryption primitives)
 
 **Files:**
+
 - Create: `lib/crypto/secrets.ts`
 - Create: `tests/crypto/secrets.test.ts`
 
@@ -207,6 +212,7 @@ describe("lib/crypto/secrets", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 pnpm test tests/crypto/secrets.test.ts
 ```
@@ -307,6 +313,7 @@ export function decryptIfEncrypted(value: string | null): string | null {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 pnpm test tests/crypto/secrets.test.ts
 ```
@@ -325,6 +332,7 @@ git commit -m "feat: add AES-256-GCM secret encryption with v1 ciphertext format
 ## Task 2: Startup ENCRYPTION_KEY guard
 
 **Files:**
+
 - Create: `lib/crypto/startup-check.ts`
 - Modify: `lib/jobs/start-workers.ts`
 - Create: `instrumentation.ts` (project root)
@@ -376,6 +384,7 @@ export async function register() {
 - [ ] **Step 4: Verify boot fails without key**
 
 Run:
+
 ```bash
 ENCRYPTION_KEY="" pnpm worker 2>&1 | head -5
 ```
@@ -385,6 +394,7 @@ Expected: process exits with the "ENCRYPTION_KEY env var is required" error.
 - [ ] **Step 5: Verify boot succeeds with valid key**
 
 Run:
+
 ```bash
 ENCRYPTION_KEY="$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")" pnpm worker 2>&1 | head -5 &
 sleep 2
@@ -405,6 +415,7 @@ git commit -m "feat: fail-fast on missing ENCRYPTION_KEY at server and worker bo
 ## Task 3: Schema additions (LLM columns)
 
 **Files:**
+
 - Modify: `lib/db/schema.ts`
 
 - [ ] **Step 1: Add new columns to emailSubscriptions**
@@ -421,6 +432,7 @@ Open `lib/db/schema.ts`. Find the `emailSubscriptions` table (around line 204). 
 - [ ] **Step 2: Generate migration**
 
 Run:
+
 ```bash
 pnpm db:generate
 ```
@@ -430,6 +442,7 @@ Expected: a new migration file in `drizzle/` adds the four columns. Inspect the 
 - [ ] **Step 3: Apply migration**
 
 Run:
+
 ```bash
 pnpm db:push
 ```
@@ -448,6 +461,7 @@ git commit -m "feat(db): add llm_* columns to email_subscriptions"
 ## Task 4: Encrypt-existing-secrets migration script
 
 **Files:**
+
 - Create: `drizzle/scripts/encrypt-existing-secrets.ts`
 
 - [ ] **Step 1: Implement the script**
@@ -518,6 +532,7 @@ Open `package.json`. Inside `scripts`, add:
 - [ ] **Step 3: Run on local DB (assuming local has existing plaintext secrets, or no rows)**
 
 Run:
+
 ```bash
 pnpm db:encrypt-secrets
 ```
@@ -542,6 +557,7 @@ git commit -m "feat: add idempotent script to encrypt existing plaintext secrets
 ## Task 5: Update email/queries.ts to encrypt-on-write / decrypt-on-read
 
 **Files:**
+
 - Modify: `lib/email/queries.ts`
 
 This task makes `lib/email/queries.ts` the encryption boundary: secrets stored encrypted, all callers see plaintext.
@@ -709,6 +725,7 @@ export async function updateUserLlmConfig(userId: string, input: LlmConfigInput)
 - [ ] **Step 7: Quick smoke test via Vitest (no new test file yet, just typecheck)**
 
 Run:
+
 ```bash
 pnpm tsc --noEmit
 ```
@@ -727,6 +744,7 @@ git commit -m "feat(email): encrypt smtp_pass/email_api_key/llm_api_key at rest;
 ## Task 6: lib/digest/normalize-url.ts
 
 **Files:**
+
 - Create: `lib/digest/normalize-url.ts`
 - Create: `tests/digest/normalize-url.test.ts`
 
@@ -785,6 +803,7 @@ describe("canonicalizeUrl", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 pnpm test tests/digest/normalize-url.test.ts
 ```
@@ -843,6 +862,7 @@ export function canonicalizeUrl(input: string | null | undefined): string {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 pnpm test tests/digest/normalize-url.test.ts
 ```
@@ -861,6 +881,7 @@ git commit -m "feat(digest): URL canonicalization (strip utm/tracking, fragment,
 ## Task 7: lib/digest/dedupe.ts + lib/digest/types.ts
 
 **Files:**
+
 - Create: `lib/digest/types.ts`
 - Create: `lib/digest/dedupe.ts`
 - Create: `tests/digest/dedupe.test.ts`
@@ -994,6 +1015,7 @@ describe("dedupeByTitleSimilarity", () => {
 - [ ] **Step 3: Run test to verify it fails**
 
 Run:
+
 ```bash
 pnpm test tests/digest/dedupe.test.ts
 ```
@@ -1099,6 +1121,7 @@ export function dedupeByTitleSimilarity(
 - [ ] **Step 5: Run test to verify it passes**
 
 Run:
+
 ```bash
 pnpm test tests/digest/dedupe.test.ts
 ```
@@ -1117,6 +1140,7 @@ git commit -m "feat(digest): URL + title-similarity dedupe with earliest-publish
 ## Task 8: lib/digest/cluster-types.ts
 
 **Files:**
+
 - Create: `lib/digest/cluster-types.ts`
 - Create: `tests/digest/cluster-types.test.ts`
 
@@ -1203,6 +1227,7 @@ describe("ClusterResponseSchema", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 pnpm test tests/digest/cluster-types.test.ts
 ```
@@ -1240,6 +1265,7 @@ export const clusterResponseJsonSchema = zodToJsonSchema(ClusterResponseSchema, 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 pnpm test tests/digest/cluster-types.test.ts
 ```
@@ -1258,6 +1284,7 @@ git commit -m "feat(digest): Zod schemas + JSON schema for LLM cluster I/O"
 ## Task 9: lib/digest/llm-client.ts
 
 **Files:**
+
 - Create: `lib/digest/llm-client.ts`
 - Create: `tests/digest/llm-client.test.ts`
 
@@ -1360,6 +1387,7 @@ describe("callChatCompletion", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 pnpm test tests/digest/llm-client.test.ts
 ```
@@ -1475,6 +1503,7 @@ export async function callChatCompletion(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 pnpm test tests/digest/llm-client.test.ts
 ```
@@ -1493,6 +1522,7 @@ git commit -m "feat(digest): OpenAI-compatible chat completion client with typed
 ## Task 10: lib/digest/cluster.ts
 
 **Files:**
+
 - Create: `lib/digest/cluster.ts`
 - Create: `tests/digest/cluster.test.ts`
 
@@ -1597,6 +1627,7 @@ describe("runClustering", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 pnpm test tests/digest/cluster.test.ts
 ```
@@ -1734,6 +1765,7 @@ export async function runClustering(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 pnpm test tests/digest/cluster.test.ts
 ```
@@ -1752,6 +1784,7 @@ git commit -m "feat(digest): cluster pipeline with prompt assembly, batching, to
 ## Task 11: lib/digest/fallback.ts + lib/digest/organize.ts
 
 **Files:**
+
 - Create: `lib/digest/fallback.ts`
 - Create: `lib/digest/organize.ts`
 - Create: `tests/digest/fallback.test.ts`
@@ -1908,6 +1941,7 @@ describe("organize", () => {
 - [ ] **Step 3: Run tests to verify they fail**
 
 Run:
+
 ```bash
 pnpm test tests/digest/fallback.test.ts tests/digest/organize.test.ts
 ```
@@ -2032,6 +2066,7 @@ export function organize(
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run:
+
 ```bash
 pnpm test tests/digest/fallback.test.ts tests/digest/organize.test.ts
 ```
@@ -2050,6 +2085,7 @@ git commit -m "feat(digest): organize + fallback with property-tested no-article
 ## Task 12: Email templates rewrite
 
 **Files:**
+
 - Create: `lib/email/templates/digest-html.ts`
 - Create: `lib/email/templates/digest-fallback-html.ts`
 - Create: `tests/email/templates/digest-html.test.ts`
@@ -2161,6 +2197,7 @@ export function renderFallbackHtml(digest: OrganizedDigest): string {
 - [ ] **Step 3: Run fallback template test**
 
 Run:
+
 ```bash
 pnpm test tests/email/templates/digest-fallback-html.test.ts
 ```
@@ -2338,6 +2375,7 @@ export function renderDigestHtml(digest: OrganizedDigest): string {
 - [ ] **Step 6: Run clustered template test**
 
 Run:
+
 ```bash
 pnpm test tests/email/templates/digest-html.test.ts
 ```
@@ -2385,6 +2423,7 @@ Also delete the now-unused helpers from `sender.ts`: `limitEmailImageSize`, `nor
 - [ ] **Step 8: Typecheck**
 
 Run:
+
 ```bash
 pnpm tsc --noEmit
 ```
@@ -2403,6 +2442,7 @@ git commit -m "feat(email): split digest templates from sender; clustered + fall
 ## Task 13: Wire pipeline into digest-worker.ts
 
 **Files:**
+
 - Modify: `lib/jobs/workers/digest-worker.ts`
 - Create: `tests/jobs/digest-worker.test.ts`
 
@@ -2494,6 +2534,7 @@ describe("assembleDigestForSubscription", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 pnpm test tests/jobs/digest-worker.test.ts
 ```
@@ -2516,7 +2557,8 @@ import type { DigestArticle, OrganizedDigest } from "@/lib/digest/types";
 ```
 
 Also add `getUserLlmConfig` to the existing `@/lib/email/queries` import block at the top of the file (do not create a separate import line).
-```
+
+````
 
 Add the new exported helper right above `sendDigestForDate`:
 
@@ -2550,7 +2592,7 @@ export async function assembleDigestForSubscription(
     return { digest: buildFallback(deduped, "llm-failed"), allArticleIds };
   }
 }
-```
+````
 
 Now replace the body of `sendDigestForDate` so it calls `assembleDigestForSubscription` and renders:
 
@@ -2616,6 +2658,7 @@ async function sendDigestForDate(
 - [ ] **Step 4: Run worker test + typecheck**
 
 Run:
+
 ```bash
 pnpm test tests/jobs/digest-worker.test.ts
 pnpm tsc --noEmit
@@ -2626,6 +2669,7 @@ Expected: 3 tests pass, no type errors.
 - [ ] **Step 5: Run the full digest test suite**
 
 Run:
+
 ```bash
 pnpm test tests/crypto/ tests/digest/ tests/email/ tests/jobs/
 ```
@@ -2644,6 +2688,7 @@ git commit -m "feat(digest): wire dedupe + cluster + organize pipeline into dige
 ## Task 14: API routes for LLM config
 
 **Files:**
+
 - Create: `app/api/email/llm/config/route.ts`
 - Create: `app/api/email/llm/test/route.ts`
 - Create: `tests/api/llm-test.test.ts`
@@ -2768,6 +2813,7 @@ git commit -m "feat(api): LLM config save + test-ping endpoints"
 ## Task 15: Settings UI — Smart Digest card
 
 **Files:**
+
 - Modify: `app/(reader)/settings/page.tsx`
 
 > **Heads up:** `settings/page.tsx` is ~33 KB. Read it first to understand the existing form / state patterns before adding the new card. Match existing patterns (React 19 `useActionState` + Server Action OR client fetch — whichever the rest of the file uses).
@@ -2775,6 +2821,7 @@ git commit -m "feat(api): LLM config save + test-ping endpoints"
 - [ ] **Step 1: Read the existing settings page**
 
 Run:
+
 ```bash
 wc -l /Users/ashark/Code/my-apps/apps/feedwise/app/\(reader\)/settings/page.tsx
 ```
@@ -2903,11 +2950,13 @@ And in `getSubscriptionSettings`, include these in the return:
 - [ ] **Step 4: Manual smoke test the UI**
 
 Run:
+
 ```bash
 pnpm dev:all
 ```
 
 In a browser:
+
 1. Open `/settings`
 2. Scroll to the new "Smart Digest (Beta)" card
 3. Toggle enable on, paste baseUrl + apiKey + model, click Test → should toast "LLM reachable"
@@ -2926,6 +2975,7 @@ git commit -m "feat(ui): Smart Digest (Beta) settings card with Save + Test"
 ## Task 16: Manual smoke checklist (replaces Playwright E2E)
 
 **Files:**
+
 - Create: `docs/superpowers/manual-tests/2026-05-19-digest-llm-clustering.md`
 
 - [ ] **Step 1: Write the checklist**
@@ -2987,13 +3037,14 @@ git commit -m "docs: manual smoke checklist for digest LLM clustering"
 ## Task 17: Deployment docs
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Add ENCRYPTION_KEY + migration to README**
 
 Open `README.md`. After the "Setup" section's `pnpm db:push` line, insert:
 
-```markdown
+````markdown
 
 #### Encryption setup (required)
 
@@ -3001,7 +3052,7 @@ Generate a 32-byte base64 key for secret-at-rest encryption and add it to `.env`
 
 ```bash
 node -e "console.log('ENCRYPTION_KEY=' + require('crypto').randomBytes(32).toString('base64'))" >> .env
-```
+````
 
 If you have existing data with plaintext SMTP/LLM secrets, run the one-time migration (safe to re-run):
 
@@ -3010,13 +3061,14 @@ pnpm db:encrypt-secrets
 ```
 
 Both the web server and worker refuse to start if `ENCRYPTION_KEY` is missing or wrong length.
-```
+
+````
 
 Also add the new script to the script table:
 
 ```markdown
 | `pnpm db:encrypt-secrets` | One-time encrypt existing plaintext secrets (idempotent) |
-```
+````
 
 - [ ] **Step 2: Commit**
 

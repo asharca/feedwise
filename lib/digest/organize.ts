@@ -3,10 +3,7 @@ import type { DedupedArticle, OrganizedDigest, TopHeadline, TopicGroup } from ".
 
 const TOP_N = 5;
 
-export function organize(
-  deduped: DedupedArticle[],
-  response: ClusterResponse
-): OrganizedDigest {
+export function organize(deduped: DedupedArticle[], response: ClusterResponse): OrganizedDigest {
   const byPrimaryId = new Map<string, DedupedArticle>();
   for (const d of deduped) byPrimaryId.set(d.primary.id, d);
 
@@ -20,13 +17,10 @@ export function organize(
     .filter((cm) => cm.members.length > 0);
 
   const sortedByImp = [...clustersWithArticles].sort(
-    (a, b) => b.cluster.importance - a.cluster.importance
+    (a, b) => b.cluster.importance - a.cluster.importance,
   );
   const topHeadlines: TopHeadline[] = sortedByImp.slice(0, TOP_N).map((cm) => {
-    const totalSources = cm.members.reduce(
-      (n, m) => n + 1 + m.duplicates.length,
-      0
-    );
+    const totalSources = cm.members.reduce((n, m) => n + 1 + m.duplicates.length, 0);
     return {
       cluster: cm.cluster,
       primaryArticle: cm.members[0].primary,
@@ -44,7 +38,7 @@ export function organize(
   const topicGroups: TopicGroup[] = Array.from(byTopic.entries()).map(([topic, list]) => {
     const totalCount = list.reduce(
       (n, cm) => n + cm.members.reduce((m, x) => m + 1 + x.duplicates.length, 0),
-      0
+      0,
     );
     return {
       topic,

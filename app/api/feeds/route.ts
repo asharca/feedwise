@@ -1,24 +1,22 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
-import {
-  findFeedByUrl,
-  getSubscriptions,
-  subscribeFeed,
-} from "@/lib/db/queries/feeds";
+import { findFeedByUrl, getSubscriptions, subscribeFeed } from "@/lib/db/queries/feeds";
 import { getFeedFetchQueue } from "@/lib/jobs/queue";
 import { preflightFeed } from "@/lib/feeds/parser";
 import { FeedError, classifyError, humanMessage } from "@/lib/feeds/feed-error";
 
 const SUBSCRIBE_PREFLIGHT_TIMEOUT_MS = 5_000;
 
-const SubscribeSchema = z.object({
-  url: z.string().url().optional(),
-  urls: z.array(z.string().url()).optional(),
-  folderId: z.string().uuid().optional(),
-}).refine((d) => d.url || (d.urls && d.urls.length > 0), {
-  message: "Provide url or urls",
-});
+const SubscribeSchema = z
+  .object({
+    url: z.string().url().optional(),
+    urls: z.array(z.string().url()).optional(),
+    folderId: z.string().uuid().optional(),
+  })
+  .refine((d) => d.url || (d.urls && d.urls.length > 0), {
+    message: "Provide url or urls",
+  });
 
 interface SubscribeResult {
   url: string;
@@ -61,7 +59,7 @@ export async function POST(req: Request) {
           await getFeedFetchQueue().add(
             "fetch",
             { feedId, url: feedUrl },
-            { jobId: `feed-${feedId}-init`, attempts: 3 }
+            { jobId: `feed-${feedId}-init`, attempts: 3 },
           );
         } catch {
           // Non-fatal: subscription saved, fetch will retry on next scheduler run
@@ -89,7 +87,7 @@ export async function POST(req: Request) {
           error: failed[0].error,
           errorCode: failed[0].errorCode,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

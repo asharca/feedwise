@@ -85,7 +85,10 @@ function LoginForm() {
 
         <p className="text-center text-sm text-muted-foreground">
           No account?{" "}
-          <Link href="/register" className="text-primary font-medium hover:underline underline-offset-4">
+          <Link
+            href="/register"
+            className="text-primary font-medium hover:underline underline-offset-4"
+          >
             Create one
           </Link>
         </p>

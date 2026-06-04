@@ -112,7 +112,10 @@ const navLinks = [
   { href: "/discover", label: "Discover", icon: Compass },
 ] as const;
 
-export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders }: AppSidebarProps) {
+export function AppSidebar({
+  subscriptions: initialSubs,
+  folders: initialFolders,
+}: AppSidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -132,18 +135,20 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
         prev.map((s) =>
           s.feedId === feedId
             ? { ...s, unreadCount: Math.max(0, (s.unreadCount ?? 0) + delta) }
-            : s
-        )
+            : s,
+        ),
       );
     }
     function onMarkAll(e: Event) {
-      const { feedId: targetFeedId, folderId: targetFolderId } = (e as CustomEvent<{ feedId?: string; folderId?: string }>).detail;
+      const { feedId: targetFeedId, folderId: targetFolderId } = (
+        e as CustomEvent<{ feedId?: string; folderId?: string }>
+      ).detail;
       setSubs((prev) =>
         prev.map((s) => {
           if (targetFeedId && s.feedId !== targetFeedId) return s;
           if (targetFolderId && s.folderId !== targetFolderId) return s;
           return { ...s, unreadCount: 0 };
-        })
+        }),
       );
     }
     window.addEventListener("feedwise:unread-delta", onDelta);
@@ -295,10 +300,8 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
       if (!data.success) throw new Error(data.error);
       setSubs((prev) =>
         prev.map((s) =>
-          s.id === renameTarget.id
-            ? { ...s, title: renameName.trim() || null }
-            : s
-        )
+          s.id === renameTarget.id ? { ...s, title: renameName.trim() || null } : s,
+        ),
       );
       setRenameOpen(false);
     } finally {
@@ -324,12 +327,10 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ feedUrl: editUrlValue.trim() }),
       });
-      const data = await res.json() as { success: boolean; error?: string };
+      const data = (await res.json()) as { success: boolean; error?: string };
       if (!data.success) throw new Error(data.error ?? "Failed to update URL");
       setSubs((prev) =>
-        prev.map((s) =>
-          s.id === editUrlTarget.id ? { ...s, url: editUrlValue.trim() } : s
-        )
+        prev.map((s) => (s.id === editUrlTarget.id ? { ...s, url: editUrlValue.trim() } : s)),
       );
       setEditUrlOpen(false);
     } catch (err) {
@@ -341,14 +342,12 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
 
   async function handleMarkFeedAllRead(sub: Subscription) {
     await fetch(`/api/articles/mark-all-read?feedId=${sub.feedId}`, { method: "POST" });
-    setSubs((prev) =>
-      prev.map((s) => (s.id === sub.id ? { ...s, unreadCount: 0 } : s))
-    );
+    setSubs((prev) => prev.map((s) => (s.id === sub.id ? { ...s, unreadCount: 0 } : s)));
     toast.success("Marked all as read");
   }
 
   const dndSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
 
   async function handleFolderDragEnd(event: DragEndEvent) {
@@ -400,7 +399,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
       const data = (await res.json()) as { success: boolean; error?: string };
       if (!data.success) throw new Error(data.error ?? "Failed to rename");
       setFoldersState((prev) =>
-        prev.map((f) => (f.id === folderRenameTarget.id ? { ...f, name } : f))
+        prev.map((f) => (f.id === folderRenameTarget.id ? { ...f, name } : f)),
       );
       setFolderRenameOpen(false);
     } catch (err) {
@@ -412,7 +411,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
 
   async function handleFolderDelete(folder: Folder) {
     const confirmed = window.confirm(
-      `Delete folder "${folder.name}"? Feeds inside it will become uncategorised.`
+      `Delete folder "${folder.name}"? Feeds inside it will become uncategorised.`,
     );
     if (!confirmed) return;
     try {
@@ -420,9 +419,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
       const data = (await res.json()) as { success: boolean; error?: string };
       if (!data.success) throw new Error(data.error ?? "Failed to delete");
       setFoldersState((prev) => prev.filter((f) => f.id !== folder.id));
-      setSubs((prev) =>
-        prev.map((s) => (s.folderId === folder.id ? { ...s, folderId: null } : s))
-      );
+      setSubs((prev) => prev.map((s) => (s.folderId === folder.id ? { ...s, folderId: null } : s)));
       if (activeFolderId === folder.id) {
         navigate({ folderId: null, view: "all" });
       }
@@ -471,9 +468,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
       });
       const data = (await res.json()) as { success: boolean; error?: string };
       if (!data.success) throw new Error(data.error ?? "Failed to move");
-      setSubs((prev) =>
-        prev.map((s) => (s.id === sub.id ? { ...s, folderId } : s))
-      );
+      setSubs((prev) => prev.map((s) => (s.id === sub.id ? { ...s, folderId } : s)));
       const dest = folderId ? foldersState.find((f) => f.id === folderId)?.name : "Uncategorised";
       toast.success(`Moved to ${dest ?? "folder"}`);
     } catch (err) {
@@ -495,7 +490,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
 
   async function handleDelete(sub: Subscription) {
     const confirmed = window.confirm(
-      `Unsubscribe from "${sub.title ?? sub.feedTitle ?? sub.url}"?`
+      `Unsubscribe from "${sub.title ?? sub.feedTitle ?? sub.url}"?`,
     );
     if (!confirmed) return;
     await fetch(`/api/feeds/${sub.id}`, { method: "DELETE" });
@@ -509,7 +504,13 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
     if (url) {
       return (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={proxyImg(url)} alt="" loading="lazy" decoding="async" className="size-4 rounded-sm shrink-0" />
+        <img
+          src={proxyImg(url)}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="size-4 rounded-sm shrink-0"
+        />
       );
     }
     const letter = (name || "?")[0].toUpperCase();
@@ -566,7 +567,10 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
               {(sub.unreadCount ?? 0) > 0 && (
                 <>
                   <DropdownMenuItem
-                    onClick={(e) => { e.stopPropagation(); handleMarkFeedAllRead(sub); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMarkFeedAllRead(sub);
+                    }}
                   >
                     <CheckCheck className="size-4" />
                     Mark all read
@@ -575,19 +579,28 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                 </>
               )}
               <DropdownMenuItem
-                onClick={(e) => { e.stopPropagation(); handleRefresh(sub); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRefresh(sub);
+                }}
               >
                 <RefreshCw className="size-4" />
                 {sub.lastFetchError ? "Retry now" : "Refresh now"}
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={(e) => { e.stopPropagation(); openRename(sub); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openRename(sub);
+                }}
               >
                 <Pencil className="size-4" />
                 Rename
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={(e) => { e.stopPropagation(); openEditUrl(sub); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditUrl(sub);
+                }}
               >
                 <Link className="size-4" />
                 Edit URL
@@ -599,7 +612,10 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem
-                    onClick={(e) => { e.stopPropagation(); handleMoveFeedToFolder(sub, null); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMoveFeedToFolder(sub, null);
+                    }}
                   >
                     No folder
                   </DropdownMenuItem>
@@ -607,7 +623,10 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                   {foldersState.map((f) => (
                     <DropdownMenuItem
                       key={f.id}
-                      onClick={(e) => { e.stopPropagation(); handleMoveFeedToFolder(sub, f.id); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveFeedToFolder(sub, f.id);
+                      }}
                       disabled={sub.folderId === f.id}
                     >
                       {f.name}
@@ -617,7 +636,10 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
               </DropdownMenuSub>
               <DropdownMenuItem
                 className="text-destructive"
-                onClick={(e) => { e.stopPropagation(); handleDelete(sub); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(sub);
+                }}
               >
                 <Trash2 className="size-4" />
                 Unsubscribe
@@ -637,14 +659,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
     folderSubs: Subscription[];
   }) {
     const sortable = useSortable({ id: folder.id });
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = sortable;
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = sortable;
     const style: React.CSSProperties = {
       transform: CSS.Transform.toString(transform),
       transition,
@@ -661,7 +676,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
           <SidebarGroupLabel
             className={cn(
               "group/folder flex items-center justify-between pr-1 text-xs uppercase tracking-wider text-muted-foreground/70",
-              isActiveFolder && "text-foreground"
+              isActiveFolder && "text-foreground",
             )}
           >
             <button
@@ -674,7 +689,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
               <ChevronRight
                 className={cn(
                   "size-3 shrink-0 transition-transform duration-150",
-                  !isCollapsed && "rotate-90"
+                  !isCollapsed && "rotate-90",
                 )}
               />
               <span className="truncate">{folder.name}</span>
@@ -696,13 +711,19 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="rounded-md">
                   <DropdownMenuItem
-                    onClick={(e) => { e.stopPropagation(); navigate({ folderId: folder.id, feedId: null, tag: null, view: "all" }); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate({ folderId: folder.id, feedId: null, tag: null, view: "all" });
+                    }}
                   >
                     <FolderOpen className="size-4" />
                     View all in folder
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={(e) => { e.stopPropagation(); openFolderRename(folder); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openFolderRename(folder);
+                    }}
                   >
                     <Pencil className="size-4" />
                     Rename
@@ -710,7 +731,10 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive"
-                    onClick={(e) => { e.stopPropagation(); handleFolderDelete(folder); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFolderDelete(folder);
+                    }}
                   >
                     <Trash2 className="size-4" />
                     Delete folder
@@ -758,7 +782,12 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                 <Rss className="size-4" />
                 Add feed
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setFolderCreateError(""); setFolderCreateOpen(true); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  setFolderCreateError("");
+                  setFolderCreateOpen(true);
+                }}
+              >
                 <FolderOpen className="size-4" />
                 New folder
               </DropdownMenuItem>
@@ -788,11 +817,23 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
               {smartViews.map(({ key, label, icon: Icon }) => (
                 <SidebarMenuItem key={key}>
                   <SidebarMenuButton
-                    isActive={activeView === key && !activeFeedId && !activeFolderId && pathname === "/reader"}
-                    onClick={() => { router.replace(`/reader?view=${key}`); }}
+                    isActive={
+                      activeView === key &&
+                      !activeFeedId &&
+                      !activeFolderId &&
+                      pathname === "/reader"
+                    }
+                    onClick={() => {
+                      router.replace(`/reader?view=${key}`);
+                    }}
                     className="rounded-md h-9 transition-all duration-150"
                   >
-                    <Icon className={cn("size-4", key === "starred" && activeView === key && "text-yellow-500")} />
+                    <Icon
+                      className={cn(
+                        "size-4",
+                        key === "starred" && activeView === key && "text-yellow-500",
+                      )}
+                    />
                     <span className="flex-1">{label}</span>
                     {key === "unread" && totalUnread > 0 && (
                       <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
@@ -829,11 +870,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
             strategy={verticalListSortingStrategy}
           >
             {Array.from(folderMap.values()).map(({ folder, subs: folderSubs }) => (
-              <SortableFolderGroup
-                key={folder.id}
-                folder={folder}
-                folderSubs={folderSubs}
-              />
+              <SortableFolderGroup key={folder.id} folder={folder} folderSubs={folderSubs} />
             ))}
           </SortableContext>
         </DndContext>
@@ -852,9 +889,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
               </button>
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>
-                {uncategorized.map(renderFeedItem)}
-              </SidebarMenu>
+              <SidebarMenu>{uncategorized.map(renderFeedItem)}</SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
@@ -913,7 +948,11 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
             />
             <p className="text-xs text-muted-foreground">One URL per line for batch add</p>
             {addError && <p className="text-destructive text-sm whitespace-pre-line">{addError}</p>}
-            <Button type="submit" className="w-full rounded-md" disabled={adding || feedUrl.trim().length === 0}>
+            <Button
+              type="submit"
+              className="w-full rounded-md"
+              disabled={adding || feedUrl.trim().length === 0}
+            >
               {adding ? "Adding…" : "Subscribe"}
             </Button>
           </form>
@@ -976,9 +1015,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                 className="rounded-md"
               />
             </div>
-            {folderCreateError && (
-              <p className="text-destructive text-sm">{folderCreateError}</p>
-            )}
+            {folderCreateError && <p className="text-destructive text-sm">{folderCreateError}</p>}
             <div className="flex gap-2">
               <Button type="submit" disabled={folderCreateSaving} className="flex-1 rounded-md">
                 {folderCreateSaving ? "Creating…" : "Create"}
@@ -1013,9 +1050,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                 className="rounded-md"
               />
             </div>
-            {folderRenameError && (
-              <p className="text-destructive text-sm">{folderRenameError}</p>
-            )}
+            {folderRenameError && <p className="text-destructive text-sm">{folderRenameError}</p>}
             <div className="flex gap-2">
               <Button type="submit" disabled={folderRenameSaving} className="flex-1 rounded-md">
                 {folderRenameSaving ? "Saving…" : "Save"}
@@ -1053,9 +1088,7 @@ export function AppSidebar({ subscriptions: initialSubs, folders: initialFolders
                 className="rounded-md"
               />
             </div>
-            {editUrlError && (
-              <p className="text-destructive text-sm">{editUrlError}</p>
-            )}
+            {editUrlError && <p className="text-destructive text-sm">{editUrlError}</p>}
             <div className="flex gap-2">
               <Button type="submit" disabled={editUrlSaving} className="flex-1 rounded-md">
                 {editUrlSaving ? "Saving…" : "Save"}

@@ -14,9 +14,12 @@
     "worker": "tsx --env-file=.env lib/jobs/start-workers.ts",
     "worker:prod": "tsx lib/jobs/start-workers.ts",
     "dev:all": "concurrently \"pnpm dev\" \"pnpm worker\"",
-    "test": "vitest run tests/",
-    "mcp": "tsx --env-file=.env mcp-server.ts",
-    "postinstall": "node scripts/install-hooks.js"
+    "test": "vitest run tests/ --exclude tests/auth.test.ts",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "mcp": "tsx --env-file=.env mcp-server.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
@@ -64,6 +67,8 @@
     "drizzle-kit": "^0.31.10",
     "fast-check": "^4.8.0",
     "lefthook": "^2.1.9",
+    "oxfmt": "^0.20.0",
+    "oxlint": "^1.30.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",

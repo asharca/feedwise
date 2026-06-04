@@ -3,10 +3,7 @@
 import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SettingsDialog } from "./settings-dialog";
-import {
-  SETTINGS_SECTIONS,
-  type SettingsSectionKey,
-} from "./settings-content";
+import { SETTINGS_SECTIONS, type SettingsSectionKey } from "./settings-content";
 
 const VALID = new Set<string>(SETTINGS_SECTIONS.map((s) => s.key));
 
@@ -33,9 +30,7 @@ function Inner() {
     router.replace(q ? `${pathname}?${q}` : pathname);
   }
 
-  return (
-    <SettingsDialog open={open} onOpenChange={handleOpenChange} initialSection={section} />
-  );
+  return <SettingsDialog open={open} onOpenChange={handleOpenChange} initialSection={section} />;
 }
 
 /**

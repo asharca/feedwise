@@ -3,11 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { cn, proxyImg } from "@/lib/utils";
 import { SearchSnippet } from "./search-snippet";
-import type {
-  ArticleHitDTO,
-  FeedHitDTO,
-  TagHitDTO,
-} from "@/lib/hooks/use-search";
+import type { ArticleHitDTO, FeedHitDTO, TagHitDTO } from "@/lib/hooks/use-search";
 
 export interface ResultsProps {
   query: string;
@@ -56,7 +52,7 @@ function ArticleRow({
         className={cn(
           "w-full text-left px-3 py-2 flex gap-2.5 items-start transition-colors",
           active ? "bg-accent" : "hover:bg-accent/50",
-          hit.isRead && "opacity-70"
+          hit.isRead && "opacity-70",
         )}
       >
         {hit.feedIconUrl ? (
@@ -73,15 +69,12 @@ function ArticleRow({
         )}
         <div className="min-w-0 flex-1">
           <div
-            className={cn(
-              "text-[13px] leading-snug line-clamp-2",
-              !hit.isRead && "font-semibold"
-            )}
+            className={cn("text-[13px] leading-snug line-clamp-2", !hit.isRead && "font-semibold")}
           >
             {hit.titleParts.length > 0 ? (
               <SearchSnippet parts={hit.titleParts} />
             ) : (
-              hit.title ?? "(no title)"
+              (hit.title ?? "(no title)")
             )}
           </div>
           <SearchSnippet
@@ -122,7 +115,7 @@ function FeedRow({
         onClick={onOpen}
         className={cn(
           "w-full text-left px-3 py-1.5 flex gap-2.5 items-center transition-colors",
-          active ? "bg-accent" : "hover:bg-accent/50"
+          active ? "bg-accent" : "hover:bg-accent/50",
         )}
       >
         {hit.iconUrl ? (
@@ -137,13 +130,9 @@ function FeedRow({
         ) : (
           <div className="size-4 rounded-sm shrink-0 bg-muted" />
         )}
-        <span className="text-[13px] flex-1 truncate">
-          {hit.title ?? "(untitled feed)"}
-        </span>
+        <span className="text-[13px] flex-1 truncate">{hit.title ?? "(untitled feed)"}</span>
         {hit.unreadCount > 0 && (
-          <span className="text-[10px] text-muted-foreground/70">
-            {hit.unreadCount}
-          </span>
+          <span className="text-[10px] text-muted-foreground/70">{hit.unreadCount}</span>
         )}
       </button>
     </li>
@@ -174,7 +163,7 @@ function TagRow({
         onClick={onOpen}
         className={cn(
           "w-full text-left px-3 py-1.5 flex gap-2 items-center transition-colors",
-          active ? "bg-accent" : "hover:bg-accent/50"
+          active ? "bg-accent" : "hover:bg-accent/50",
         )}
       >
         <span
@@ -182,9 +171,7 @@ function TagRow({
           style={{ backgroundColor: hit.color ?? "var(--muted-foreground)" }}
         />
         <span className="text-[13px] flex-1 truncate">#{hit.name}</span>
-        <span className="text-[10px] text-muted-foreground/70">
-          {hit.articleCount}
-        </span>
+        <span className="text-[10px] text-muted-foreground/70">{hit.articleCount}</span>
       </button>
     </li>
   );

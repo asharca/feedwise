@@ -15,12 +15,22 @@ describe("ClusterSchema", () => {
   });
 
   it("rejects empty topic", () => {
-    const r = ClusterSchema.safeParse({ topic: "", headline: "x", importance: 5, articleIds: [validId] });
+    const r = ClusterSchema.safeParse({
+      topic: "",
+      headline: "x",
+      importance: 5,
+      articleIds: [validId],
+    });
     expect(r.success).toBe(false);
   });
 
   it("rejects topic > 40 chars", () => {
-    const r = ClusterSchema.safeParse({ topic: "x".repeat(41), headline: "x", importance: 5, articleIds: [validId] });
+    const r = ClusterSchema.safeParse({
+      topic: "x".repeat(41),
+      headline: "x",
+      importance: 5,
+      articleIds: [validId],
+    });
     expect(r.success).toBe(false);
   });
 
@@ -36,20 +46,32 @@ describe("ClusterSchema", () => {
 
   it("rejects importance out of 1-10", () => {
     expect(
-      ClusterSchema.safeParse({ topic: "AI", headline: "x", importance: 0, articleIds: [validId] }).success
+      ClusterSchema.safeParse({ topic: "AI", headline: "x", importance: 0, articleIds: [validId] })
+        .success,
     ).toBe(false);
     expect(
-      ClusterSchema.safeParse({ topic: "AI", headline: "x", importance: 11, articleIds: [validId] }).success
+      ClusterSchema.safeParse({ topic: "AI", headline: "x", importance: 11, articleIds: [validId] })
+        .success,
     ).toBe(false);
   });
 
   it("rejects non-uuid articleIds", () => {
-    const r = ClusterSchema.safeParse({ topic: "AI", headline: "x", importance: 5, articleIds: ["not-uuid"] });
+    const r = ClusterSchema.safeParse({
+      topic: "AI",
+      headline: "x",
+      importance: 5,
+      articleIds: ["not-uuid"],
+    });
     expect(r.success).toBe(false);
   });
 
   it("rejects empty articleIds array", () => {
-    const r = ClusterSchema.safeParse({ topic: "AI", headline: "x", importance: 5, articleIds: [] });
+    const r = ClusterSchema.safeParse({
+      topic: "AI",
+      headline: "x",
+      importance: 5,
+      articleIds: [],
+    });
     expect(r.success).toBe(false);
   });
 });

@@ -9,9 +9,7 @@ describe("parseSnippet", () => {
   });
 
   it("returns a single text part when there is no marker", () => {
-    expect(parseSnippet("hello world")).toEqual([
-      { type: "text", value: "hello world" },
-    ]);
+    expect(parseSnippet("hello world")).toEqual([{ type: "text", value: "hello world" }]);
   });
 
   it("splits a single match", () => {

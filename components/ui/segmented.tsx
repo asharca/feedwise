@@ -30,10 +30,7 @@ function Segmented<T extends string>({
     <div
       role="group"
       data-slot="segmented"
-      className={cn(
-        "inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5",
-        className
-      )}
+      className={cn("inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5", className)}
       {...aria}
     >
       {options.map((opt) => {
@@ -50,7 +47,7 @@ function Segmented<T extends string>({
               "focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed",
               active
                 ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {opt.label}

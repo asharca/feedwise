@@ -34,10 +34,7 @@ interface FallbackEmailProps {
   buildLink?: LinkFn;
 }
 
-export function DigestFallbackEmail({
-  digest,
-  buildLink = defaultLink,
-}: FallbackEmailProps) {
+export function DigestFallbackEmail({ digest, buildLink = defaultLink }: FallbackEmailProps) {
   const dateStr = digest.date.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -78,13 +75,7 @@ export function DigestFallbackEmail({
   );
 }
 
-function ArticleBlock({
-  article,
-  link,
-}: {
-  article: DigestArticle;
-  link: LinkFn;
-}) {
+function ArticleBlock({ article, link }: { article: DigestArticle; link: LinkFn }) {
   const brief = briefText(article.summary, FALLBACK_BRIEF_MAX);
   return (
     <Section style={styles.item}>

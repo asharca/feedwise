@@ -5,7 +5,7 @@ import type { LinkFn } from "./digest-email";
 
 export async function renderFallbackHtml(
   digest: OrganizedDigest,
-  buildLink?: LinkFn
+  buildLink?: LinkFn,
 ): Promise<string> {
   return render(<DigestFallbackEmail digest={digest} buildLink={buildLink} />);
 }

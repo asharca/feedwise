@@ -46,7 +46,7 @@ export async function processDailyDigests() {
       }
 
       console.log(
-        `[digest] User ${sub.userId}: ${missedDates.length} missed trigger(s) for cron "${cronExpr}"`
+        `[digest] User ${sub.userId}: ${missedDates.length} missed trigger(s) for cron "${cronExpr}"`,
       );
 
       // Send a digest for each missed trigger date, passing the previous
@@ -83,7 +83,7 @@ export async function processDailyDigests() {
  */
 export async function assembleDigestForSubscription(
   _userId: string,
-  articles: DigestArticle[]
+  articles: DigestArticle[],
 ): Promise<{ digest: OrganizedDigest; allArticleIds: string[] }> {
   const allArticleIds = articles.map((a) => a.id);
 
@@ -99,7 +99,7 @@ export async function assembleDigestForSubscription(
 async function sendDigestForDate(
   subscription: Awaited<ReturnType<typeof getAllActiveSubscriptions>>[0],
   triggerDate: Date,
-  fromDate: Date | null
+  fromDate: Date | null,
 ) {
   const email = await getUserEmail(subscription.userId);
   if (!email) {
@@ -110,12 +110,12 @@ async function sendDigestForDate(
   const articles = await getArticlesForEmail(
     subscription.userId,
     fromDate ?? undefined,
-    triggerDate
+    triggerDate,
   );
 
   const { digest, allArticleIds } = await assembleDigestForSubscription(
     subscription.userId,
-    articles
+    articles,
   );
 
   const smtpConfig =
@@ -138,7 +138,7 @@ async function sendDigestForDate(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   if (!appUrl) {
     console.warn(
-      "[digest] NEXT_PUBLIC_APP_URL is not set — email links will skip /api/r so clicks won't mark articles read/starred."
+      "[digest] NEXT_PUBLIC_APP_URL is not set — email links will skip /api/r so clicks won't mark articles read/starred.",
     );
   }
   const buildLink = buildEmailLinkFn(subscription.userId, appUrl, {
@@ -154,14 +154,9 @@ async function sendDigestForDate(
   try {
     await sendDailyDigestWithRetry({ to: email, subject, html, smtpConfig });
     await markArticlesAsSent(subscription.userId, allArticleIds);
-    await logDigestSendWithArticles(
-      subscription.userId,
-      allArticleIds,
-      articles.length,
-      "success"
-    );
+    await logDigestSendWithArticles(subscription.userId, allArticleIds, articles.length, "success");
     console.log(
-      `[digest] Sent digest to ${email} (${articles.length} articles, mode=${digest.mode}) for ${triggerDate.toDateString()}`
+      `[digest] Sent digest to ${email} (${articles.length} articles, mode=${digest.mode}) for ${triggerDate.toDateString()}`,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -170,7 +165,7 @@ async function sendDigestForDate(
       allArticleIds,
       articles.length,
       "failed",
-      message
+      message,
     );
     console.error(`[digest] Failed to send to ${email}:`, message);
     throw err;
@@ -181,7 +176,7 @@ const SEND_RETRY_ATTEMPTS = 3;
 const SEND_RETRY_BASE_MS = 5_000;
 
 export async function sendDailyDigestWithRetry(
-  params: Parameters<typeof sendDailyDigest>[0]
+  params: Parameters<typeof sendDailyDigest>[0],
 ): Promise<void> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= SEND_RETRY_ATTEMPTS; attempt++) {
@@ -194,7 +189,7 @@ export async function sendDailyDigestWithRetry(
       const delay = SEND_RETRY_BASE_MS * Math.pow(2, attempt - 1);
       console.warn(
         `[digest] Send attempt ${attempt} failed, retrying in ${delay}ms:`,
-        err instanceof Error ? err.message : err
+        err instanceof Error ? err.message : err,
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
@@ -207,7 +202,7 @@ export async function sendDailyDigestWithRetry(
  */
 function cronFromLegacySettings(
   frequency: "daily" | "weekly" | null,
-  sendTime: string | null
+  sendTime: string | null,
 ): string {
   const time = sendTime || "08:00";
   const [hour, minute] = time.split(":").map(Number);
@@ -225,11 +220,7 @@ function cronFromLegacySettings(
  * Get all cron trigger dates between (lastSent, upToDate].
  * If lastSent is null, returns only triggers within the last 24h to avoid spam on first enable.
  */
-function getMissedCronTriggers(
-  cronExpr: string,
-  lastSent: Date | null,
-  upToDate: Date
-): Date[] {
+function getMissedCronTriggers(cronExpr: string, lastSent: Date | null, upToDate: Date): Date[] {
   try {
     const startDate = lastSent || new Date(upToDate.getTime() - 24 * 60 * 60 * 1000);
     const expr = CronExpressionParser.parse(cronExpr, {

@@ -114,7 +114,8 @@ export function SmartDigestSection({
       <CardHeader>
         <CardTitle className="text-base">Smart Digest (Beta)</CardTitle>
         <CardDescription>
-          When on, your digest is grouped by topic and ranked by importance. Uses your own API. Off by default.
+          When on, your digest is grouped by topic and ranked by importance. Uses your own API. Off
+          by default.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -166,7 +167,11 @@ export function SmartDigestSection({
               type="url"
               value={llmBaseUrl}
               onChange={(e) => onLlmBaseUrlChange(e.target.value)}
-              placeholder={llmFormat === "anthropic" ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"}
+              placeholder={
+                llmFormat === "anthropic"
+                  ? "https://api.anthropic.com/v1"
+                  : "https://api.openai.com/v1"
+              }
               className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
             />
           </label>
@@ -178,7 +183,13 @@ export function SmartDigestSection({
               type="password"
               value={llmApiKey}
               onChange={(e) => onLlmApiKeyChange(e.target.value)}
-              placeholder={llmKeyMask ? "(unchanged — leave blank to keep)" : llmFormat === "anthropic" ? "sk-ant-..." : "sk-..."}
+              placeholder={
+                llmKeyMask
+                  ? "(unchanged — leave blank to keep)"
+                  : llmFormat === "anthropic"
+                    ? "sk-ant-..."
+                    : "sk-..."
+              }
               className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
             />
           </label>
@@ -189,7 +200,9 @@ export function SmartDigestSection({
                 type="text"
                 value={llmModel}
                 onChange={(e) => onLlmModelChange(e.target.value)}
-                placeholder={llmFormat === "anthropic" ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini"}
+                placeholder={
+                  llmFormat === "anthropic" ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini"
+                }
                 list={modelsLoaded ? "llm-models-datalist" : undefined}
                 className="flex-1 text-sm bg-muted rounded-md px-3 py-2 outline-none"
               />
@@ -207,10 +220,7 @@ export function SmartDigestSection({
                       <div className="px-2 py-1.5 text-xs text-muted-foreground">No models</div>
                     )}
                     {models.map((m) => (
-                      <DropdownMenuItem
-                        key={m.id}
-                        onClick={() => onLlmModelChange(m.id)}
-                      >
+                      <DropdownMenuItem key={m.id} onClick={() => onLlmModelChange(m.id)}>
                         <span className="font-mono text-xs">{m.id}</span>
                       </DropdownMenuItem>
                     ))}

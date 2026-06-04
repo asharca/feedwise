@@ -54,7 +54,7 @@ export function FilterDropdown({ label, activeId, loadOptions, onSelect }: Props
           "inline-flex items-center gap-1 h-6 rounded-full px-2 text-[11px] border transition-colors",
           activeId
             ? "bg-primary/10 border-primary/30 text-primary"
-            : "bg-muted border-transparent hover:border-border text-muted-foreground"
+            : "bg-muted border-transparent hover:border-border text-muted-foreground",
         )}
       >
         <button
@@ -105,7 +105,7 @@ export function FilterDropdown({ label, activeId, loadOptions, onSelect }: Props
                 }}
                 className={cn(
                   "w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors",
-                  opt.id === activeId && "bg-accent"
+                  opt.id === activeId && "bg-accent",
                 )}
               >
                 {opt.label}

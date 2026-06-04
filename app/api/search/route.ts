@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
-import {
-  searchArticles,
-  searchFeedsByName,
-  searchTagsByName,
-} from "@/lib/db/queries/search";
+import { searchArticles, searchFeedsByName, searchTagsByName } from "@/lib/db/queries/search";
 
 const QuerySchema = z.object({
   q: z
@@ -42,10 +38,7 @@ export async function GET(req: Request) {
   const params = Object.fromEntries(url.searchParams.entries());
   const parsed = QuerySchema.safeParse(params);
   if (!parsed.success) {
-    return NextResponse.json(
-      { success: false, error: parsed.error.message },
-      { status: 400 }
-    );
+    return NextResponse.json({ success: false, error: parsed.error.message }, { status: 400 });
   }
 
   const { q, feedId, folderId, tag, unread, starred, since, limit } = parsed.data;

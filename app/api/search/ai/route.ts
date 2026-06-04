@@ -41,13 +41,13 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json(
       { success: false, error: "LLM key could not be decrypted" },
-      { status: 500 }
+      { status: 500 },
     );
   }
   if (!llmConfig) {
     return NextResponse.json(
       { success: false, error: "No LLM configured — set one in Settings → Smart Digest" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     .innerJoin(feeds, eq(articles.feedId, feeds.id))
     .innerJoin(
       subscriptions,
-      and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, session.user.id))
+      and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, session.user.id)),
     )
     .where(gte(articles.createdAt, since))
     .orderBy(desc(articles.createdAt))
@@ -96,7 +96,7 @@ export async function POST(req: Request) {
       callChatCompletion(llmConfig, {
         system:
           "You answer questions about a user's news feed by referencing a list of recent articles. " +
-          "Reply with JSON: { \"answer\": string, \"indices\": number[] }. " +
+          'Reply with JSON: { "answer": string, "indices": number[] }. ' +
           "Pick at most 5 article indices (by [N] number) that are relevant. " +
           "If no article is relevant, return an empty indices array and say so in answer. " +
           "Keep answer concise (max 4 sentences). Do not invent facts not in the articles.",
@@ -116,12 +116,14 @@ export async function POST(req: Request) {
             required: ["answer", "indices"],
           },
         },
-      })
+      }),
     )) as { answer?: unknown; indices?: unknown };
 
     const answer = typeof response.answer === "string" ? response.answer : "";
     const indices = Array.isArray(response.indices)
-      ? response.indices.filter((n): n is number => Number.isInteger(n) && n >= 0 && n < pool.length)
+      ? response.indices.filter(
+          (n): n is number => Number.isInteger(n) && n >= 0 && n < pool.length,
+        )
       : [];
 
     const cited = indices.map((i) => ({

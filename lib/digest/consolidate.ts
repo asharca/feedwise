@@ -25,7 +25,11 @@ export function dedupeArticleAssignments(clusters: Cluster[]): Cluster[] {
 
 function tokenize(s: string): Set<string> {
   return new Set(
-    s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean)
+    s
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .split(/\s+/)
+      .filter(Boolean),
   );
 }
 
@@ -42,7 +46,7 @@ function jaccard(a: Set<string>, b: Set<string>): number {
  * under the same topic stay separate. Higher-importance cluster's topic/headline wins. */
 export function mergeSameEventClusters(
   clusters: Cluster[],
-  threshold = EVENT_MERGE_THRESHOLD
+  threshold = EVENT_MERGE_THRESHOLD,
 ): Cluster[] {
   const out: Cluster[] = [];
   for (const cluster of clusters) {
@@ -106,13 +110,13 @@ export function foldExtraTopics(clusters: Cluster[], maxTopics = MAX_TOPICS): Cl
   // final slot, so the total distinct topic count stays at most maxTopics.
   const keep = new Set(ranked.slice(0, maxTopics - 1).map((x) => x.topic));
   return clusters.map((cluster) =>
-    keep.has(cluster.topic) ? cluster : { ...cluster, topic: "Other" }
+    keep.has(cluster.topic) ? cluster : { ...cluster, topic: "Other" },
   );
 }
 
 /** Full post-LLM pipeline. */
 export function consolidateClusters(clusters: Cluster[]): Cluster[] {
   return foldExtraTopics(
-    normalizeTopics(dedupeArticleAssignments(mergeSameEventClusters(clusters)))
+    normalizeTopics(dedupeArticleAssignments(mergeSameEventClusters(clusters))),
   );
 }

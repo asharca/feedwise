@@ -88,7 +88,12 @@ export function AiSearchDialog({ open, onOpenChange }: AiSearchDialogProps) {
             }}
           />
           <div className="flex gap-2">
-            <Button type="submit" size="sm" className="rounded-md" disabled={loading || query.trim().length < 2}>
+            <Button
+              type="submit"
+              size="sm"
+              className="rounded-md"
+              disabled={loading || query.trim().length < 2}
+            >
               {loading ? "Thinking…" : "Ask"}
             </Button>
             <span className="text-[11px] text-muted-foreground self-center">⌘+Enter to submit</span>
@@ -119,7 +124,9 @@ export function AiSearchDialog({ open, onOpenChange }: AiSearchDialogProps) {
                       {a.title}
                     </div>
                     {a.summary && (
-                      <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.summary}</div>
+                      <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        {a.summary}
+                      </div>
                     )}
                   </button>
                 ))}

@@ -1,5 +1,22 @@
-pre-push:
+pre-commit:
+  parallel: true
   commands:
+    typecheck:
+      glob: "*.{ts,tsx}"
+      run: pnpm exec tsc --noEmit -p tsconfig.json
+
+    test:
+      glob: "*.{ts,tsx}"
+      run: pnpm test
+
+    lint:
+      glob: "*.{ts,tsx,js,jsx}"
+      run: pnpm lint
+
+    format-check:
+      glob: "*.{ts,tsx,js,jsx,json,css,mjs}"
+      run: pnpm format:check
+
     build:
       glob: "*.{ts,tsx,js,jsx,json,css,mjs}"
       run: pnpm build

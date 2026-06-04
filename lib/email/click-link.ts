@@ -20,7 +20,7 @@ interface ClickBehavior {
 export function buildEmailLinkFn(
   userId: string,
   appUrl: string | undefined | null,
-  behavior: ClickBehavior
+  behavior: ClickBehavior,
 ): LinkFn {
   const cleanAppUrl = (appUrl ?? "").replace(/\/$/, "");
   // markReadOnClick defaults to true, autoSaveOnClick defaults to false.

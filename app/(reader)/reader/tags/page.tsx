@@ -133,9 +133,7 @@ function TagsPageInner() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ isRead: true }),
         }).catch(() => {});
-        setArticles((prev) =>
-          prev.map((a) => (a.id === articleId ? { ...a, isRead: true } : a))
-        );
+        setArticles((prev) => prev.map((a) => (a.id === articleId ? { ...a, isRead: true } : a)));
         if (d.data.feedId) dispatchUnreadDelta(d.data.feedId, -1);
       }
     })();
@@ -151,7 +149,7 @@ function TagsPageInner() {
       p.delete("articleId");
       router.replace(`/reader/tags?${p.toString()}`);
     },
-    [router, searchParams]
+    [router, searchParams],
   );
 
   const selectArticle = useCallback(
@@ -160,7 +158,7 @@ function TagsPageInner() {
       p.set("articleId", id);
       router.replace(`/reader/tags?${p.toString()}`);
     },
-    [router, searchParams]
+    [router, searchParams],
   );
 
   const closeArticle = useCallback(() => {
@@ -170,9 +168,7 @@ function TagsPageInner() {
   }, [router, searchParams]);
 
   const handleStar = useCallback(async (id: string, starred: boolean) => {
-    setArticles((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, isStarred: starred } : a))
-    );
+    setArticles((prev) => prev.map((a) => (a.id === id ? { ...a, isStarred: starred } : a)));
     setActive((prev) => (prev?.id === id ? { ...prev, isStarred: starred } : prev));
     await fetch(`/api/articles/${id}`, {
       method: "PATCH",
@@ -185,9 +181,7 @@ function TagsPageInner() {
     async (id: string, read: boolean) => {
       const article = articles.find((a) => a.id === id);
       const wasRead = article?.isRead ?? false;
-      setArticles((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, isRead: read } : a))
-      );
+      setArticles((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: read } : a)));
       setActive((prev) => (prev?.id === id ? { ...prev, isRead: read } : prev));
       if (article && wasRead !== read) {
         dispatchUnreadDelta(article.feedId, read ? -1 : 1);
@@ -198,7 +192,7 @@ function TagsPageInner() {
         body: JSON.stringify({ isRead: read }),
       });
     },
-    [articles]
+    [articles],
   );
 
   const selectedTag = tags.find((t) => t.id === tagId);
@@ -211,7 +205,7 @@ function TagsPageInner() {
       <div
         className={cn(
           "flex flex-col border-r border-border bg-background shrink-0 md:w-60",
-          tagId || articleId ? "hidden md:flex" : "w-full"
+          tagId || articleId ? "hidden md:flex" : "w-full",
         )}
       >
         <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border">
@@ -243,14 +237,14 @@ function TagsPageInner() {
                     "w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-sm transition-colors group",
                     tagId === t.id
                       ? "bg-accent text-accent-foreground"
-                      : "hover:bg-accent/50 text-foreground"
+                      : "hover:bg-accent/50 text-foreground",
                   )}
                 >
                   <span className="flex items-center gap-1.5 min-w-0">
                     <TagIcon
                       className={cn(
                         "size-3 shrink-0",
-                        tagId === t.id ? "text-primary" : "text-muted-foreground/70"
+                        tagId === t.id ? "text-primary" : "text-muted-foreground/70",
                       )}
                     />
                     <span className="truncate">{t.name}</span>
@@ -269,16 +263,14 @@ function TagsPageInner() {
       <div
         className={cn(
           "flex flex-col border-r border-border bg-background shrink-0 md:w-80",
-          articleId ? "hidden md:flex" : tagId ? "w-full" : "hidden md:flex"
+          articleId ? "hidden md:flex" : tagId ? "w-full" : "hidden md:flex",
         )}
       >
         <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border">
           {selectedTag ? (
             <>
               <TagIcon className="size-3.5 text-primary shrink-0" />
-              <h2 className="text-sm font-semibold tracking-tight truncate">
-                {selectedTag.name}
-              </h2>
+              <h2 className="text-sm font-semibold tracking-tight truncate">{selectedTag.name}</h2>
               <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
                 {selectedTag.articleCount}
               </span>
@@ -291,9 +283,7 @@ function TagsPageInner() {
           {!tagId ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-8">
               <TagIcon className="size-10 text-muted-foreground/30" />
-              <p className="text-sm text-center">
-                Pick a tag on the left to see its articles.
-              </p>
+              <p className="text-sm text-center">Pick a tag on the left to see its articles.</p>
             </div>
           ) : articlesLoading ? (
             <div className="flex items-center justify-center h-full">
@@ -312,12 +302,7 @@ function TagsPageInner() {
       </div>
 
       {/* Reader — right. Hidden on mobile until an article is selected. */}
-      <div
-        className={cn(
-          "flex-1 min-w-0 overflow-hidden",
-          !articleId && "hidden md:block"
-        )}
-      >
+      <div className={cn("flex-1 min-w-0 overflow-hidden", !articleId && "hidden md:block")}>
         {active ? (
           <ArticleReader
             article={{
@@ -336,9 +321,7 @@ function TagsPageInner() {
             <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
               <BookOpen className="size-6 text-muted-foreground/40" />
             </div>
-            <p className="text-sm">
-              {tagId ? "Select an article to read" : "Pick a tag to start"}
-            </p>
+            <p className="text-sm">{tagId ? "Select an article to read" : "Pick a tag to start"}</p>
           </div>
         )}
       </div>
