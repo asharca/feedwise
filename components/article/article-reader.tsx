@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 
 function proxyImagesInHtml(html: string): string {
   return html.replace(
@@ -326,11 +325,6 @@ export function ArticleReader({
       {/* Action bar */}
       <div className="flex items-center gap-0.5 px-3 py-1.5 shrink-0 border-b border-border/50">
         <div className="flex items-center gap-0.5">
-          <SidebarTrigger
-            className="hidden md:inline-flex size-8 rounded-md"
-            variant="ghost"
-            size="icon"
-          />
           {onBack && (
             <ActionButton title="Back" onClick={onBack}>
               <ArrowLeft className="size-4 text-muted-foreground" />

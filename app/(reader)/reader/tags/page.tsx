@@ -2,11 +2,16 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Tag as TagIcon, Inbox, BookOpen } from "lucide-react";
+import { Tag as TagIcon, Inbox } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { ArticleList } from "@/components/article/article-list";
+import { DatedArticleListPane } from "@/components/article/dated-article-list-pane";
 import { ArticleReader } from "@/components/article/article-reader";
+import { ReaderSkeleton } from "@/components/article/reader-skeleton";
 import { cn } from "@/lib/utils";
+
+const spring = { type: "spring" as const, duration: 0.3, bounce: 0 };
+const LIST_NARROW_PX = 384;
 
 interface TagItem {
   id: string;
@@ -90,7 +95,19 @@ function TagsPageInner() {
       .catch(() => {});
   }, []);
 
-  // Load articles for the selected tag
+  // Per-tag search (debounced server fetch).
+  const [paneSearch, setPaneSearch] = useState("");
+  const [debouncedPaneSearch, setDebouncedPaneSearch] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedPaneSearch(paneSearch.trim()), 250);
+    return () => clearTimeout(id);
+  }, [paneSearch]);
+  useEffect(() => {
+    setPaneSearch("");
+    setDebouncedPaneSearch("");
+  }, [tagId]);
+
+  // Load articles for the selected tag (with optional search filter)
   useEffect(() => {
     if (!tagId) {
       setArticles([]);
@@ -98,7 +115,11 @@ function TagsPageInner() {
     }
     let cancelled = false;
     setArticlesLoading(true);
-    fetch(`/api/articles?tag=${tagId}&limit=100`)
+    const params = new URLSearchParams();
+    params.set("tag", tagId);
+    params.set("limit", "100");
+    if (debouncedPaneSearch) params.set("search", debouncedPaneSearch);
+    fetch(`/api/articles?${params}`)
       .then((r) => r.json())
       .then((d) => {
         if (cancelled) return;
@@ -111,7 +132,7 @@ function TagsPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [tagId]);
+  }, [tagId, debouncedPaneSearch]);
 
   // Load the open article + mark-read, driven entirely by URL.
   useEffect(() => {
@@ -259,72 +280,85 @@ function TagsPageInner() {
         </div>
       </div>
 
-      {/* Article list — middle. */}
-      <div
+      {/* Article list — middle. Animated width via explicit pixel target so
+          the spring stays deterministic when content swaps inside. */}
+      <motion.div
+        initial={false}
+        animate={{
+          // The middle pane is hidden until a tag is picked; once visible,
+          // animate width between full ("flex-1") and collapsed (LIST_NARROW_PX).
+          // We render width:auto (string) when no tag → still hidden, no anim.
+          width: articleId ? LIST_NARROW_PX : "100%",
+        }}
+        transition={spring}
         className={cn(
-          "flex flex-col border-r border-border bg-background shrink-0 md:w-80",
-          articleId ? "hidden md:flex" : tagId ? "w-full" : "hidden md:flex",
+          "border-r border-border shrink-0 min-w-0",
+          articleId ? "hidden md:block" : tagId ? "block" : "hidden md:block",
         )}
       >
-        <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border">
-          {selectedTag ? (
-            <>
-              <TagIcon className="size-3.5 text-primary shrink-0" />
-              <h2 className="text-sm font-semibold tracking-tight truncate">{selectedTag.name}</h2>
-              <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
-                {selectedTag.articleCount}
-              </span>
-            </>
-          ) : (
-            <span className="text-sm text-muted-foreground">Select a tag</span>
-          )}
-        </div>
-        <div className="flex-1 min-h-0">
-          {!tagId ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-8">
-              <TagIcon className="size-10 text-muted-foreground/30" />
-              <p className="text-sm text-center">Pick a tag on the left to see its articles.</p>
-            </div>
-          ) : articlesLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="size-5 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
-            </div>
-          ) : (
-            <ArticleList
-              articles={mappedArticles}
-              activeId={articleId}
-              onSelect={selectArticle}
-              onStar={handleStar}
-              compact
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Reader — right. Hidden on mobile until an article is selected. */}
-      <div className={cn("flex-1 min-w-0 overflow-hidden", !articleId && "hidden md:block")}>
-        {active ? (
-          <ArticleReader
-            article={{
-              ...active,
-              publishedAt: active.publishedAt ? new Date(active.publishedAt) : null,
-              createdAt: active.createdAt ? new Date(active.createdAt) : null,
-            }}
-            onMarkRead={handleMarkRead}
-            onStar={handleStar}
-            onBack={closeArticle}
-            contextLabel={selectedTag ? `#${selectedTag.name}` : "Tags"}
-            autoSummarize={autoSummarize}
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
-            <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
-              <BookOpen className="size-6 text-muted-foreground/40" />
-            </div>
-            <p className="text-sm">{tagId ? "Select an article to read" : "Pick a tag to start"}</p>
+        {!tagId ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-8">
+            <TagIcon className="size-10 text-muted-foreground/30" />
+            <p className="text-sm text-center">Pick a tag on the left to see its articles.</p>
           </div>
+        ) : (
+          <DatedArticleListPane
+            title={selectedTag?.name ?? "Tag"}
+            headerIcon={TagIcon}
+            headerActions={
+              selectedTag && (
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {selectedTag.articleCount}
+                </span>
+              )
+            }
+            search={paneSearch}
+            onSearchChange={setPaneSearch}
+            searchPlaceholder="Filter in this tag…"
+            articles={mappedArticles}
+            dateField="publishedAt"
+            activeId={articleId}
+            onSelect={selectArticle}
+            layout={articleId ? "compact" : "grid"}
+            loading={articlesLoading}
+            emptyTitle={debouncedPaneSearch ? "No matches" : "No articles"}
+            emptyHint={debouncedPaneSearch ? "Try a different search." : undefined}
+          />
         )}
-      </div>
+      </motion.div>
+
+      {/* Reader — right. Slides in from the right when an article opens.
+          Driven by `articleId` (URL) not `active` (loaded) so the slide
+          starts immediately on click; skeleton fills in until fetch lands. */}
+      <AnimatePresence initial={false}>
+        {articleId && (
+          <motion.div
+            key="tags-reader"
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 40 }}
+            transition={spring}
+            className="flex-1 min-w-0 overflow-hidden"
+          >
+            {active?.id === articleId ? (
+              <ArticleReader
+                article={{
+                  ...active,
+                  publishedAt: active.publishedAt ? new Date(active.publishedAt) : null,
+                  createdAt: active.createdAt ? new Date(active.createdAt) : null,
+                }}
+                onMarkRead={handleMarkRead}
+                onStar={handleStar}
+                onBack={closeArticle}
+                contextLabel={selectedTag ? `#${selectedTag.name}` : "Tags"}
+                autoSummarize={autoSummarize}
+              />
+            ) : (
+              <ReaderSkeleton />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -55,6 +55,7 @@ services:
       - REDIS_URL=redis://feedwise-redis:6379
       - BETTER_AUTH_SECRET=${FEEDWISE_AUTH_SECRET}
       - BETTER_AUTH_URL=https://feedwise.${ROOT_DOMAIN}
+      - NEXT_PUBLIC_APP_URL=https://feedwise.${ROOT_DOMAIN}
       - ENCRYPTION_KEY=${FEEDWISE_ENCRYPTION_KEY}
 
   feedwise-worker:
@@ -73,5 +74,6 @@ services:
       - REDIS_URL=redis://feedwise-redis:6379
       - BETTER_AUTH_SECRET=${FEEDWISE_AUTH_SECRET}
       - BETTER_AUTH_URL=https://feedwise.${ROOT_DOMAIN}
+      - NEXT_PUBLIC_APP_URL=https://feedwise.${ROOT_DOMAIN}
       - ENCRYPTION_KEY=${FEEDWISE_ENCRYPTION_KEY}
     command: ["pnpm", "worker:prod"]

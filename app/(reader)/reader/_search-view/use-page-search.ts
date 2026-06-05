@@ -14,8 +14,9 @@ export interface PageSearchFilters extends SearchFilters {}
  *   - `setFilter` / `toggleFilter` / `clearFilters` mutators that
  *     `router.replace` (no scroll, no flash)
  *
- * The page is mounted only when `?search=` is non-empty, so `q` is
- * read-only after mount — typing lives in the ⌘K palette.
+ * `q` is the URL's search value (possibly empty when the user just landed
+ * on the page). Typing happens in the page's inline input, which writes
+ * back to the URL.
  */
 export function usePageSearch(q: string) {
   const router = useRouter();

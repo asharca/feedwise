@@ -97,6 +97,59 @@ export async function getArticles(userId: string, filter: ArticleFilter = {}) {
   return rows;
 }
 
+export interface HistoryFilter {
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * Articles the user has read, newest-first by `readAt`. Used by the history
+ * view. Intentionally does NOT join `subscriptions` — a user should still
+ * see history entries for feeds they've since unsubscribed from.
+ */
+export async function getReadingHistory(userId: string, filter: HistoryFilter = {}) {
+  const { search, limit = 50, offset = 0 } = filter;
+
+  const rows = await db
+    .select({
+      id: articles.id,
+      feedId: articles.feedId,
+      feedTitle: feeds.title,
+      feedIconUrl: feeds.iconUrl,
+      url: articles.url,
+      title: articles.title,
+      author: articles.author,
+      summary: articles.summary,
+      imageUrl: articles.imageUrl,
+      publishedAt: articles.publishedAt,
+      createdAt: articles.createdAt,
+      readAt: userArticles.readAt,
+      isStarred: sql<boolean>`coalesce(${userArticles.isStarred}, false)`,
+    })
+    .from(userArticles)
+    .innerJoin(articles, eq(userArticles.articleId, articles.id))
+    .innerJoin(feeds, eq(articles.feedId, feeds.id))
+    .where(
+      and(
+        eq(userArticles.userId, userId),
+        eq(userArticles.isRead, true),
+        sql`${userArticles.readAt} is not null`,
+        search
+          ? sql`(
+              ${articles.title} ILIKE ${"%" + search + "%"}
+              OR ${feeds.title} ILIKE ${"%" + search + "%"}
+            )`
+          : undefined,
+      ),
+    )
+    .orderBy(desc(userArticles.readAt))
+    .limit(limit)
+    .offset(offset);
+
+  return rows;
+}
+
 export async function getArticleById(userId: string, articleId: string) {
   const [row] = await db
     .select({

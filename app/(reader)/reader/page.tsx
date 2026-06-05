@@ -2,9 +2,11 @@
 
 import { Suspense, useState, useEffect, useRef, useCallback, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArticleList } from "@/components/article/article-list";
 import { ArticleReader } from "@/components/article/article-reader";
 import { ArticleDrawer } from "@/components/article/article-drawer";
+import { DatedArticleListPane } from "@/components/article/dated-article-list-pane";
+import { ListReaderShell } from "@/components/article/list-reader-shell";
+import { ReaderSkeleton } from "@/components/article/reader-skeleton";
 import { NewsDashboard } from "@/components/dashboard/news-dashboard";
 import { SearchResultsPage } from "./_search-view/search-results-page";
 import type { Article } from "./_search-view/types";
@@ -47,7 +49,25 @@ function ReaderContent() {
   // Reader-level LLM preferences. `null` = not loaded yet (don't auto-trigger).
   const [autoSummarize, setAutoSummarize] = useState<boolean | null>(null);
   const [tagNameById, setTagNameById] = useState<Record<string, string>>({});
+  // Per-view local search. Hits /api/articles?search=… scoped to the current
+  // feed/folder/tag/view. Distinct from the URL `?search=` global palette
+  // search, which triggers a different UI (SearchResultsPage).
+  const [paneSearch, setPaneSearch] = useState("");
+  const [debouncedPaneSearch, setDebouncedPaneSearch] = useState("");
   const PAGE_SIZE = 50;
+
+  // Debounce pane search input → server fetch.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedPaneSearch(paneSearch.trim()), 250);
+    return () => clearTimeout(id);
+  }, [paneSearch]);
+
+  // Clear pane search when the user switches scope — a query like "react"
+  // makes sense within one feed but isn't carried across feed boundaries.
+  useEffect(() => {
+    setPaneSearch("");
+    setDebouncedPaneSearch("");
+  }, [feedId, folderId, tagId, view]);
 
   useEffect(() => {
     fetch("/api/email/llm/config")
@@ -83,8 +103,12 @@ function ReaderContent() {
   // shown as an overlay drawer on top of the dashboard instead of switching
   // to the 2-pane layout — that keeps the magazine context intact while
   // reading and makes the back behavior a trivial drawer dismiss.
-  const showDashboard = view === "all" && !feedId && !folderId && !tagId && !search;
-  const inSearchMode = Boolean(search);
+  // `searchParams.has("search")` (vs Boolean(search)) catches the empty-input
+  // case too — the sidebar's Search nav item lands users at `?search=` so the
+  // search page renders with an empty query waiting for input.
+  const hasSearchParam = searchParams.has("search");
+  const showDashboard = view === "all" && !feedId && !folderId && !tagId && !hasSearchParam;
+  const inSearchMode = hasSearchParam;
 
   const fetchArticles = useCallback(
     async (pageOffset: number, signal?: AbortSignal) => {
@@ -94,7 +118,11 @@ function ReaderContent() {
       if (tagId) params.set("tag", tagId);
       if (view === "unread") params.set("unread", "true");
       if (view === "starred") params.set("starred", "true");
-      if (search) params.set("search", search);
+      // The URL-driven global search and the pane's per-view filter both map
+      // to the API's `search` param. Only one is active at a time (the global
+      // path renders SearchResultsPage, the pane is mounted only otherwise).
+      const effectiveSearch = search || debouncedPaneSearch;
+      if (effectiveSearch) params.set("search", effectiveSearch);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(pageOffset));
       const res = await fetch(`/api/articles?${params}`, { signal });
@@ -102,7 +130,7 @@ function ReaderContent() {
       if (data.success) return data.data as Article[];
       return [];
     },
-    [feedId, folderId, tagId, view, search, PAGE_SIZE],
+    [feedId, folderId, tagId, view, search, debouncedPaneSearch, PAGE_SIZE],
   );
 
   // Reset and reload the LIST when filters change. The currently-open article
@@ -150,7 +178,12 @@ function ReaderContent() {
       const data = await res.json();
       if (cancelled) return;
       if (data.success) {
-        setActiveArticle(data.data);
+        // Wrap the heavy ArticleReader mount in a transition so it can't
+        // block in-flight animation frames (the shell slide-in spring may
+        // still be running when this fetch resolves).
+        startTransition(() => {
+          setActiveArticle(data.data);
+        });
         // Mark read (best-effort, non-blocking)
         if (data.data && !data.data.isRead) {
           fetch(`/api/articles/${articleId}`, {
@@ -358,74 +391,72 @@ function ReaderContent() {
   }
 
   // Article list view
-  const viewTitle = search
-    ? `"${search}"`
-    : tagId
-      ? `#${tagNameById[tagId] ?? "tag"}`
-      : feedId && articleList.length > 0
-        ? (articleList[0].feedTitle ?? "Feed")
-        : folderId
-          ? "Category"
-          : view === "unread"
-            ? "Unread"
-            : view === "starred"
-              ? "Starred"
-              : "Home";
+  const viewTitle = tagId
+    ? `#${tagNameById[tagId] ?? "tag"}`
+    : feedId && articleList.length > 0
+      ? (articleList[0].feedTitle ?? "Feed")
+      : folderId
+        ? "Category"
+        : view === "unread"
+          ? "Unread"
+          : view === "starred"
+            ? "Starred"
+            : "Home";
 
-  const mappedArticles = articleList.map((a) => ({
-    ...a,
-    publishedAt: a.publishedAt ? new Date(a.publishedAt) : null,
-    createdAt: a.createdAt ? new Date(a.createdAt) : null,
-  }));
+  const headerActions = (
+    <>
+      {isPending && (
+        <div className="size-3 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
+      )}
+      {articleList.some((a) => !a.isRead) && (
+        <button
+          type="button"
+          onClick={handleMarkAllRead}
+          title="Mark all read"
+          className="size-7 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+        >
+          <CheckCheck className="size-3.5" />
+        </button>
+      )}
+    </>
+  );
+
+  // Drive the layout from the URL (articleId), not the loaded detail —
+  // otherwise the slide-in animation waits for the article fetch to resolve,
+  // which the user perceives as click lag. The reader slot renders a
+  // skeleton until the fetch lands.
+  const hasActive = Boolean(articleId);
+  const detailReady = activeArticle?.id === articleId;
 
   return (
-    <div className="flex h-full">
-      {/* Article list panel — left. Always visible on desktop so the feed
-          catalogue is one click away while reading; collapses on mobile only
-          when an article is open (screen room is tight). */}
-      <div
-        className={cn(
-          "flex flex-col border-r border-border bg-background shrink-0 md:w-80",
-          activeArticle ? "hidden md:flex" : "w-full",
-        )}
-      >
-        <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border">
-          <SidebarTrigger className="md:hidden" />
-          <h2 className="text-sm font-semibold tracking-tight truncate">{viewTitle}</h2>
-          <div className="ml-auto flex items-center gap-1">
-            {isPending && (
-              <div className="size-3 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
-            )}
-            {articleList.some((a) => !a.isRead) && (
-              <button
-                type="button"
-                onClick={handleMarkAllRead}
-                title="Mark all read"
-                className="size-7 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-              >
-                <CheckCheck className="size-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="flex-1 min-h-0">
-          <ArticleList
-            articles={mappedArticles}
-            activeId={activeArticle?.id}
-            onSelect={handleSelect}
-            onStar={handleStar}
-            compact
-            hasMore={hasMore}
-            loadingMore={loadingMore}
-            onLoadMore={handleLoadMore}
-            searchQuery={search}
-          />
-        </div>
-      </div>
-
-      {/* Reader panel — right */}
-      <div className={cn("flex-1 min-w-0 overflow-hidden", !activeArticle && "hidden md:block")}>
-        {activeArticle ? (
+    <ListReaderShell
+      hasActive={hasActive}
+      list={
+        <DatedArticleListPane
+          title={viewTitle}
+          headerActions={headerActions}
+          search={paneSearch}
+          onSearchChange={setPaneSearch}
+          searchPlaceholder="Filter this view…"
+          articles={articleList}
+          dateField="publishedAt"
+          activeId={articleId}
+          onSelect={handleSelect}
+          layout={hasActive ? "compact" : "grid"}
+          loading={isPending && articleList.length === 0}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={handleLoadMore}
+          emptyTitle={debouncedPaneSearch ? "No matches" : "No articles"}
+          emptyHint={
+            debouncedPaneSearch
+              ? "Try a different search."
+              : "Articles from this view will show up here."
+          }
+        />
+      }
+      reader={
+        detailReady && activeArticle ? (
           <ArticleReader
             article={{
               ...activeArticle,
@@ -439,15 +470,10 @@ function ReaderContent() {
             autoSummarize={autoSummarize ?? false}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
-            <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
-              <BookOpen className="size-6 text-muted-foreground/40" />
-            </div>
-            <p className="text-sm">Select an article to read</p>
-          </div>
-        )}
-      </div>
-    </div>
+          <ReaderSkeleton />
+        )
+      }
+    />
   );
 }
 

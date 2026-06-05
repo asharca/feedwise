@@ -40,6 +40,8 @@ import {
   RefreshCw,
   Sparkles,
   Tag,
+  Clock,
+  Search,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
@@ -73,7 +75,6 @@ import { signOut } from "@/lib/auth/client";
 import { toast } from "sonner";
 import { cn, proxyImg } from "@/lib/utils";
 import { AiSearchDialog } from "@/components/ai-search-dialog";
-import { SidebarSearch } from "@/components/layout/sidebar-search";
 
 interface Subscription {
   id: string;
@@ -108,7 +109,9 @@ const smartViews = [
 ] as const;
 
 const navLinks = [
+  { href: "/reader?search=", label: "Search", icon: Search },
   { href: "/reader/tags", label: "Tags", icon: Tag },
+  { href: "/reader/history", label: "History", icon: Clock },
   { href: "/discover", label: "Discover", icon: Compass },
 ] as const;
 
@@ -158,9 +161,6 @@ export function AppSidebar({
       window.removeEventListener("feedwise:mark-all-read", onMarkAll);
     };
   }, []);
-
-  // Sidebar search is its own component (SidebarSearch) — keeps URL state
-  // out of the sidebar and powers the live-suggestion dropdown.
 
   // Add feed state
   const [addOpen, setAddOpen] = useState(false);
@@ -763,12 +763,20 @@ export function AppSidebar({
 
   return (
     <Sidebar className="border-r-0">
-      <SidebarHeader className="px-3 py-3 space-y-3">
+      <SidebarHeader className="px-3 py-3">
         <div className="flex items-center gap-2 px-1">
           <div className="size-7 rounded-md bg-primary flex items-center justify-center shrink-0">
             <Rss className="size-3.5 text-primary-foreground" />
           </div>
           <span className="font-semibold text-base tracking-tight flex-1">Feedwise</span>
+          <button
+            type="button"
+            onClick={() => setAiSearchOpen(true)}
+            title="Ask AI"
+            className="size-6 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
+          >
+            <Sparkles className="size-3.5" />
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<span />}
@@ -794,19 +802,6 @@ export function AppSidebar({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <div className="flex gap-1.5">
-          <div className="flex-1">
-            <SidebarSearch />
-          </div>
-          <button
-            type="button"
-            onClick={() => setAiSearchOpen(true)}
-            title="Ask AI"
-            className="inline-flex items-center justify-center size-8 rounded-md bg-muted hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
-          >
-            <Sparkles className="size-3.5" />
-          </button>
-        </div>
       </SidebarHeader>
 
       <SidebarContent className="px-2">
@@ -821,6 +816,7 @@ export function AppSidebar({
                       activeView === key &&
                       !activeFeedId &&
                       !activeFolderId &&
+                      !searchParams.has("search") &&
                       pathname === "/reader"
                     }
                     onClick={() => {
@@ -843,18 +839,34 @@ export function AppSidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              {navLinks.map(({ href, label, icon: Icon }) => (
-                <SidebarMenuItem key={href}>
-                  <SidebarMenuButton
-                    isActive={pathname === href}
-                    onClick={() => router.push(href)}
-                    className="rounded-md h-9 transition-all duration-150"
-                  >
-                    <Icon className="size-4" />
-                    <span className="flex-1">{label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {navLinks.map(({ href, label, icon: Icon }) => {
+                // Search lives at /reader?search=… so pathname alone can't tell
+                // it apart from Home — check the query string too.
+                const isSearchLink = href.startsWith("/reader?search");
+                const isActive = isSearchLink
+                  ? pathname === "/reader" && searchParams.has("search")
+                  : pathname === href;
+                return (
+                  <SidebarMenuItem key={href}>
+                    <SidebarMenuButton
+                      isActive={isActive}
+                      onClick={() => {
+                        // Same-URL clicks don't navigate; for Search, refocus
+                        // the page's input so the click still feels responsive.
+                        if (isSearchLink && isActive) {
+                          window.dispatchEvent(new CustomEvent("feedwise:focus-search"));
+                        } else {
+                          router.push(href);
+                        }
+                      }}
+                      className="rounded-md h-9 transition-all duration-150"
+                    >
+                      <Icon className="size-4" />
+                      <span className="flex-1">{label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

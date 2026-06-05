@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, Rss, Hash } from "lucide-react";
+import { Search, Rss, Hash, X } from "lucide-react";
 import { ArticleList } from "@/components/article/article-list";
 import { SearchFilterBar } from "@/components/search/search-filter-bar";
 import { SearchSnippet } from "@/components/search/search-snippet";
@@ -70,13 +70,97 @@ export function SearchResultsPage({
     [router, searchParams],
   );
 
+  // Editable query bar — keeps a local state for immediate input feedback,
+  // debounce-pushes to URL so the parent re-runs the search. Syncs from prop
+  // on back/forward nav or when the user picks a result that changes URL.
+  const [query, setQuery] = useState(search);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    setQuery(search);
+  }, [search]);
+
+  // Clicking the sidebar Search nav item while already on this page can't
+  // navigate (same URL), so it dispatches this event to refocus the input.
+  // Also fires on mount for the first arrival so the user can start typing.
+  useEffect(() => {
+    function focusInput() {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.select();
+    }
+    window.addEventListener("feedwise:focus-search", focusInput);
+    // Auto-focus on first arrival when there's no query yet — common case
+    // from clicking sidebar Search.
+    if (!search) focusInput();
+    return () => window.removeEventListener("feedwise:focus-search", focusInput);
+    // Only depend on mount; subsequent search prop changes (URL updates from
+    // typing) shouldn't yank focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed === search) return;
+    const id = setTimeout(() => {
+      const p = new URLSearchParams(searchParams.toString());
+      // Always keep the `search` param so the search page stays mounted —
+      // emptying the input shouldn't bounce the user back to the dashboard.
+      p.set("search", trimmed);
+      // Pop the open article when the query changes — the active one likely
+      // isn't relevant to the new query.
+      p.delete("articleId");
+      router.replace(`/reader?${p.toString()}`);
+    }, 300);
+    return () => clearTimeout(id);
+  }, [query, search, router, searchParams]);
+
+  function commitQuery(value: string) {
+    const trimmed = value.trim();
+    const p = new URLSearchParams(searchParams.toString());
+    p.set("search", trimmed);
+    p.delete("articleId");
+    router.replace(`/reader?${p.toString()}`);
+  }
+
   return (
     <div className="flex flex-col border-r border-border bg-background shrink-0 md:w-[28rem] h-full">
       <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border">
         <SidebarTrigger className="md:hidden" />
-        <h2 className="text-sm font-semibold tracking-tight truncate">
-          Search: <span className="text-foreground/80">&ldquo;{search}&rdquo;</span>
-        </h2>
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/70 pointer-events-none" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitQuery(query);
+              } else if (e.key === "Escape" && query) {
+                e.preventDefault();
+                setQuery("");
+                commitQuery("");
+              }
+            }}
+            placeholder="Search articles…"
+            className="w-full h-8 pl-8 pr-7 rounded-md border border-border bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                commitQuery("");
+                inputRef.current?.focus();
+              }}
+              className="absolute right-1 top-1/2 -translate-y-1/2 size-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground"
+              aria-label="Clear search"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="px-3 py-1.5 text-[10px] text-muted-foreground border-b border-border flex items-center gap-3">
         <span>{articleCount} articles</span>
@@ -92,7 +176,15 @@ export function SearchResultsPage({
         onClearAll={clearFilters}
       />
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
-        {loading && !data ? (
+        {search.trim().length === 0 ? (
+          <CenterHint>
+            <Search className="size-8 text-muted-foreground/30" />
+            <p className="text-sm font-medium">Type to search</p>
+            <p className="text-xs text-muted-foreground/70 max-w-xs text-center">
+              Search across articles, feeds, and tags.
+            </p>
+          </CenterHint>
+        ) : loading && !data ? (
           <CenterHint>Searching…</CenterHint>
         ) : !hasAnyHit ? (
           <CenterHint>
