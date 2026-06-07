@@ -56,6 +56,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
@@ -127,6 +128,7 @@ export function AppSidebar({
   const activeFolderId = searchParams.get("folderId");
   const activeView = searchParams.get("view") ?? "all";
   const { theme, setTheme } = useTheme();
+  const { setOpenMobile } = useSidebar();
 
   // Persist sidebar scroll position across navigations (URL changes cause re-renders
   // that can reset the scroll container back to top).
@@ -259,6 +261,7 @@ export function AppSidebar({
       if (v === null) p.delete(k);
       else p.set(k, v);
     }
+    setOpenMobile(false);
     router.replace(`/reader?${p.toString()}`);
   }
 
@@ -857,6 +860,7 @@ export function AppSidebar({
                       pathname === "/reader"
                     }
                     onClick={() => {
+                      setOpenMobile(false);
                       router.replace(`/reader?view=${key}`);
                     }}
                     className="rounded-md h-9 transition-all duration-150"
@@ -888,6 +892,7 @@ export function AppSidebar({
                     <SidebarMenuButton
                       isActive={isActive}
                       onClick={() => {
+                        setOpenMobile(false);
                         // Same-URL clicks don't navigate; for Search, refocus
                         // the page's input so the click still feels responsive.
                         if (isSearchLink && isActive) {
