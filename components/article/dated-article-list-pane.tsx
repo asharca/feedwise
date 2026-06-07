@@ -191,7 +191,7 @@ export function DatedArticleListPane({
                   {g.label}
                 </h3>
                 {layout === "grid" ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-min items-start">
+                  <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-3 [&>*]:break-inside-avoid [&>*]:mb-3">
                     {g.rows.map((item) => (
                       <DatedArticleCard
                         key={item.id}

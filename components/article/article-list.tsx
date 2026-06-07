@@ -160,7 +160,7 @@ export function ArticleList({
 
   return (
     <div ref={setScrollRoot} className="overflow-y-auto h-full scrollbar-thin">
-      <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 auto-rows-min items-start">
+      <div className="p-3 sm:p-4 columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-2.5 [&>*]:break-inside-avoid [&>*]:mb-2.5">
         {articles.map((article) => {
           const excerpt = article.summary
             ? article.summary.replace(/<[^>]*>/g, "").slice(0, 140)

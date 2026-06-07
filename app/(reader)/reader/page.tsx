@@ -226,13 +226,13 @@ function ReaderContent() {
       p.delete("tag");
     }
     p.set("articleId", id);
-    router.replace(`/reader?${p.toString()}`);
+    // push so mobile back gesture / browser back button returns to the list
+    router.push(`/reader?${p.toString()}`);
   }
 
   function closeArticle() {
-    const p = new URLSearchParams(searchParams.toString());
-    p.delete("articleId");
-    router.replace(`/reader?${p.toString()}`);
+    // back() pops the push() from openArticle — keeps history clean
+    router.back();
   }
 
   async function handleLoadMore() {
