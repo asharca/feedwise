@@ -191,7 +191,7 @@ export function DatedArticleListPane({
                   {g.label}
                 </h3>
                 {layout === "grid" ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-min">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-min items-start">
                     {g.rows.map((item) => (
                       <DatedArticleCard
                         key={item.id}
@@ -357,7 +357,7 @@ function DatedArticleCard({
       type="button"
       onClick={onOpen}
       className={cn(
-        "group text-left rounded-lg overflow-hidden border bg-card flex flex-col cursor-pointer transition-all duration-150 h-full",
+        "group text-left rounded-lg overflow-hidden border bg-card flex flex-col cursor-pointer transition-all duration-150",
         active
           ? "border-primary ring-1 ring-primary/30"
           : "border-border hover:border-foreground/30 hover:shadow-sm",
