@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect, useRef, useCallback, useTransition } from "react";
+import { useSSE } from "@/lib/hooks/use-sse";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArticleReader } from "@/components/article/article-reader";
 import { ArticleDrawer } from "@/components/article/article-drawer";
@@ -54,7 +55,16 @@ function ReaderContent() {
   // search, which triggers a different UI (SearchResultsPage).
   const [paneSearch, setPaneSearch] = useState("");
   const [debouncedPaneSearch, setDebouncedPaneSearch] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const PAGE_SIZE = 50;
+
+  useSSE((event) => {
+    if (event.type !== "articles.new") return;
+    // Reload if we're viewing all feeds, or this specific feed
+    if (!feedId || feedId === event.feedId) {
+      setReloadKey((k) => k + 1);
+    }
+  });
 
   // Debounce pane search input → server fetch.
   useEffect(() => {
@@ -161,7 +171,7 @@ function ReaderContent() {
       }
     });
     return () => controller.abort();
-  }, [fetchArticles, showDashboard, PAGE_SIZE]);
+  }, [fetchArticles, showDashboard, PAGE_SIZE, reloadKey]);
 
   // Drive the open article from the URL: refreshing on ?articleId=… re-opens
   // the same article, and back/forward navigation Just Works.
