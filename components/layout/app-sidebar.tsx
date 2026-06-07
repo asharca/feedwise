@@ -44,6 +44,7 @@ import {
   Search,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useSSE } from "@/lib/hooks/use-sse";
 import {
   Sidebar,
   SidebarContent,
@@ -128,6 +129,22 @@ export function AppSidebar({
   const { theme, setTheme } = useTheme();
 
   const [subs, setSubs] = useState(initialSubs);
+
+  useSSE((event) => {
+    if (event.type === "feed.deleted") {
+      setSubs((prev) => prev.filter((s) => s.id !== event.subscriptionId));
+    }
+    if (event.type === "feed.error") {
+      setSubs((prev) =>
+        prev.map((s) =>
+          s.feedId === event.feedId
+            ? { ...s, lastFetchError: event.message }
+            : s,
+        ),
+      );
+    }
+  });
+
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
   // Sync unread counts when articles are marked read from the reader

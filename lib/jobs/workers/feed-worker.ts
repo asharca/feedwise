@@ -31,7 +31,7 @@ export function startFeedWorker() {
           })
           .where(eq(feeds.id, feedId));
 
-        const subscriberIds = await getSubscriberUserIds(feedId);
+        const subscriberIds = await getSubscriberUserIds(feedId).catch(() => []);
 
         if (parsed.articles.length === 0) {
           await Promise.all(
