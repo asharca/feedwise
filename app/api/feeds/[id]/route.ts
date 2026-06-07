@@ -6,7 +6,9 @@ import {
   updateSubscription,
   updateFeedUrl,
   updateFeedInterval,
+  getFeedFromSubscription,
 } from "@/lib/db/queries/feeds";
+import { publishEvent } from "@/lib/events/publisher";
 import { getFeedFetchQueue } from "@/lib/jobs/queue";
 
 const PatchSchema = z.object({
@@ -63,7 +65,20 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   try {
     const session = await requireSession();
     const { id } = await params;
+
+    // Look up feedId before deleting so we can include it in the event.
+    const feed = await getFeedFromSubscription(session.user.id, id);
+
     await unsubscribeFeed(session.user.id, id);
+
+    if (feed) {
+      await publishEvent(session.user.id, {
+        type: "feed.deleted",
+        subscriptionId: id,
+        feedId: feed.feedId,
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
