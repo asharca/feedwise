@@ -110,7 +110,6 @@ export function ArticleList({
                     <img
                       src={proxyImg(article.feedIconUrl)}
                       alt=""
-                      loading="lazy"
                       decoding="async"
                       className="size-3 rounded-sm shrink-0"
                     />
@@ -199,7 +198,6 @@ export function ArticleList({
                     <img
                       src={proxyImg(article.feedIconUrl)}
                       alt=""
-                      loading="lazy"
                       decoding="async"
                       className="size-3 rounded-sm shrink-0"
                     />

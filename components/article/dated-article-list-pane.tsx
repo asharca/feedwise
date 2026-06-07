@@ -308,7 +308,6 @@ function DatedArticleRow({
           src={proxyImg(item.feedIconUrl)}
           alt=""
           className="size-5 rounded shrink-0 mt-0.5"
-          loading="lazy"
           decoding="async"
         />
       ) : (
@@ -382,7 +381,6 @@ function DatedArticleCard({
             <img
               src={proxyImg(item.feedIconUrl)}
               alt=""
-              loading="lazy"
               decoding="async"
               className="size-3 rounded-sm shrink-0"
             />

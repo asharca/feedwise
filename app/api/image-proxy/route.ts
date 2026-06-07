@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(body, {
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800, immutable",
       },
     });
   } catch (_err) {
