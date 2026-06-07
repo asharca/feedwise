@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { feeds, articles } from "@/lib/db/schema";
 import { parseFeed } from "@/lib/feeds/parser";
 import { classifyError, humanMessage } from "@/lib/feeds/feed-error";
+import { publishEvent } from "@/lib/events/publisher";
+import { getSubscriberUserIds } from "@/lib/db/queries/feeds";
 
 export function startFeedWorker() {
   const worker = new Worker(
@@ -29,9 +31,16 @@ export function startFeedWorker() {
           })
           .where(eq(feeds.id, feedId));
 
-        if (parsed.articles.length === 0) return;
+        const subscriberIds = await getSubscriberUserIds(feedId);
 
-        await db
+        if (parsed.articles.length === 0) {
+          await Promise.all(
+            subscriberIds.map((uid) => publishEvent(uid, { type: "feed.fetched", feedId })),
+          );
+          return;
+        }
+
+        const inserted = await db
           .insert(articles)
           .values(
             parsed.articles.map((a) => ({
@@ -47,7 +56,15 @@ export function startFeedWorker() {
               publishedAt: a.publishedAt ?? undefined,
             })),
           )
-          .onConflictDoNothing();
+          .onConflictDoNothing()
+          .returning({ id: articles.id });
+
+        const newCount = inserted.length;
+        await Promise.all(
+          subscriberIds.map((uid) =>
+            publishEvent(uid, { type: "articles.new", feedId, count: newCount }),
+          ),
+        );
       } catch (rawError) {
         const feedError = classifyError(rawError);
         const message = humanMessage(feedError.code, feedError.httpStatus);
@@ -61,6 +78,18 @@ export function startFeedWorker() {
             consecutiveFailures: sql`${feeds.consecutiveFailures} + 1`,
           })
           .where(eq(feeds.id, feedId));
+
+        const subscriberIds = await getSubscriberUserIds(feedId).catch(() => []);
+        await Promise.all(
+          subscriberIds.map((uid) =>
+            publishEvent(uid, {
+              type: "feed.error",
+              feedId,
+              errorCode: feedError.code,
+              message,
+            }),
+          ),
+        );
 
         // Re-throw so BullMQ records the failure / retries per job options
         throw feedError;
