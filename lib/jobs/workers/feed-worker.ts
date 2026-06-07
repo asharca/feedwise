@@ -56,7 +56,19 @@ export function startFeedWorker() {
               publishedAt: a.publishedAt ?? undefined,
             })),
           )
-          .onConflictDoNothing()
+          .onConflictDoUpdate({
+            target: [articles.feedId, articles.guid],
+            set: {
+              url: sql`excluded.url`,
+              title: sql`excluded.title`,
+              author: sql`excluded.author`,
+              contentHtml: sql`excluded.content_html`,
+              contentText: sql`excluded.content_text`,
+              summary: sql`excluded.summary`,
+              imageUrl: sql`excluded.image_url`,
+              publishedAt: sql`excluded.published_at`,
+            },
+          })
           .returning({ id: articles.id });
 
         const newCount = inserted.length;
