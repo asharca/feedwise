@@ -269,3 +269,11 @@ export async function updateFeedUrl(
 
   return { feedId: sub.feedId, url: newUrl };
 }
+
+export async function getSubscriberUserIds(feedId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: subscriptions.userId })
+    .from(subscriptions)
+    .where(eq(subscriptions.feedId, feedId));
+  return rows.map((r) => r.userId);
+}
