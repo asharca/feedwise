@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   DndContext,
@@ -127,6 +127,26 @@ export function AppSidebar({
   const activeFolderId = searchParams.get("folderId");
   const activeView = searchParams.get("view") ?? "all";
   const { theme, setTheme } = useTheme();
+
+  // Persist sidebar scroll position across navigations (URL changes cause re-renders
+  // that can reset the scroll container back to top).
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const SCROLL_KEY = "feedwise-sidebar-scroll";
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const saved = Number(sessionStorage.getItem(SCROLL_KEY) ?? "0");
+    if (saved > 0) el.scrollTop = saved;
+  }, [pathname, searchParams]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const save = () => sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop));
+    el.addEventListener("scroll", save, { passive: true });
+    return () => el.removeEventListener("scroll", save);
+  }, []);
 
   const [subs, setSubs] = useState(initialSubs);
 
@@ -821,7 +841,7 @@ export function AppSidebar({
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2">
+      <SidebarContent ref={scrollRef} className="px-2">
         {/* Smart views */}
         <SidebarGroup>
           <SidebarGroupContent>
