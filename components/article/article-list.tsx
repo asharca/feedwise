@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Star, Inbox } from "lucide-react";
 import { cn, proxyImg } from "@/lib/utils";
+import { CardEnter } from "@/components/motion/card-enter";
 import { ArticleCard, Highlight } from "./article-card";
 
 interface Article {
@@ -141,15 +142,16 @@ export function ArticleList({
   return (
     <div ref={setScrollRoot} className="overflow-y-auto h-full scrollbar-thin">
       <div className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-        {articles.map((article) => (
-          <ArticleCard
-            key={article.id}
-            article={article}
-            active={activeId === article.id}
-            onSelect={onSelect}
-            onStar={onStar}
-            searchQuery={searchQuery}
-          />
+        {articles.map((article, index) => (
+          <CardEnter key={article.id} index={index}>
+            <ArticleCard
+              article={article}
+              active={activeId === article.id}
+              onSelect={onSelect}
+              onStar={onStar}
+              searchQuery={searchQuery}
+            />
+          </CardEnter>
         ))}
       </div>
       <InfiniteScrollSentinel

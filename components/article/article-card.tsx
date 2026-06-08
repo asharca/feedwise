@@ -141,10 +141,10 @@ export function ArticleCard({
         if (e.key === "Enter" || e.key === " ") onSelect(article.id);
       }}
       className={cn(
-        "group relative text-left w-full flex flex-col rounded-lg overflow-hidden border bg-card cursor-pointer transition-all duration-150 h-56",
+        "group relative text-left w-full flex flex-col rounded-lg overflow-hidden border bg-card cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] h-56",
         active
           ? "border-primary ring-1 ring-primary/30"
-          : "border-border hover:border-foreground/30 hover:shadow-sm",
+          : "border-border hover:border-foreground/30",
         !active && isRead && "opacity-60",
       )}
     >

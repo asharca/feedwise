@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { formatDistanceToNow } from "date-fns";
 import { Inbox, Search as SearchIcon, Star, X } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn, proxyImg } from "@/lib/utils";
+import { CardEnter } from "@/components/motion/card-enter";
 import { ArticleCard } from "./article-card";
 
 export interface DatedArticleItem {
@@ -180,8 +182,21 @@ export function DatedArticleListPane({
             {emptyHint && <p className="text-xs text-muted-foreground/70 max-w-xs">{emptyHint}</p>}
           </div>
         ) : (
-          <div className={cn(layout === "grid" ? "px-4 pb-8" : "px-2 pb-8")}>
-            {grouped.map((g) => (
+          <AnimatePresence mode="wait" initial={false}>
+            {/* Crossfade the grid↔compact swap that happens when an article
+                opens/closes: the old layout dissolves out, then the new one
+                dissolves in. ~0.3s total ≈ the list-column shrink spring, so
+                the two read as one motion. MotionConfig (reader template)
+                disables this under prefers-reduced-motion. */}
+            <motion.div
+              key={layout}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className={cn("pb-8", layout === "grid" ? "px-4" : "px-2")}
+            >
+              {grouped.map((g) => (
               <section key={g.key} className="mt-4 first:mt-2">
                 <h3
                   className={cn(
@@ -193,14 +208,15 @@ export function DatedArticleListPane({
                 </h3>
                 {layout === "grid" ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {g.rows.map((item) => (
-                      <ArticleCard
-                        key={item.id}
-                        article={item}
-                        active={activeId === item.id}
-                        onSelect={onSelect}
-                        displayedAt={pickDate(item, dateField)}
-                      />
+                    {g.rows.map((item, i) => (
+                      <CardEnter key={item.id} index={i}>
+                        <ArticleCard
+                          article={item}
+                          active={activeId === item.id}
+                          onSelect={onSelect}
+                          displayedAt={pickDate(item, dateField)}
+                        />
+                      </CardEnter>
                     ))}
                   </div>
                 ) : (
@@ -219,13 +235,14 @@ export function DatedArticleListPane({
                 )}
               </section>
             ))}
-            <InfiniteScrollSentinel
-              hasMore={hasMore}
-              loadingMore={loadingMore}
-              onLoadMore={onLoadMore}
-              root={scrollRoot}
-            />
-          </div>
+              <InfiniteScrollSentinel
+                hasMore={hasMore}
+                loadingMore={loadingMore}
+                onLoadMore={onLoadMore}
+                root={scrollRoot}
+              />
+            </motion.div>
+          </AnimatePresence>
         )}
       </div>
     </div>

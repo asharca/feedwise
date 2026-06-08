@@ -6,6 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Star, Rss, CircleDot, AlertTriangle, BookOpen, Sparkles, Tag } from "lucide-react";
 import { ArticleCard as SharedArticleCard } from "@/components/article/article-card";
 import { ChartsPanel } from "@/components/dashboard/charts-panel";
+import { CardEnter } from "@/components/motion/card-enter";
 import { cn, proxyImg } from "@/lib/utils";
 
 interface Article {
@@ -64,7 +65,7 @@ function ArticleCard({
           if (e.key === "Enter") onSelect(article.id);
         }}
         className={cn(
-          "group relative rounded-lg overflow-hidden cursor-pointer transition-colors duration-150 hover:border-foreground/20",
+          "group relative rounded-lg overflow-hidden cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] hover:border-foreground/20",
           "bg-card border border-border",
           article.isRead && "opacity-70",
         )}
@@ -215,7 +216,7 @@ function StatCard({
     <Wrapper
       {...wrapperProps}
       className={cn(
-        "rounded-lg border border-border bg-card px-3.5 py-3 text-left transition-colors",
+        "rounded-lg border border-border bg-card px-3.5 py-3 text-left transition-colors duration-200 ease-[var(--ease-out)]",
         clickable && "hover:border-primary/40 hover:bg-primary/5 cursor-pointer",
       )}
     >
@@ -302,7 +303,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
     .slice(0, 9);
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-thin">
+    <div className="h-full overflow-y-auto scrollbar-thin animate-in fade-in duration-300 ease-[var(--ease-out)] motion-reduce:animate-none">
       <div className="px-4 sm:px-6 py-5 space-y-6">
         {/* Header */}
         <div>
@@ -363,17 +364,16 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
               Recommended
             </h2>
             {recommended[0] && (
-              <ArticleCard article={recommended[0]} size="hero" onSelect={onSelectArticle} />
+              <CardEnter>
+                <ArticleCard article={recommended[0]} size="hero" onSelect={onSelectArticle} />
+              </CardEnter>
             )}
             {recommended.length > 1 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-                {recommended.slice(1).map((article) => (
-                  <ArticleCard
-                    key={article.id}
-                    article={article}
-                    size="normal"
-                    onSelect={onSelectArticle}
-                  />
+                {recommended.slice(1).map((article, index) => (
+                  <CardEnter key={article.id} index={index}>
+                    <ArticleCard article={article} size="normal" onSelect={onSelectArticle} />
+                  </CardEnter>
                 ))}
               </div>
             )}
