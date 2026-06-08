@@ -8,6 +8,12 @@ import { classifyError, humanMessage } from "@/lib/feeds/feed-error";
 import { publishEvent } from "@/lib/events/publisher";
 import { getSubscriberUserIds } from "@/lib/db/queries/feeds";
 
+function extractFirstImageUrl(html: string | null | undefined): string | undefined {
+  if (!html) return undefined;
+  const match = html.match(/<img[^>]+src=["'](https?:\/\/[^"'\s>]+)["']/i);
+  return match?.[1];
+}
+
 export function startFeedWorker() {
   const worker = new Worker(
     "feed.fetch",
@@ -52,7 +58,7 @@ export function startFeedWorker() {
               contentHtml: a.contentHtml ?? undefined,
               contentText: a.contentText ?? undefined,
               summary: a.summary ?? undefined,
-              imageUrl: a.imageUrl ?? undefined,
+              imageUrl: a.imageUrl ?? extractFirstImageUrl(a.contentHtml) ?? undefined,
               publishedAt: a.publishedAt ?? undefined,
             })),
           )

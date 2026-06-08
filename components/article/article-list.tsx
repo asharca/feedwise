@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Star, Inbox } from "lucide-react";
 import { cn, proxyImg } from "@/lib/utils";
+import { ArticleCard, Highlight } from "./article-card";
 
 interface Article {
   id: string;
@@ -35,27 +36,6 @@ interface ArticleListProps {
   searchQuery?: string;
 }
 
-function Highlight({ text, query }: { text: string; query?: string }) {
-  if (!query || !text) return <>{text}</>;
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
-  return (
-    <>
-      {parts.map((part, i) =>
-        part.toLowerCase() === query.toLowerCase() ? (
-          <mark
-            key={i}
-            className="bg-yellow-200 dark:bg-yellow-500/40 text-inherit rounded-[2px] px-px"
-          >
-            {part}
-          </mark>
-        ) : (
-          part
-        ),
-      )}
-    </>
-  );
-}
 
 export function ArticleList({
   articles,
@@ -160,95 +140,17 @@ export function ArticleList({
 
   return (
     <div ref={setScrollRoot} className="overflow-y-auto h-full scrollbar-thin">
-      <div className="p-3 sm:p-4 columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-2.5 [&>*]:break-inside-avoid [&>*]:mb-2.5">
-        {articles.map((article) => {
-          const excerpt = article.summary
-            ? article.summary.replace(/<[^>]*>/g, "").slice(0, 140)
-            : null;
-
-          return (
-            <div
-              key={article.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onSelect(article.id)}
-              className={cn(
-                "group relative flex flex-col rounded-md overflow-hidden border bg-card",
-                "cursor-pointer transition-colors duration-150",
-                activeId === article.id
-                  ? "border-primary"
-                  : "border-border hover:border-foreground/20",
-                article.isRead && activeId !== article.id && "opacity-55",
-              )}
-            >
-              {article.imageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={proxyImg(article.imageUrl)}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full h-32 object-cover shrink-0"
-                />
-              )}
-              <div className="flex flex-col flex-1 p-3">
-                <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
-                  {article.feedIconUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={proxyImg(article.feedIconUrl)}
-                      alt=""
-                      decoding="async"
-                      className="size-3 rounded-sm shrink-0"
-                    />
-                  )}
-                  <span className="text-[10px] text-muted-foreground/80 font-medium truncate">
-                    {article.feedTitle ?? "Unknown"}
-                  </span>
-                  {displayedAt(article) && (
-                    <>
-                      <span className="text-[10px] text-muted-foreground/40 shrink-0">·</span>
-                      <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                        {formatDistanceToNow(displayedAt(article)!, { addSuffix: true })}
-                      </span>
-                    </>
-                  )}
-                </div>
-                <p
-                  className={cn(
-                    "text-[13px] leading-snug line-clamp-3 mb-1",
-                    !article.isRead
-                      ? "font-semibold text-foreground"
-                      : "font-normal text-foreground/75",
-                  )}
-                >
-                  <Highlight text={article.title ?? "(No title)"} query={searchQuery} />
-                </p>
-                {excerpt && (
-                  <p className="text-[11px] text-muted-foreground/65 line-clamp-2 leading-relaxed mt-auto pt-1">
-                    <Highlight text={excerpt} query={searchQuery} />
-                  </p>
-                )}
-              </div>
-              {!article.isRead && (
-                <span className="absolute top-2.5 left-2.5 size-1.5 rounded-full bg-primary" />
-              )}
-              {article.isStarred ? (
-                <Star className="absolute top-2.5 right-2.5 size-3 fill-yellow-400 text-yellow-400" />
-              ) : (
-                <button
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded-md hover:bg-accent"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onStar(article.id, true);
-                  }}
-                >
-                  <Star className="size-3 text-muted-foreground/40 hover:text-yellow-400 transition-colors" />
-                </button>
-              )}
-            </div>
-          );
-        })}
+      <div className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+        {articles.map((article) => (
+          <ArticleCard
+            key={article.id}
+            article={article}
+            active={activeId === article.id}
+            onSelect={onSelect}
+            onStar={onStar}
+            searchQuery={searchQuery}
+          />
+        ))}
       </div>
       <InfiniteScrollSentinel
         hasMore={hasMore}

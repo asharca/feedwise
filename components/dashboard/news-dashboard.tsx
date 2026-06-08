@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { Star, Rss, CircleDot, AlertTriangle, BookOpen, Sparkles, Tag } from "lucide-react";
+import { ArticleCard as SharedArticleCard } from "@/components/article/article-card";
 import { ChartsPanel } from "@/components/dashboard/charts-panel";
 import { cn, proxyImg } from "@/lib/utils";
 
@@ -170,60 +171,9 @@ function ArticleCard({
     );
   }
 
-  // Normal card
+  // Normal card — delegates to the shared ArticleCard template
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(article.id)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onSelect(article.id);
-      }}
-      className={cn(
-        "group rounded-md overflow-hidden cursor-pointer transition-colors duration-150 hover:border-foreground/20",
-        "bg-card border border-border",
-        article.isRead && "opacity-65",
-      )}
-    >
-      {article.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={proxyImg(article.imageUrl)}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="w-full h-32 object-cover"
-        />
-      )}
-      <div className="p-3.5">
-        <div className="flex items-center gap-1.5 mb-1">
-          <span className="text-[10px] text-muted-foreground font-medium truncate">
-            {article.feedTitle}
-          </span>
-          {displayedAt(article) && (
-            <>
-              <span className="text-[10px] text-muted-foreground/50">&middot;</span>
-              <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                {formatDistanceToNow(new Date(displayedAt(article)!), { addSuffix: true })}
-              </span>
-            </>
-          )}
-        </div>
-        <h3
-          className={cn(
-            "text-sm leading-snug line-clamp-2 group-hover:text-primary transition-colors",
-            !article.isRead ? "font-semibold" : "font-normal",
-          )}
-        >
-          {article.title ?? "(No title)"}
-        </h3>
-        {excerpt && (
-          <p className="text-[12px] text-muted-foreground/70 mt-1 line-clamp-2 leading-relaxed">
-            {excerpt}
-          </p>
-        )}
-      </div>
-    </div>
+    <SharedArticleCard article={article} onSelect={onSelect} />
   );
 }
 
@@ -412,16 +362,21 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
               Recommended
             </h2>
-            <div className="columns-1 sm:columns-2 lg:columns-3 gap-2.5 [&>*]:break-inside-avoid [&>*]:mb-2.5">
-              {recommended.map((article, idx) => (
-                <ArticleCard
-                  key={article.id}
-                  article={article}
-                  size={idx === 0 ? "hero" : "normal"}
-                  onSelect={onSelectArticle}
-                />
-              ))}
-            </div>
+            {recommended[0] && (
+              <ArticleCard article={recommended[0]} size="hero" onSelect={onSelectArticle} />
+            )}
+            {recommended.length > 1 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {recommended.slice(1).map((article) => (
+                  <ArticleCard
+                    key={article.id}
+                    article={article}
+                    size="normal"
+                    onSelect={onSelectArticle}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         )}
       </div>

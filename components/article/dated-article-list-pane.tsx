@@ -5,6 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Inbox, Search as SearchIcon, Star, X } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn, proxyImg } from "@/lib/utils";
+import { ArticleCard } from "./article-card";
 
 export interface DatedArticleItem {
   id: string;
@@ -191,13 +192,14 @@ export function DatedArticleListPane({
                   {g.label}
                 </h3>
                 {layout === "grid" ? (
-                  <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-3 [&>*]:break-inside-avoid [&>*]:mb-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                     {g.rows.map((item) => (
-                      <DatedArticleCard
+                      <ArticleCard
                         key={item.id}
-                        item={item}
+                        article={item}
                         active={activeId === item.id}
-                        onOpen={() => onSelect(item.id)}
+                        onSelect={onSelect}
+                        displayedAt={pickDate(item, dateField)}
                       />
                     ))}
                   </div>
@@ -302,7 +304,7 @@ function DatedArticleRow({
       {!isRead && !active && (
         <span className="absolute left-0.5 top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-primary shrink-0" />
       )}
-      {item.feedIconUrl ? (
+      {item.feedIconUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={proxyImg(item.feedIconUrl)}
@@ -310,8 +312,6 @@ function DatedArticleRow({
           className="size-5 rounded shrink-0 mt-0.5"
           decoding="async"
         />
-      ) : (
-        <div className="size-5 rounded shrink-0 mt-0.5 bg-muted" />
       )}
       <div className="min-w-0 flex-1">
         <p
@@ -333,80 +333,3 @@ function DatedArticleRow({
   );
 }
 
-function DatedArticleCard({
-  item,
-  active,
-  onOpen,
-}: {
-  item: DatedArticleItem;
-  active: boolean;
-  onOpen: () => void;
-}) {
-  const isRead = Boolean(item.isRead);
-  // Strip HTML from the RSS summary for a clean excerpt. Fast and accurate
-  // enough for a card preview; long content gets clamped by line-clamp.
-  const excerpt =
-    item.summary
-      ?.replace(/<[^>]*>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 200) || null;
-
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={cn(
-        "group text-left rounded-lg overflow-hidden border bg-card flex flex-col cursor-pointer transition-all duration-150",
-        active
-          ? "border-primary ring-1 ring-primary/30"
-          : "border-border hover:border-foreground/30 hover:shadow-sm",
-        !active && isRead && "opacity-60",
-      )}
-    >
-      {item.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={proxyImg(item.imageUrl)}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="w-full h-32 object-cover shrink-0"
-        />
-      )}
-      <div className="flex flex-col flex-1 p-3 gap-1.5">
-        <div className="flex items-center gap-1.5 min-w-0 text-[11px] text-muted-foreground">
-          {item.feedIconUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={proxyImg(item.feedIconUrl)}
-              alt=""
-              decoding="async"
-              className="size-3 rounded-sm shrink-0"
-            />
-          ) : (
-            <div className="size-3 rounded-sm shrink-0 bg-muted" />
-          )}
-          <span className="truncate">{item.feedTitle ?? "Unknown feed"}</span>
-          {item.isStarred && (
-            <Star className="size-3 fill-yellow-400 text-yellow-400 shrink-0 ml-auto" />
-          )}
-        </div>
-        <h4
-          className={cn(
-            "text-sm leading-snug line-clamp-3",
-            !isRead ? "font-semibold" : "font-medium",
-            !active && "group-hover:text-primary transition-colors",
-          )}
-        >
-          {item.title ?? "(untitled)"}
-        </h4>
-        {excerpt && (
-          <p className="text-[12px] leading-relaxed text-muted-foreground line-clamp-3">
-            {excerpt}
-          </p>
-        )}
-      </div>
-    </button>
-  );
-}
