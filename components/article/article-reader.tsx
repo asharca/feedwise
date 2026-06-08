@@ -8,7 +8,7 @@ import {
   Star,
   CheckCheck,
   BookOpen,
-  ArrowLeft,
+  PanelRightClose,
   Copy,
   Sparkles,
   Tag,
@@ -319,7 +319,7 @@ export function ArticleReader({
   const readingTime = estimateReadingTime(article.contentText ?? article.contentHtml);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden relative">
+    <div className="flex flex-col h-full overflow-hidden relative animate-in fade-in duration-200 ease-[var(--ease-out)] motion-reduce:animate-none">
       {/* Scroll progress */}
       <div className="scroll-progress" style={{ width: `${scrollProgress * 100}%` }} />
 
@@ -330,8 +330,8 @@ export function ArticleReader({
               both a back-to-list button and the sidebar trigger here. */}
           <SidebarTrigger className="md:hidden" />
           {onBack && (
-            <ActionButton title="Back" onClick={onBack}>
-              <ArrowLeft className="size-4 text-muted-foreground" />
+            <ActionButton title="Collapse" onClick={onBack}>
+              <PanelRightClose className="size-4 text-muted-foreground" />
             </ActionButton>
           )}
           {contextLabel && (

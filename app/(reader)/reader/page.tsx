@@ -47,6 +47,10 @@ function ReaderContent() {
   // the user switches to feed Y and append X's next page onto Y's list —
   // showing a couple of stale articles mixed in with the new ones.
   const loadMoreAbortRef = useRef<AbortController | null>(null);
+  // True when the open article was launched via an in-app click (openArticle
+  // pushed a history entry). Lets "Collapse" pop that entry to keep history
+  // clean, while still collapsing deterministically on deep links / refresh.
+  const openedInAppRef = useRef(false);
   // Reader-level LLM preferences. `null` = not loaded yet (don't auto-trigger).
   const [autoSummarize, setAutoSummarize] = useState<boolean | null>(null);
   const [tagNameById, setTagNameById] = useState<Record<string, string>>({});
@@ -225,14 +229,34 @@ function ReaderContent() {
       p.delete("folderId");
       p.delete("tag");
     }
+    // Switching to another article while one is already open replaces the URL
+    // instead of pushing — otherwise every article read stacks a history entry
+    // and "Collapse"/back would step through prior articles instead of going
+    // straight to the list. Opening the first article pushes one entry so the
+    // back gesture (and Collapse) returns to the list.
+    const switching = searchParams.has("articleId");
     p.set("articleId", id);
-    // push so mobile back gesture / browser back button returns to the list
-    router.push(`/reader?${p.toString()}`);
+    if (switching) {
+      router.replace(`/reader?${p.toString()}`);
+    } else {
+      openedInAppRef.current = true;
+      router.push(`/reader?${p.toString()}`);
+    }
   }
 
+  // Collapse the reader pane back to the list view (drops articleId from the
+  // URL). When the article was opened in-app we pop that pushed entry to keep
+  // history clean; on a deep link / refresh there's nothing to pop, so strip
+  // articleId explicitly so collapsing still lands on the list.
   function closeArticle() {
-    // back() pops the push() from openArticle — keeps history clean
-    router.back();
+    if (openedInAppRef.current) {
+      openedInAppRef.current = false;
+      router.back();
+      return;
+    }
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("articleId");
+    router.replace(`/reader?${p.toString()}`);
   }
 
   async function handleLoadMore() {
