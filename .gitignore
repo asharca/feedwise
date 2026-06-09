@@ -42,3 +42,7 @@ next-env.d.ts
 
 # superpowers brainstorm scratch
 .superpowers/
+
+# agent / tool artifacts
+.serena/
+.playwright-mcp/
