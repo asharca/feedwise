@@ -1,7 +1,8 @@
 // app/api/settings/email/history/[logId]/preview/route.ts
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
-import { getArticlesForLog, getDigestLogById, getSubscriptionSettings } from "@/lib/email/queries";
+import { getArticlesForLog, getDigestLogById } from "@/lib/email/digest-log";
+import { getSubscriptionSettings } from "@/lib/email/subscription-settings";
 import { assembleDigestForSubscription } from "@/lib/jobs/workers/digest-worker";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";

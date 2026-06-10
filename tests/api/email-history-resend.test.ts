@@ -17,13 +17,15 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth/session", () => ({ requireSession: mocks.requireSession }));
-vi.mock("@/lib/email/queries", () => ({
+vi.mock("@/lib/email/digest-log", () => ({
   getArticlesForLog: mocks.getArticlesForLog,
   getDigestLogById: mocks.getDigestLogById,
+  logDigestSendWithArticles: mocks.logDigestSendWithArticles,
+}));
+vi.mock("@/lib/email/subscription-settings", () => ({
   getSubscriptionSettings: mocks.getSubscriptionSettings,
   getUserSMTPConfig: mocks.getUserSMTPConfig,
   getUserEmail: mocks.getUserEmail,
-  logDigestSendWithArticles: mocks.logDigestSendWithArticles,
 }));
 vi.mock("@/lib/jobs/workers/digest-worker", () => ({
   assembleDigestForSubscription: mocks.assembleDigestForSubscription,

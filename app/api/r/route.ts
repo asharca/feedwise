@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { verifyClickToken } from "@/lib/email/click-token";
 import { getArticleUrlById, markArticle } from "@/lib/db/queries/articles";
-import { getSubscriptionSettings } from "@/lib/email/queries";
+import { getSubscriptionSettings } from "@/lib/email/subscription-settings";
 
 export async function GET(req: Request) {
   const reqUrl = new URL(req.url);

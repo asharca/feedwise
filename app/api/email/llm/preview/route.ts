@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
-import { getArticlesForEmail } from "@/lib/email/queries";
+import { getArticlesForEmail } from "@/lib/email/digest-articles";
 import { assembleDigestForSubscription } from "@/lib/jobs/workers/digest-worker";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import type { DigestArticle } from "@/lib/digest/types";

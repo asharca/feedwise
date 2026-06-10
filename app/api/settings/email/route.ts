@@ -4,7 +4,7 @@ import {
   getSubscriptionSettings,
   updateSubscriptionSettings,
   updateNextScheduledAt,
-} from "@/lib/email/queries";
+} from "@/lib/email/subscription-settings";
 import { z } from "zod";
 import { CronExpressionParser } from "cron-parser";
 

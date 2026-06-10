@@ -3,12 +3,10 @@ import type { CronDate } from "cron-parser";
 import {
   getAllActiveSubscriptions,
   getUserEmail,
-  getArticlesForEmail,
-  markArticlesAsSent,
-  logDigestSendWithArticles,
   updateNextScheduledAt,
-  getLastDigestSentDate,
-} from "@/lib/email/queries";
+} from "@/lib/email/subscription-settings";
+import { getArticlesForEmail, markArticlesAsSent } from "@/lib/email/digest-articles";
+import { logDigestSendWithArticles, getLastDigestSentDate } from "@/lib/email/digest-log";
 import { sendDailyDigest } from "@/lib/email/sender";
 import { dedupeByCanonicalUrl, dedupeByTitleSimilarity } from "@/lib/digest/dedupe";
 import { buildTagBasedDigest } from "@/lib/digest/organize-by-tag";

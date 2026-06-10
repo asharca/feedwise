@@ -1,14 +1,8 @@
 // app/api/settings/email/history/[logId]/resend/route.ts
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
-import {
-  getArticlesForLog,
-  getDigestLogById,
-  getSubscriptionSettings,
-  getUserEmail,
-  getUserSMTPConfig,
-  logDigestSendWithArticles,
-} from "@/lib/email/queries";
+import { getArticlesForLog, getDigestLogById, logDigestSendWithArticles } from "@/lib/email/digest-log";
+import { getSubscriptionSettings, getUserEmail, getUserSMTPConfig } from "@/lib/email/subscription-settings";
 import {
   assembleDigestForSubscription,
   sendDailyDigestWithRetry,

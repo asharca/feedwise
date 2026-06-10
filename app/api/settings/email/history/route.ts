@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
-import { getDigestHistory } from "@/lib/email/queries";
+import { getDigestHistory } from "@/lib/email/digest-log";
 
 export async function GET() {
   let session;

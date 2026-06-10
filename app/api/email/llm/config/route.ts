@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
-import { getUserSubscription } from "@/lib/email/queries";
+import { getUserSubscription } from "@/lib/email/subscription-settings";
 import { getUserLlmConfig, updateUserLlmConfig } from "@/lib/digest/llm-config";
 
 export async function GET() {

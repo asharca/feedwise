@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
-import {
-  getUserEmail,
-  getArticlesForEmail,
-  getUserSMTPConfig,
-  getSubscriptionSettings,
-} from "@/lib/email/queries";
+import { getUserEmail, getUserSMTPConfig, getSubscriptionSettings } from "@/lib/email/subscription-settings";
+import { getArticlesForEmail } from "@/lib/email/digest-articles";
 import { sendDailyDigest } from "@/lib/email/sender";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
 import { buildFallback } from "@/lib/digest/fallback";
