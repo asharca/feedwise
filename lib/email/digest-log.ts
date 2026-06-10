@@ -1,6 +1,7 @@
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  emailSentArticles,
   emailDigestLogs,
   emailDigestLogArticles,
   articles,
@@ -90,6 +91,41 @@ export async function logDigestSendWithArticles(
         .onConflictDoNothing();
     }
 
+    return log.id;
+  });
+}
+
+/**
+ * Atomically record a successful digest send: mark articles as sent, write
+ * the digest log, and link articles to the log — all in one transaction so a
+ * crash can't leave articles marked sent without a corresponding log.
+ *
+ * Note: the SMTP send itself cannot be in the transaction. If the process
+ * dies between send-success and this commit, the next tick re-sends that
+ * window — we accept rare duplicate emails over silently lost articles.
+ */
+export async function recordDigestSent(
+  userId: string,
+  articleIds: string[],
+  articleCount: number,
+): Promise<string> {
+  return db.transaction(async (tx) => {
+    if (articleIds.length > 0) {
+      await tx
+        .insert(emailSentArticles)
+        .values(articleIds.map((articleId) => ({ userId, articleId, sentAt: new Date() })))
+        .onConflictDoNothing();
+    }
+    const [log] = await tx
+      .insert(emailDigestLogs)
+      .values({ userId, articleCount, status: "success", errorMessage: null, sentAt: new Date() })
+      .returning({ id: emailDigestLogs.id });
+    if (articleIds.length > 0) {
+      await tx
+        .insert(emailDigestLogArticles)
+        .values(articleIds.map((articleId) => ({ logId: log.id, articleId })))
+        .onConflictDoNothing();
+    }
     return log.id;
   });
 }

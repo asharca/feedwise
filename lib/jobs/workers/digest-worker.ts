@@ -5,8 +5,8 @@ import {
   getUserEmail,
   updateNextScheduledAt,
 } from "@/lib/email/subscription-settings";
-import { getArticlesForEmail, markArticlesAsSent } from "@/lib/email/digest-articles";
-import { logDigestSendWithArticles, getLastDigestSentDate } from "@/lib/email/digest-log";
+import { getArticlesForEmail } from "@/lib/email/digest-articles";
+import { recordDigestSent, logDigestSendWithArticles, getLastDigestSentDate } from "@/lib/email/digest-log";
 import { sendDailyDigest } from "@/lib/email/sender";
 import { dedupeByCanonicalUrl, dedupeByTitleSimilarity } from "@/lib/digest/dedupe";
 import { buildTagBasedDigest } from "@/lib/digest/organize-by-tag";
@@ -151,8 +151,7 @@ async function sendDigestForDate(
 
   try {
     await sendDailyDigestWithRetry({ to: email, subject, html, smtpConfig });
-    await markArticlesAsSent(subscription.userId, allArticleIds);
-    await logDigestSendWithArticles(subscription.userId, allArticleIds, articles.length, "success");
+    await recordDigestSent(subscription.userId, allArticleIds, articles.length);
     console.log(
       `[digest] Sent digest to ${email} (${articles.length} articles, mode=${digest.mode}) for ${triggerDate.toDateString()}`,
     );
