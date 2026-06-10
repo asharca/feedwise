@@ -2,8 +2,6 @@ import { eq, and, gt, lte, sql, not, inArray, exists } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   emailSentArticles,
-  emailSubscriptionTags,
-  emailSubscriptionFeeds,
   articles,
   feeds,
   subscriptions,
