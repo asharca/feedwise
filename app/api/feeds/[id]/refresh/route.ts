@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { getFeedFromSubscription } from "@/lib/db/queries/feeds";
 import { getFeedFetchQueue } from "@/lib/jobs/queue";
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id: subscriptionId } = await params;
+export const POST = withAuth(async (_req, session, ctx) => {
+  const { id: subscriptionId } = await ctx.params;
 
   const feed = await getFeedFromSubscription(session.user.id, subscriptionId);
   if (!feed) {
@@ -38,4 +31,4 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   return NextResponse.json({ success: true, data: { feedId: feed.feedId } });
-}
+});

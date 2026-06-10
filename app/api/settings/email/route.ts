@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import {
   getSubscriptionSettings,
   updateSubscriptionSettings,
@@ -41,54 +41,39 @@ function sanitizeSettings(settings: Awaited<ReturnType<typeof getSubscriptionSet
   return sanitized;
 }
 
-export async function GET() {
-  try {
-    const session = await requireSession();
-    const settings = await getSubscriptionSettings(session.user.id);
-    return NextResponse.json({ success: true, data: sanitizeSettings(settings) });
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+export const GET = withAuth(async (_req, session) => {
+  const settings = await getSubscriptionSettings(session.user.id);
+  return NextResponse.json({ success: true, data: sanitizeSettings(settings) });
+});
+
+export const PUT = withAuth(async (req, session) => {
+  const body = await req.json();
+  const parsed = updateSchema.parse(body);
+
+  // Validate cron expression if provided
+  if (parsed.cronExpression && parsed.cronExpression.trim().length > 0) {
+    try {
+      CronExpressionParser.parse(parsed.cronExpression);
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Invalid cron expression" },
+        { status: 400 },
+      );
+    }
   }
-}
 
-export async function PUT(req: Request) {
-  try {
-    const session = await requireSession();
-    const body = await req.json();
-    const parsed = updateSchema.parse(body);
+  const settings = await updateSubscriptionSettings(session.user.id, parsed);
 
-    // Validate cron expression if provided
-    if (parsed.cronExpression && parsed.cronExpression.trim().length > 0) {
-      try {
-        CronExpressionParser.parse(parsed.cronExpression);
-      } catch {
-        return NextResponse.json(
-          { success: false, error: "Invalid cron expression" },
-          { status: 400 },
-        );
-      }
+  // Update nextScheduledAt when cron expression changes
+  if (parsed.cronExpression !== undefined && parsed.cronExpression?.trim().length > 0) {
+    try {
+      const expr = CronExpressionParser.parse(parsed.cronExpression);
+      const nextTrigger = expr.next().toDate();
+      await updateNextScheduledAt(session.user.id, nextTrigger);
+    } catch {
+      // Invalid cron already validated above; ignore here
     }
-
-    const settings = await updateSubscriptionSettings(session.user.id, parsed);
-
-    // Update nextScheduledAt when cron expression changes
-    if (parsed.cronExpression !== undefined && parsed.cronExpression?.trim().length > 0) {
-      try {
-        const expr = CronExpressionParser.parse(parsed.cronExpression);
-        const nextTrigger = expr.next().toDate();
-        await updateNextScheduledAt(session.user.id, nextTrigger);
-      } catch {
-        // Invalid cron already validated above; ignore here
-      }
-    }
-
-    return NextResponse.json({ success: true, data: sanitizeSettings(settings) });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email-settings] Error:", message);
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ success: false, error: err.issues }, { status: 400 });
-    }
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
-}
+
+  return NextResponse.json({ success: true, data: sanitizeSettings(settings) });
+});

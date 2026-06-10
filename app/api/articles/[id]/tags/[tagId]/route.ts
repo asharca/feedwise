@@ -1,19 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { getArticleById, removeTagFromArticle } from "@/lib/db/queries/articles";
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string; tagId: string }> },
-) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id, tagId } = await params;
+export const DELETE = withAuth(async (_req, session, ctx) => {
+  const { id, tagId } = await ctx.params;
 
   // Article ownership check (also confirms the subscription join)
   const article = await getArticleById(session.user.id, id);
@@ -26,4 +16,4 @@ export async function DELETE(
     return NextResponse.json({ success: false, error: "Tag not found" }, { status: 404 });
   }
   return NextResponse.json({ success: true });
-}
+});

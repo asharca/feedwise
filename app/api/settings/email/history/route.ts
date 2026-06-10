@@ -1,14 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { getDigestHistory } from "@/lib/email/digest-log";
 
-export async function GET() {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withAuth(async (_req, session) => {
   const history = await getDigestHistory(session.user.id, 30);
   return NextResponse.json({ success: true, data: history });
-}
+});

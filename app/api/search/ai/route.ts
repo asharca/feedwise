@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { articles, feeds, subscriptions } from "@/lib/db/schema";
 import { and, desc, eq, gte } from "drizzle-orm";
@@ -14,14 +14,7 @@ const SearchSchema = z.object({
 const ARTICLE_POOL_SIZE = 60;
 const SEARCH_WINDOW_DAYS = 30;
 
-export async function POST(req: Request) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (req, session) => {
   let body;
   try {
     body = await req.json();
@@ -35,15 +28,7 @@ export async function POST(req: Request) {
   }
   const { query } = parsed.data;
 
-  let llmConfig;
-  try {
-    llmConfig = await getUserLlmConfig(session.user.id);
-  } catch {
-    return NextResponse.json(
-      { success: false, error: "LLM key could not be decrypted" },
-      { status: 500 },
-    );
-  }
+  const llmConfig = await getUserLlmConfig(session.user.id);
   if (!llmConfig) {
     return NextResponse.json(
       { success: false, error: "No LLM configured — set one in Settings → Smart Digest" },
@@ -142,4 +127,4 @@ export async function POST(req: Request) {
     const message = err instanceof Error ? err.message : "LLM call failed";
     return NextResponse.json({ success: false, error: message }, { status: 502 });
   }
-}
+});

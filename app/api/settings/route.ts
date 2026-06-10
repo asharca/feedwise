@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
@@ -11,39 +11,26 @@ const SettingsSchema = z.object({
 
 export type UserSettings = z.infer<typeof SettingsSchema>;
 
-export async function GET() {
-  try {
-    const session = await requireSession();
-    const [user] = await db
-      .select({ settings: users.settings })
-      .from(users)
-      .where(eq(users.id, session.user.id));
-    return NextResponse.json({ success: true, data: user?.settings ?? {} });
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-}
+export const GET = withAuth(async (_req, session) => {
+  const [user] = await db
+    .select({ settings: users.settings })
+    .from(users)
+    .where(eq(users.id, session.user.id));
+  return NextResponse.json({ success: true, data: user?.settings ?? {} });
+});
 
-export async function PATCH(req: Request) {
-  try {
-    const session = await requireSession();
-    const body = await req.json();
-    const patch = SettingsSchema.parse(body);
+export const PATCH = withAuth(async (req, session) => {
+  const body = await req.json();
+  const patch = SettingsSchema.parse(body);
 
-    const [user] = await db
-      .select({ settings: users.settings })
-      .from(users)
-      .where(eq(users.id, session.user.id));
+  const [user] = await db
+    .select({ settings: users.settings })
+    .from(users)
+    .where(eq(users.id, session.user.id));
 
-    const merged = { ...(user?.settings ?? {}), ...patch };
+  const merged = { ...(user?.settings ?? {}), ...patch };
 
-    await db.update(users).set({ settings: merged }).where(eq(users.id, session.user.id));
+  await db.update(users).set({ settings: merged }).where(eq(users.id, session.user.id));
 
-    return NextResponse.json({ success: true, data: merged });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
-    }
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-}
+  return NextResponse.json({ success: true, data: merged });
+});

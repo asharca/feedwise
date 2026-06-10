@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { getUserLlmConfig } from "@/lib/digest/llm-config";
 
 const TIMEOUT_MS = 15_000;
@@ -15,10 +15,7 @@ interface UpstreamModelsResponse {
   data?: Array<{ id?: unknown; display_name?: unknown }>;
 }
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json().catch(() => null);
   const parsed = InputSchema.safeParse(body);
   if (!parsed.success) {
@@ -86,4 +83,4 @@ export async function POST(req: Request) {
     .sort((a, b) => a.id.localeCompare(b.id));
 
   return NextResponse.json({ ok: true, models });
-}
+});

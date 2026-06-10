@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { getDashboardTimeline } from "@/lib/db/queries/stats";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -10,14 +10,7 @@ function parseIsoDate(value: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export async function GET(req: Request) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (req, session) => {
   const { searchParams } = new URL(req.url);
   const fromParam = parseIsoDate(searchParams.get("from"));
   const toParam = parseIsoDate(searchParams.get("to"));
@@ -41,4 +34,4 @@ export async function GET(req: Request) {
 
   const data = await getDashboardTimeline(session.user.id, from, to);
   return NextResponse.json({ success: true, data });
-}
+});

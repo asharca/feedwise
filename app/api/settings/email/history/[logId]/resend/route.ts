@@ -1,6 +1,6 @@
 // app/api/settings/email/history/[logId]/resend/route.ts
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { getArticlesForLog, getDigestLogById, logDigestSendWithArticles } from "@/lib/email/digest-log";
 import { getSubscriptionSettings, getUserEmail, getUserSMTPConfig } from "@/lib/email/subscription-settings";
 import {
@@ -14,14 +14,7 @@ import { mapSmtpError } from "@/lib/email/smtp-error";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function POST(req: Request, ctx: { params: Promise<{ logId: string }> }) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (req, session, ctx) => {
   const { logId } = await ctx.params;
   if (!UUID_RE.test(logId)) {
     return NextResponse.json({ success: false, error: "Invalid log id" }, { status: 400 });
@@ -95,4 +88,4 @@ export async function POST(req: Request, ctx: { params: Promise<{ logId: string 
     );
     return NextResponse.json({ success: false, error: mapSmtpError(err) }, { status: 500 });
   }
-}
+});
