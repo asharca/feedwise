@@ -18,6 +18,12 @@ export function CreateFolderDialog({ open, onOpenChange, onCreated }: CreateFold
   const [folderCreateSaving, setFolderCreateSaving] = useState(false);
   const [folderCreateError, setFolderCreateError] = useState("");
 
+  // The old sidebar cleared the error before opening the dialog; reproduce
+  // that so a validation message from a previous attempt never shows stale.
+  useEffect(() => {
+    if (open) setFolderCreateError("");
+  }, [open]);
+
   async function handleFolderCreate(e: React.FormEvent) {
     e.preventDefault();
     const name = folderCreateName.trim();
