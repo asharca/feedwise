@@ -10,38 +10,18 @@ import {
 } from "@/components/article/dated-article-list-pane";
 import { ListReaderShell } from "@/components/article/list-reader-shell";
 import { ReaderSkeleton } from "@/components/article/reader-skeleton";
+import { useAutoSummarize } from "@/lib/hooks/use-auto-summarize";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useArticleDetail } from "@/lib/hooks/use-article-detail";
+import { dispatchUnreadDelta } from "@/lib/reader/events";
+import { patchArticle } from "@/lib/reader/article-api";
 
 interface HistoryItem extends DatedArticleItem {
   // History items always have readAt set.
   readAt: string;
 }
 
-interface ArticleDetail {
-  id: string;
-  feedId: string;
-  feedTitle: string | null;
-  feedIconUrl?: string | null;
-  url: string | null;
-  title: string | null;
-  author: string | null;
-  summary: string | null;
-  contentHtml: string | null;
-  contentText: string | null;
-  imageUrl?: string | null;
-  publishedAt: string | null;
-  createdAt: string | null;
-  isRead: boolean;
-  isStarred: boolean;
-  aiSummary?: string | null;
-  importance?: "high" | "med" | "low" | null;
-  tags?: Array<{ id: string; name: string; color?: string | null }>;
-}
-
 const PAGE_SIZE = 50;
-
-function dispatchUnreadDelta(feedId: string, delta: number) {
-  window.dispatchEvent(new CustomEvent("feedwise:unread-delta", { detail: { feedId, delta } }));
-}
 
 function HistoryPageInner() {
   const router = useRouter();
@@ -53,24 +33,13 @@ function HistoryPageInner() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [active, setActive] = useState<ArticleDetail | null>(null);
-  const [autoSummarize, setAutoSummarize] = useState(false);
+  const debouncedSearch = useDebouncedValue(search.trim(), 250);
+  const autoSummarize = useAutoSummarize();
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
-    return () => clearTimeout(id);
-  }, [search]);
-
-  useEffect(() => {
-    fetch("/api/email/llm/config")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d) setAutoSummarize(Boolean(d.enabled) && Boolean(d.autoSummarize));
-      })
-      .catch(() => {});
-  }, []);
+  const { detail: active, setDetail: setActive } = useArticleDetail(articleId, {
+    markReadOnOpen: false,
+  });
 
   const load = useCallback(async (q: string, offset: number) => {
     abortRef.current?.abort();
@@ -102,25 +71,6 @@ function HistoryPageInner() {
       })
       .finally(() => setLoading(false));
   }, [debouncedSearch, load]);
-
-  useEffect(() => {
-    if (!articleId) {
-      setActive(null);
-      return;
-    }
-    if (active?.id === articleId) return;
-    let cancelled = false;
-    (async () => {
-      const res = await fetch(`/api/articles/${articleId}`);
-      if (!res.ok || cancelled) return;
-      const d = await res.json();
-      if (cancelled || !d.success) return;
-      setActive(d.data);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [articleId, active?.id]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
@@ -155,25 +105,17 @@ function HistoryPageInner() {
   const handleStar = useCallback(async (id: string, starred: boolean) => {
     setItems((prev) => prev.map((a) => (a.id === id ? { ...a, isStarred: starred } : a)));
     setActive((prev) => (prev?.id === id ? { ...prev, isStarred: starred } : prev));
-    await fetch(`/api/articles/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isStarred: starred }),
-    });
-  }, []);
+    await patchArticle(id, { isStarred: starred });
+  }, [setActive]);
 
   const handleMarkRead = useCallback(
     async (id: string, read: boolean) => {
       const target = items.find((a) => a.id === id);
       setActive((prev) => (prev?.id === id ? { ...prev, isRead: read } : prev));
       if (target) dispatchUnreadDelta(target.feedId, read ? -1 : 1);
-      await fetch(`/api/articles/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isRead: read }),
-      });
+      await patchArticle(id, { isRead: read });
     },
-    [items],
+    [items, setActive],
   );
 
   return (
@@ -215,7 +157,7 @@ function HistoryPageInner() {
             onStar={handleStar}
             onBack={closeArticle}
             contextLabel="History"
-            autoSummarize={autoSummarize}
+            autoSummarize={autoSummarize ?? false}
           />
         ) : articleId ? (
           <ReaderSkeleton />

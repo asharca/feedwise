@@ -74,6 +74,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { signOut } from "@/lib/auth/client";
+import {
+  UNREAD_DELTA_EVENT,
+  MARK_ALL_READ_EVENT,
+  type UnreadDeltaDetail,
+  type MarkAllReadDetail,
+} from "@/lib/reader/events";
 import { toast } from "sonner";
 import { cn, proxyImg } from "@/lib/utils";
 import { AiSearchDialog } from "@/components/ai-search-dialog";
@@ -172,7 +178,7 @@ export function AppSidebar({
   // Sync unread counts when articles are marked read from the reader
   useEffect(() => {
     function onDelta(e: Event) {
-      const { feedId, delta } = (e as CustomEvent<{ feedId: string; delta: number }>).detail;
+      const { feedId, delta } = (e as CustomEvent<UnreadDeltaDetail>).detail;
       setSubs((prev) =>
         prev.map((s) =>
           s.feedId === feedId
@@ -183,7 +189,7 @@ export function AppSidebar({
     }
     function onMarkAll(e: Event) {
       const { feedId: targetFeedId, folderId: targetFolderId } = (
-        e as CustomEvent<{ feedId?: string; folderId?: string }>
+        e as CustomEvent<MarkAllReadDetail>
       ).detail;
       setSubs((prev) =>
         prev.map((s) => {
@@ -193,11 +199,11 @@ export function AppSidebar({
         }),
       );
     }
-    window.addEventListener("feedwise:unread-delta", onDelta);
-    window.addEventListener("feedwise:mark-all-read", onMarkAll);
+    window.addEventListener(UNREAD_DELTA_EVENT, onDelta);
+    window.addEventListener(MARK_ALL_READ_EVENT, onMarkAll);
     return () => {
-      window.removeEventListener("feedwise:unread-delta", onDelta);
-      window.removeEventListener("feedwise:mark-all-read", onMarkAll);
+      window.removeEventListener(UNREAD_DELTA_EVENT, onDelta);
+      window.removeEventListener(MARK_ALL_READ_EVENT, onMarkAll);
     };
   }, []);
 

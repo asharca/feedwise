@@ -15,16 +15,11 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { CheckCheck, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-interface ArticleDetail extends Article {
-  author: string | null;
-  url: string | null;
-  contentHtml: string | null;
-  contentText: string | null;
-  aiSummary?: string | null;
-  importance?: "high" | "med" | "low" | null;
-  tags?: Array<{ id: string; name: string; color?: string | null }>;
-}
+import { useAutoSummarize } from "@/lib/hooks/use-auto-summarize";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useArticleDetail } from "@/lib/hooks/use-article-detail";
+import { dispatchUnreadDelta, dispatchMarkAllRead } from "@/lib/reader/events";
+import { patchArticle } from "@/lib/reader/article-api";
 
 function ReaderContent() {
   const router = useRouter();
@@ -37,7 +32,6 @@ function ReaderContent() {
   const articleId = searchParams.get("articleId") ?? undefined;
 
   const [articleList, setArticleList] = useState<Article[]>([]);
-  const [activeArticle, setActiveArticle] = useState<ArticleDetail | null>(null);
   const [isPending, startTransition] = useTransition();
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -52,15 +46,23 @@ function ReaderContent() {
   // clean, while still collapsing deterministically on deep links / refresh.
   const openedInAppRef = useRef(false);
   // Reader-level LLM preferences. `null` = not loaded yet (don't auto-trigger).
-  const [autoSummarize, setAutoSummarize] = useState<boolean | null>(null);
+  const autoSummarize = useAutoSummarize();
   const [tagNameById, setTagNameById] = useState<Record<string, string>>({});
   // Per-view local search. Hits /api/articles?search=… scoped to the current
   // feed/folder/tag/view. Distinct from the URL `?search=` global palette
   // search, which triggers a different UI (SearchResultsPage).
   const [paneSearch, setPaneSearch] = useState("");
-  const [debouncedPaneSearch, setDebouncedPaneSearch] = useState("");
+  const debouncedPaneSearch = useDebouncedValue(paneSearch.trim(), 250);
+  const effectivePaneSearch = paneSearch.trim() === "" ? "" : debouncedPaneSearch;
   const [reloadKey, setReloadKey] = useState(0);
   const PAGE_SIZE = 50;
+
+  const { detail: activeArticle, setDetail: setActiveArticle } = useArticleDetail(articleId, {
+    markReadOnOpen: true,
+    onMarkedRead: (id) => {
+      setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: true } : a)));
+    },
+  });
 
   useSSE((event) => {
     if (event.type !== "articles.new") return;
@@ -70,31 +72,12 @@ function ReaderContent() {
     }
   });
 
-  // Debounce pane search input → server fetch.
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedPaneSearch(paneSearch.trim()), 250);
-    return () => clearTimeout(id);
-  }, [paneSearch]);
-
   // Clear pane search when the user switches scope — a query like "react"
   // makes sense within one feed but isn't carried across feed boundaries.
+  // effectivePaneSearch guard makes the clear instantaneous (no debounce wait).
   useEffect(() => {
     setPaneSearch("");
-    setDebouncedPaneSearch("");
   }, [feedId, folderId, tagId, view]);
-
-  useEffect(() => {
-    fetch("/api/email/llm/config")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data) return;
-        // Only auto-trigger when LLM is actually enabled AND user opted in.
-        setAutoSummarize(Boolean(data.enabled) && Boolean(data.autoSummarize));
-      })
-      .catch(() => {
-        setAutoSummarize(false);
-      });
-  }, []);
 
   useEffect(() => {
     function loadTags() {
@@ -135,7 +118,7 @@ function ReaderContent() {
       // The URL-driven global search and the pane's per-view filter both map
       // to the API's `search` param. Only one is active at a time (the global
       // path renders SearchResultsPage, the pane is mounted only otherwise).
-      const effectiveSearch = search || debouncedPaneSearch;
+      const effectiveSearch = search || effectivePaneSearch;
       if (effectiveSearch) params.set("search", effectiveSearch);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(pageOffset));
@@ -144,7 +127,7 @@ function ReaderContent() {
       if (data.success) return data.data as Article[];
       return [];
     },
-    [feedId, folderId, tagId, view, search, debouncedPaneSearch, PAGE_SIZE],
+    [feedId, folderId, tagId, view, search, effectivePaneSearch, PAGE_SIZE],
   );
 
   // Reset and reload the LIST when filters change. The currently-open article
@@ -176,49 +159,6 @@ function ReaderContent() {
     });
     return () => controller.abort();
   }, [fetchArticles, showDashboard, PAGE_SIZE, reloadKey]);
-
-  // Drive the open article from the URL: refreshing on ?articleId=… re-opens
-  // the same article, and back/forward navigation Just Works.
-  useEffect(() => {
-    if (!articleId) {
-      setActiveArticle(null);
-      return;
-    }
-    if (activeArticle?.id === articleId) return;
-    let cancelled = false;
-    (async () => {
-      const res = await fetch(`/api/articles/${articleId}`);
-      if (!res.ok || cancelled) return;
-      const data = await res.json();
-      if (cancelled) return;
-      if (data.success) {
-        // Wrap the heavy ArticleReader mount in a transition so it can't
-        // block in-flight animation frames (the shell slide-in spring may
-        // still be running when this fetch resolves).
-        startTransition(() => {
-          setActiveArticle(data.data);
-        });
-        // Mark read (best-effort, non-blocking)
-        if (data.data && !data.data.isRead) {
-          fetch(`/api/articles/${articleId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ isRead: true }),
-          }).catch(() => {});
-          // Reflect read state in the list + sidebar counter
-          setArticleList((prev) =>
-            prev.map((a) => (a.id === articleId ? { ...a, isRead: true } : a)),
-          );
-          if (data.data.feedId) dispatchUnreadDelta(data.data.feedId, -1);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // dispatchUnreadDelta is stable (defined inline below), excluded on purpose
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articleId]);
 
   function openArticle(id: string, opts?: { feedId?: string }) {
     const p = new URLSearchParams(searchParams.toString());
@@ -279,18 +219,6 @@ function ReaderContent() {
     }
   }
 
-  function dispatchUnreadDelta(feedId: string, delta: number) {
-    window.dispatchEvent(new CustomEvent("feedwise:unread-delta", { detail: { feedId, delta } }));
-  }
-
-  function dispatchMarkAllRead(targetFeedId?: string, targetFolderId?: string) {
-    window.dispatchEvent(
-      new CustomEvent("feedwise:mark-all-read", {
-        detail: { feedId: targetFeedId, folderId: targetFolderId },
-      }),
-    );
-  }
-
   function handleSelect(id: string) {
     // Just update the URL — the articleId useEffect handles fetching and
     // marking-as-read uniformly for clicks AND refreshes.
@@ -307,11 +235,7 @@ function ReaderContent() {
     if (activeArticle?.id === id) {
       setActiveArticle((prev) => (prev ? { ...prev, isStarred: starred } : prev));
     }
-    await fetch(`/api/articles/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isStarred: starred }),
-    });
+    await patchArticle(id, { isStarred: starred });
   }
 
   async function handleMarkRead(id: string, read: boolean) {
@@ -324,11 +248,7 @@ function ReaderContent() {
     if (article && wasRead !== read) {
       dispatchUnreadDelta(article.feedId, read ? -1 : 1);
     }
-    await fetch(`/api/articles/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isRead: read }),
-    });
+    await patchArticle(id, { isRead: read });
   }
 
   async function handleMarkAllRead() {
@@ -350,7 +270,7 @@ function ReaderContent() {
         <div className={cn("shrink-0", activeArticle ? "hidden md:block" : "w-full md:w-auto")}>
           <SearchResultsPage
             search={search!}
-            activeArticle={activeArticle}
+            activeArticle={activeArticle as Article | null}
             onSelect={handleSelect}
             onStar={handleStar}
             articleList={articleList}
@@ -481,9 +401,9 @@ function ReaderContent() {
           hasMore={hasMore}
           loadingMore={loadingMore}
           onLoadMore={handleLoadMore}
-          emptyTitle={debouncedPaneSearch ? "No matches" : "No articles"}
+          emptyTitle={effectivePaneSearch ? "No matches" : "No articles"}
           emptyHint={
-            debouncedPaneSearch
+            effectivePaneSearch
               ? "Try a different search."
               : "Articles from this view will show up here."
           }
