@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth/session";
-import { getUserLlmConfig } from "@/lib/email/queries";
+import { withAuth } from "@/lib/api/with-auth";
+import { getUserLlmConfig } from "@/lib/digest/llm-config";
 import { callChatCompletion, LlmTimeoutError } from "@/lib/digest/llm-client";
 
 const InputSchema = z.object({
@@ -11,10 +11,7 @@ const InputSchema = z.object({
   format: z.enum(["openai", "anthropic"]).optional(),
 });
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json().catch(() => null);
   const parsed = InputSchema.safeParse(body);
   if (!parsed.success) {
@@ -55,4 +52,4 @@ export async function POST(req: Request) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message.slice(0, 200) }, { status: 502 });
   }
-}
+});

@@ -9,6 +9,11 @@ import { DatedArticleListPane } from "@/components/article/dated-article-list-pa
 import { ArticleReader } from "@/components/article/article-reader";
 import { ReaderSkeleton } from "@/components/article/reader-skeleton";
 import { cn } from "@/lib/utils";
+import { useAutoSummarize } from "@/lib/hooks/use-auto-summarize";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useArticleDetail } from "@/lib/hooks/use-article-detail";
+import { dispatchUnreadDelta } from "@/lib/reader/events";
+import { patchArticle } from "@/lib/reader/article-api";
 
 const spring = { type: "spring" as const, duration: 0.3, bounce: 0 };
 const LIST_NARROW_PX = 384;
@@ -34,26 +39,12 @@ interface ApiArticle {
   isStarred: boolean;
 }
 
-interface ApiArticleDetail extends ApiArticle {
-  author: string | null;
-  url: string | null;
-  contentHtml: string | null;
-  contentText: string | null;
-  aiSummary?: string | null;
-  importance?: "high" | "med" | "low" | null;
-  tags?: Array<{ id: string; name: string; color?: string | null }>;
-}
-
 function mapArticle(a: ApiArticle) {
   return {
     ...a,
     publishedAt: a.publishedAt ? new Date(a.publishedAt) : null,
     createdAt: a.createdAt ? new Date(a.createdAt) : null,
   };
-}
-
-function dispatchUnreadDelta(feedId: string, delta: number) {
-  window.dispatchEvent(new CustomEvent("feedwise:unread-delta", { detail: { feedId, delta } }));
 }
 
 function TagsPageInner() {
@@ -66,8 +57,19 @@ function TagsPageInner() {
   const [tagsLoading, setTagsLoading] = useState(true);
   const [articles, setArticles] = useState<ApiArticle[]>([]);
   const [articlesLoading, setArticlesLoading] = useState(false);
-  const [active, setActive] = useState<ApiArticleDetail | null>(null);
-  const [autoSummarize, setAutoSummarize] = useState(false);
+  const autoSummarize = useAutoSummarize();
+
+  // Per-tag search (debounced server fetch).
+  const [paneSearch, setPaneSearch] = useState("");
+  const debouncedPaneSearch = useDebouncedValue(paneSearch.trim(), 250);
+  const effectivePaneSearch = paneSearch.trim() === "" ? "" : debouncedPaneSearch;
+
+  const { detail: active, setDetail: setActive } = useArticleDetail(articleId, {
+    markReadOnOpen: true,
+    onMarkedRead: (id) => {
+      setArticles((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: true } : a)));
+    },
+  });
 
   // Load tags (with live refresh when articles get tagged/untagged elsewhere)
   useEffect(() => {
@@ -85,26 +87,10 @@ function TagsPageInner() {
     return () => window.removeEventListener("tags-changed", load);
   }, []);
 
-  // Load user's auto-summarise preference (for the inline reader)
-  useEffect(() => {
-    fetch("/api/email/llm/config")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d) setAutoSummarize(Boolean(d.enabled) && Boolean(d.autoSummarize));
-      })
-      .catch(() => {});
-  }, []);
-
-  // Per-tag search (debounced server fetch).
-  const [paneSearch, setPaneSearch] = useState("");
-  const [debouncedPaneSearch, setDebouncedPaneSearch] = useState("");
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedPaneSearch(paneSearch.trim()), 250);
-    return () => clearTimeout(id);
-  }, [paneSearch]);
+  // Clear pane search when the user switches tag.
+  // effectivePaneSearch guard makes the clear instantaneous (no debounce wait).
   useEffect(() => {
     setPaneSearch("");
-    setDebouncedPaneSearch("");
   }, [tagId]);
 
   // Load articles for the selected tag (with optional search filter)
@@ -118,7 +104,7 @@ function TagsPageInner() {
     const params = new URLSearchParams();
     params.set("tag", tagId);
     params.set("limit", "100");
-    if (debouncedPaneSearch) params.set("search", debouncedPaneSearch);
+    if (effectivePaneSearch) params.set("search", effectivePaneSearch);
     fetch(`/api/articles?${params}`)
       .then((r) => r.json())
       .then((d) => {
@@ -132,36 +118,7 @@ function TagsPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [tagId, debouncedPaneSearch]);
-
-  // Load the open article + mark-read, driven entirely by URL.
-  useEffect(() => {
-    if (!articleId) {
-      setActive(null);
-      return;
-    }
-    if (active?.id === articleId) return;
-    let cancelled = false;
-    (async () => {
-      const res = await fetch(`/api/articles/${articleId}`);
-      if (!res.ok || cancelled) return;
-      const d = await res.json();
-      if (cancelled || !d.success) return;
-      setActive(d.data);
-      if (d.data && !d.data.isRead) {
-        fetch(`/api/articles/${articleId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isRead: true }),
-        }).catch(() => {});
-        setArticles((prev) => prev.map((a) => (a.id === articleId ? { ...a, isRead: true } : a)));
-        if (d.data.feedId) dispatchUnreadDelta(d.data.feedId, -1);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [articleId, active?.id]);
+  }, [tagId, effectivePaneSearch]);
 
   const selectTag = useCallback(
     (id: string) => {
@@ -191,12 +148,8 @@ function TagsPageInner() {
   const handleStar = useCallback(async (id: string, starred: boolean) => {
     setArticles((prev) => prev.map((a) => (a.id === id ? { ...a, isStarred: starred } : a)));
     setActive((prev) => (prev?.id === id ? { ...prev, isStarred: starred } : prev));
-    await fetch(`/api/articles/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isStarred: starred }),
-    });
-  }, []);
+    await patchArticle(id, { isStarred: starred });
+  }, [setActive]);
 
   const handleMarkRead = useCallback(
     async (id: string, read: boolean) => {
@@ -207,13 +160,9 @@ function TagsPageInner() {
       if (article && wasRead !== read) {
         dispatchUnreadDelta(article.feedId, read ? -1 : 1);
       }
-      await fetch(`/api/articles/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isRead: read }),
-      });
+      await patchArticle(id, { isRead: read });
     },
-    [articles],
+    [articles, setActive],
   );
 
   const selectedTag = tags.find((t) => t.id === tagId);
@@ -321,8 +270,8 @@ function TagsPageInner() {
             onSelect={selectArticle}
             layout={articleId ? "compact" : "grid"}
             loading={articlesLoading}
-            emptyTitle={debouncedPaneSearch ? "No matches" : "No articles"}
-            emptyHint={debouncedPaneSearch ? "Try a different search." : undefined}
+            emptyTitle={effectivePaneSearch ? "No matches" : "No articles"}
+            emptyHint={effectivePaneSearch ? "Try a different search." : undefined}
           />
         )}
       </motion.div>
@@ -351,7 +300,7 @@ function TagsPageInner() {
                 onStar={handleStar}
                 onBack={closeArticle}
                 contextLabel={selectedTag ? `#${selectedTag.name}` : "Tags"}
-                autoSummarize={autoSummarize}
+                autoSummarize={autoSummarize ?? false}
               />
             ) : (
               <ReaderSkeleton />

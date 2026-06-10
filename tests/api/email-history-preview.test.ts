@@ -2,9 +2,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth/session", () => ({ requireSession: vi.fn() }));
-vi.mock("@/lib/email/queries", () => ({
+vi.mock("@/lib/email/digest-log", () => ({
   getArticlesForLog: vi.fn(),
   getDigestLogById: vi.fn(),
+}));
+vi.mock("@/lib/email/subscription-settings", () => ({
   getSubscriptionSettings: vi.fn(),
 }));
 vi.mock("@/lib/jobs/workers/digest-worker", () => ({
@@ -15,7 +17,8 @@ vi.mock("@/lib/email/templates/digest-fallback-html", () => ({ renderFallbackHtm
 vi.mock("@/lib/email/click-link", () => ({ buildEmailLinkFn: vi.fn() }));
 
 import { requireSession } from "@/lib/auth/session";
-import { getArticlesForLog, getDigestLogById, getSubscriptionSettings } from "@/lib/email/queries";
+import { getArticlesForLog, getDigestLogById } from "@/lib/email/digest-log";
+import { getSubscriptionSettings } from "@/lib/email/subscription-settings";
 import { assembleDigestForSubscription } from "@/lib/jobs/workers/digest-worker";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";

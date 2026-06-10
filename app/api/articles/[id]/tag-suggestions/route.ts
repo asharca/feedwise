@@ -1,35 +1,20 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { tags } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getArticleById } from "@/lib/db/queries/articles";
-import { getUserLlmConfig } from "@/lib/email/queries";
+import { getUserLlmConfig } from "@/lib/digest/llm-config";
 import { generateTagsForArticle } from "@/lib/articles/enrichment";
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
+export const POST = withAuth(async (_req, session, ctx) => {
+  const { id } = await ctx.params;
   const article = await getArticleById(session.user.id, id);
   if (!article) {
     return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
   }
 
-  let llmConfig;
-  try {
-    llmConfig = await getUserLlmConfig(session.user.id);
-  } catch {
-    return NextResponse.json(
-      { success: false, error: "LLM key could not be decrypted" },
-      { status: 500 },
-    );
-  }
+  const llmConfig = await getUserLlmConfig(session.user.id);
   if (!llmConfig) {
     return NextResponse.json(
       { success: false, error: "No LLM configured — set one in Settings → Smart Digest" },
@@ -49,4 +34,4 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const message = err instanceof Error ? err.message : "LLM call failed";
     return NextResponse.json({ success: false, error: message }, { status: 502 });
   }
-}
+});

@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth/session";
-import { getUserLlmConfig, getUserSubscription, updateUserLlmConfig } from "@/lib/email/queries";
+import { withAuth } from "@/lib/api/with-auth";
+import { getUserSubscription } from "@/lib/email/subscription-settings";
+import { getUserLlmConfig, updateUserLlmConfig } from "@/lib/digest/llm-config";
 
-export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
+export const GET = withAuth(async (_req, session) => {
   const cfg = await getUserLlmConfig(session.user.id);
 
   // Read the toggle directly from the subscription row so the setting is
@@ -38,7 +36,7 @@ export async function GET() {
     autoSummarize,
     autoTag,
   });
-}
+});
 
 const InputSchema = z.object({
   enabled: z.boolean(),
@@ -50,10 +48,7 @@ const InputSchema = z.object({
   autoTag: z.boolean().optional(),
 });
 
-export async function PUT(req: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
+export const PUT = withAuth(async (req, session) => {
   const body = await req.json().catch(() => null);
   const parsed = InputSchema.safeParse(body);
   if (!parsed.success) {
@@ -65,4 +60,4 @@ export async function PUT(req: Request) {
 
   await updateUserLlmConfig(session.user.id, parsed.data);
   return NextResponse.json({ ok: true });
-}
+});

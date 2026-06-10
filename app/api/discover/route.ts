@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 
 const RSSHUB_BASE = "https://rsshub.ashark.icu";
 const NAMESPACE_URL = `${RSSHUB_BASE}/api/namespace`;
@@ -38,13 +38,7 @@ function flattenNamespaceRoutes(json: Record<string, NamespacePayload>): FlatRou
   return result;
 }
 
-export async function GET() {
-  try {
-    await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async () => {
   if (cache && Date.now() - cache.at < CACHE_TTL) {
     return NextResponse.json({ success: true, data: cache.data });
   }
@@ -62,4 +56,4 @@ export async function GET() {
       { status: 502 },
     );
   }
-}
+});

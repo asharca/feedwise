@@ -3,12 +3,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/email/click-token", () => ({ verifyClickToken: vi.fn() }));
 vi.mock("@/lib/db/queries/articles", () => ({ getArticleUrlById: vi.fn(), markArticle: vi.fn() }));
-vi.mock("@/lib/email/queries", () => ({ getSubscriptionSettings: vi.fn() }));
+vi.mock("@/lib/email/subscription-settings", () => ({ getSubscriptionSettings: vi.fn() }));
 
 import { GET } from "@/app/api/r/route";
 import { verifyClickToken } from "@/lib/email/click-token";
 import { getArticleUrlById, markArticle } from "@/lib/db/queries/articles";
-import { getSubscriptionSettings } from "@/lib/email/queries";
+import { getSubscriptionSettings } from "@/lib/email/subscription-settings";
 
 const APP = "http://localhost:3000";
 beforeEach(() => {

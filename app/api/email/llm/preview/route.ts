@@ -1,20 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
-import { getArticlesForEmail } from "@/lib/email/queries";
+import { withAuth } from "@/lib/api/with-auth";
+import { getArticlesForEmail } from "@/lib/email/digest-articles";
 import { assembleDigestForSubscription } from "@/lib/jobs/workers/digest-worker";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import type { DigestArticle } from "@/lib/digest/types";
 
 const PREVIEW_WINDOW_HOURS = 24;
 
-export async function POST() {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (_req, session) => {
   const now = new Date();
   const fromDate = new Date(now.getTime() - PREVIEW_WINDOW_HOURS * 60 * 60 * 1000);
 
@@ -42,4 +35,4 @@ export async function POST() {
     success: true,
     data: { mode: digest.mode, html, articleCount: articles.length },
   });
-}
+});

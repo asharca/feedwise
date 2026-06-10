@@ -1,4 +1,4 @@
-// tests/email/queries-history.test.ts
+// tests/email/digest-log.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/db", () => ({ db: { transaction: vi.fn(), select: vi.fn() } }));
@@ -32,7 +32,7 @@ import {
   getArticlesForLog,
   getDigestLogById,
   logDigestSendWithArticles,
-} from "@/lib/email/queries";
+} from "@/lib/email/digest-log";
 
 beforeEach(() => {
   vi.clearAllMocks();

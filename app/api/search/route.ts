@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { searchArticles, searchFeedsByName, searchTagsByName } from "@/lib/db/queries/search";
 
 const QuerySchema = z.object({
@@ -26,14 +26,7 @@ const QuerySchema = z.object({
     .transform((s) => (s ? Math.min(parseInt(s, 10) || 5, 20) : 5)),
 });
 
-export async function GET(req: Request) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (req, session) => {
   const url = new URL(req.url);
   const params = Object.fromEntries(url.searchParams.entries());
   const parsed = QuerySchema.safeParse(params);
@@ -69,4 +62,4 @@ export async function GET(req: Request) {
       tags: tagsResult.status === "fulfilled" ? tagsResult.value : [],
     },
   });
-}
+});

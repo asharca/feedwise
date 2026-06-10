@@ -1,7 +1,8 @@
 // app/api/settings/email/history/[logId]/preview/route.ts
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
-import { getArticlesForLog, getDigestLogById, getSubscriptionSettings } from "@/lib/email/queries";
+import { withAuth } from "@/lib/api/with-auth";
+import { getArticlesForLog, getDigestLogById } from "@/lib/email/digest-log";
+import { getSubscriptionSettings } from "@/lib/email/subscription-settings";
 import { assembleDigestForSubscription } from "@/lib/jobs/workers/digest-worker";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
@@ -9,14 +10,7 @@ import { buildEmailLinkFn } from "@/lib/email/click-link";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function GET(req: Request, ctx: { params: Promise<{ logId: string }> }) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (req, session, ctx) => {
   const { logId } = await ctx.params;
   if (!UUID_RE.test(logId)) {
     return NextResponse.json({ success: false, error: "Invalid log id" }, { status: 400 });
@@ -65,4 +59,4 @@ export async function GET(req: Request, ctx: { params: Promise<{ logId: string }
       status: log.status,
     },
   });
-}
+});

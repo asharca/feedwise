@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
-import { getUserLlmConfig } from "@/lib/email/queries";
+import { withAuth } from "@/lib/api/with-auth";
+import { getUserLlmConfig } from "@/lib/digest/llm-config";
 import { getSubscriptionsForGrouping } from "@/lib/db/queries/feeds";
 import { generateFolderProposal } from "@/lib/feeds/auto-group";
 
@@ -9,23 +9,8 @@ import { generateFolderProposal } from "@/lib/feeds/auto-group";
  * Does NOT mutate state. Use /auto-group/apply to commit the result (or an
  * edited version of it) once the user has reviewed it.
  */
-export async function POST() {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
-  let llmConfig;
-  try {
-    llmConfig = await getUserLlmConfig(session.user.id);
-  } catch {
-    return NextResponse.json(
-      { success: false, error: "LLM key could not be decrypted" },
-      { status: 500 },
-    );
-  }
+export const POST = withAuth(async (_req, session) => {
+  const llmConfig = await getUserLlmConfig(session.user.id);
   if (!llmConfig) {
     return NextResponse.json(
       { success: false, error: "No LLM configured — set one in Settings → Smart Digest" },
@@ -55,4 +40,4 @@ export async function POST() {
     const message = err instanceof Error ? err.message : "LLM call failed";
     return NextResponse.json({ success: false, error: message }, { status: 502 });
   }
-}
+});

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
 import { applyFolderProposal } from "@/lib/db/queries/feeds";
 
 const Schema = z.object({
@@ -14,14 +14,7 @@ const Schema = z.object({
     .max(20),
 });
 
-export async function POST(req: Request) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (req, session) => {
   let parsed;
   try {
     const body = await req.json();
@@ -35,4 +28,4 @@ export async function POST(req: Request) {
 
   const result = await applyFolderProposal(session.user.id, parsed.folders);
   return NextResponse.json({ success: true, data: result });
-}
+});

@@ -44,7 +44,7 @@ export function getEmailTransporter(userSmtp?: SMTPConfig | null): Transporter {
 }
 
 export function getUserSMTPConfig(userId: string): SMTPConfig | null {
-  // This function is deprecated, use getUserSMTPConfig from queries.ts instead
+  // This function is deprecated, use getUserSMTPConfig from subscription-settings.ts instead
   return null;
 }
 
