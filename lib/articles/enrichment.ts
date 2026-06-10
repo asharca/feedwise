@@ -1,5 +1,5 @@
 import { callChatCompletion, withLlmRetry } from "@/lib/digest/llm-client";
-import type { LlmConfig } from "@/lib/email/queries";
+import type { LlmConfig } from "@/lib/digest/llm-config";
 
 const MAX_TAG_INPUT_CHARS = 4_000;
 const MAX_SUMMARY_INPUT_CHARS = 8_000;

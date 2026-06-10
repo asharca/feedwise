@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { tags } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getArticleById } from "@/lib/db/queries/articles";
-import { getUserLlmConfig } from "@/lib/email/queries";
+import { getUserLlmConfig } from "@/lib/digest/llm-config";
 import { generateTagsForArticle } from "@/lib/articles/enrichment";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {

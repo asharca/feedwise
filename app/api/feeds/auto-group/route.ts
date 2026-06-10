@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
-import { getUserLlmConfig } from "@/lib/email/queries";
+import { getUserLlmConfig } from "@/lib/digest/llm-config";
 import { getSubscriptionsForGrouping } from "@/lib/db/queries/feeds";
 import { generateFolderProposal } from "@/lib/feeds/auto-group";
 

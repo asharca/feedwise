@@ -12,7 +12,7 @@ import {
   getUsersWithAutoTagEnabled,
   getUsersWithAutoSummarizeEnabled,
   getUserLlmConfig,
-} from "@/lib/email/queries";
+} from "@/lib/digest/llm-config";
 import { generateArticleSummary, generateTagsForArticle } from "@/lib/articles/enrichment";
 import { LlmRateLimitError } from "@/lib/digest/llm-client";
 

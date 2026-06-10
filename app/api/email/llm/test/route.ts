@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
-import { getUserLlmConfig } from "@/lib/email/queries";
+import { getUserLlmConfig } from "@/lib/digest/llm-config";
 import { callChatCompletion, LlmTimeoutError } from "@/lib/digest/llm-client";
 
 const InputSchema = z.object({

@@ -5,7 +5,7 @@ import {
   setArticleAiSummary,
   setArticleImportance,
 } from "@/lib/db/queries/articles";
-import { getUserLlmConfig } from "@/lib/email/queries";
+import { getUserLlmConfig } from "@/lib/digest/llm-config";
 import { generateArticleSummary, MIN_CHARS_FOR_SUMMARY } from "@/lib/articles/enrichment";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {

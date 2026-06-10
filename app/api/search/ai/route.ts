@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { articles, feeds, subscriptions } from "@/lib/db/schema";
 import { and, desc, eq, gte } from "drizzle-orm";
-import { getUserLlmConfig } from "@/lib/email/queries";
+import { getUserLlmConfig } from "@/lib/digest/llm-config";
 import { callChatCompletion, withLlmRetry } from "@/lib/digest/llm-client";
 
 const SearchSchema = z.object({

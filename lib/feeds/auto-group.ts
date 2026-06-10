@@ -1,5 +1,5 @@
 import { callChatCompletion, withLlmRetry } from "@/lib/digest/llm-client";
-import type { LlmConfig } from "@/lib/email/queries";
+import type { LlmConfig } from "@/lib/digest/llm-config";
 
 export interface FeedForGrouping {
   id: string;
