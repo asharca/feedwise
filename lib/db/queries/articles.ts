@@ -1,4 +1,4 @@
-import { eq, and, desc, gte, or, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, gte, or, isNull, sql, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { articles, userArticles, subscriptions, feeds, tags, articleTags } from "@/lib/db/schema";
 
@@ -444,6 +444,31 @@ export async function getArticleUrlById(articleId: string): Promise<string | nul
     .from(articles)
     .where(eq(articles.id, articleId));
   return row?.url ?? null;
+}
+
+/** Fetch the content fields the LLM tagging prompt needs, by article id. */
+export async function getEnrichableArticlesByIds(articleIds: string[]): Promise<
+  Array<{
+    id: string;
+    title: string | null;
+    summary: string | null;
+    aiSummary: string | null;
+    contentText: string | null;
+    contentHtml: string | null;
+  }>
+> {
+  if (articleIds.length === 0) return [];
+  return db
+    .select({
+      id: articles.id,
+      title: articles.title,
+      summary: articles.summary,
+      aiSummary: articles.aiSummary,
+      contentText: articles.contentText,
+      contentHtml: articles.contentHtml,
+    })
+    .from(articles)
+    .where(inArray(articles.id, articleIds));
 }
 
 export async function markAllRead(userId: string, feedId?: string, folderId?: string) {

@@ -13,6 +13,7 @@ import { buildTagBasedDigest } from "@/lib/digest/organize-by-tag";
 import { renderDigestHtml } from "@/lib/email/templates/digest-html";
 import { renderFallbackHtml } from "@/lib/email/templates/digest-fallback-html";
 import { buildEmailLinkFn } from "@/lib/email/click-link";
+import { ensureArticlesTagged } from "@/lib/digest/tag-gate";
 import type { DigestArticle, OrganizedDigest } from "@/lib/digest/types";
 
 const DEFAULT_CRON = "0 8 * * *"; // Daily at 8:00 AM
@@ -52,7 +53,8 @@ export async function processDailyDigests() {
       for (let i = 0; i < missedDates.length; i++) {
         const triggerDate = missedDates[i];
         const fromDate = i === 0 ? lastSent : missedDates[i - 1];
-        await sendDigestForDate(sub, triggerDate, fromDate);
+        const outcome = await sendDigestForDate(sub, triggerDate, fromDate);
+        if (outcome === "postponed") break;
       }
 
       // Update nextScheduledAt to the upcoming trigger
@@ -94,22 +96,32 @@ export async function assembleDigestForSubscription(
   return { digest, allArticleIds };
 }
 
-async function sendDigestForDate(
+export async function sendDigestForDate(
   subscription: Awaited<ReturnType<typeof getAllActiveSubscriptions>>[0],
   triggerDate: Date,
   fromDate: Date | null,
-) {
+): Promise<"sent" | "postponed"> {
   const email = await getUserEmail(subscription.userId);
   if (!email) {
     console.log(`[digest] No email for user ${subscription.userId}`);
-    return;
+    return "sent"; // nothing to send for this user; don't block the loop
   }
 
-  const articles = await getArticlesForEmail(
+  let articles = await getArticlesForEmail(
     subscription.userId,
     fromDate ?? undefined,
     triggerDate,
   );
+
+  const gate = await ensureArticlesTagged(subscription.userId, articles);
+  if (gate.status === "postponed") {
+    console.log(`[digest] Postponed for user ${subscription.userId}: ${gate.reason}`);
+    return "postponed";
+  }
+  if (gate.retagged) {
+    // Tags were written after the first fetch — re-read so grouping sees them.
+    articles = await getArticlesForEmail(subscription.userId, fromDate ?? undefined, triggerDate);
+  }
 
   const { digest, allArticleIds } = await assembleDigestForSubscription(
     subscription.userId,
@@ -155,6 +167,7 @@ async function sendDigestForDate(
     console.log(
       `[digest] Sent digest to ${email} (${articles.length} articles, mode=${digest.mode}) for ${triggerDate.toDateString()}`,
     );
+    return "sent";
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await logDigestSendWithArticles(
