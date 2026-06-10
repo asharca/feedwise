@@ -127,17 +127,3 @@ export async function getArticlesForEmail(
     tags: tagsByArticle.get(row.id) ?? [],
   }));
 }
-
-export async function markArticlesAsSent(userId: string, articleIds: string[]) {
-  if (articleIds.length === 0) return;
-  await db
-    .insert(emailSentArticles)
-    .values(
-      articleIds.map((articleId) => ({
-        userId,
-        articleId,
-        sentAt: new Date(),
-      })),
-    )
-    .onConflictDoNothing();
-}

@@ -81,6 +81,7 @@ afterEach(() => {
 describe("processDailyDigests orchestration", () => {
   it("sends one digest for one missed trigger and records it atomically", async () => {
     await processDailyDigests();
+    expect(ensureArticlesTagged).toHaveBeenCalledTimes(1); // gate is unconditional
     expect(sendDailyDigest).toHaveBeenCalledTimes(1);
     expect(recordDigestSent).toHaveBeenCalledWith("user-1", ["a1"], 1);
     expect(logDigestSendWithArticles).not.toHaveBeenCalled(); // no failure log
