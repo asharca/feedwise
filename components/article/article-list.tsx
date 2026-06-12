@@ -89,7 +89,7 @@ export function ArticleList({
                   {article.feedIconUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={proxyImg(article.feedIconUrl)}
+                      src={proxyImg(article.feedIconUrl, 96)}
                       alt=""
                       decoding="async"
                       className="size-3 rounded-sm shrink-0"
@@ -116,7 +116,7 @@ export function ArticleList({
               {article.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={proxyImg(article.imageUrl)}
+                  src={proxyImg(article.imageUrl, 96)}
                   alt=""
                   loading="lazy"
                   decoding="async"

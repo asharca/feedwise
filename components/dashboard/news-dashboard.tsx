@@ -73,7 +73,7 @@ function ArticleCard({
         {article.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={proxyImg(article.imageUrl)}
+            src={proxyImg(article.imageUrl, 1280)}
             alt=""
             loading="lazy"
             decoding="async"
@@ -85,7 +85,7 @@ function ArticleCard({
             {article.feedIconUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={proxyImg(article.feedIconUrl)}
+                src={proxyImg(article.feedIconUrl, 96)}
                 alt=""
                 loading="lazy"
                 decoding="async"
@@ -161,7 +161,7 @@ function ArticleCard({
         {article.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={proxyImg(article.imageUrl)}
+            src={proxyImg(article.imageUrl, 96)}
             alt=""
             loading="lazy"
             decoding="async"

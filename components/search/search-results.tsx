@@ -58,7 +58,7 @@ function ArticleRow({
         {hit.feedIconUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={proxyImg(hit.feedIconUrl)}
+            src={proxyImg(hit.feedIconUrl, 96)}
             alt=""
             loading="lazy"
             decoding="async"
@@ -121,7 +121,7 @@ function FeedRow({
         {hit.iconUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={proxyImg(hit.iconUrl)}
+            src={proxyImg(hit.iconUrl, 96)}
             alt=""
             loading="lazy"
             decoding="async"
