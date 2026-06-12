@@ -77,7 +77,7 @@ function ArticleCard({
             alt=""
             loading="lazy"
             decoding="sync"
-            className="w-full h-48 object-cover"
+            className="w-full h-48 object-cover transform-gpu backface-hidden"
           />
         )}
         <div className="p-5">
@@ -89,7 +89,7 @@ function ArticleCard({
                 alt=""
                 loading="lazy"
                 decoding="sync"
-                className="size-3.5 rounded-sm"
+                className="size-3.5 rounded-sm transform-gpu backface-hidden"
               />
             )}
             <span className="text-[11px] text-muted-foreground font-medium">
@@ -165,7 +165,7 @@ function ArticleCard({
             alt=""
             loading="lazy"
             decoding="sync"
-            className="size-12 rounded-lg object-cover shrink-0"
+            className="size-12 rounded-lg object-cover shrink-0 transform-gpu backface-hidden"
           />
         )}
       </div>
