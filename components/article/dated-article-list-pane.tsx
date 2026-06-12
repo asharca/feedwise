@@ -327,7 +327,7 @@ function DatedArticleRow({
           src={proxyImg(item.feedIconUrl, 96)}
           alt=""
           className="size-5 rounded shrink-0 mt-0.5"
-          decoding="async"
+          decoding="sync"
         />
       )}
       <div className="min-w-0 flex-1">

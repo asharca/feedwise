@@ -77,7 +77,7 @@ function FeedMeta({
     <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
       {feedIconUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={proxyImg(feedIconUrl, 96)} alt="" decoding="async" className="size-3 rounded-sm shrink-0" />
+        <img src={proxyImg(feedIconUrl, 96)} alt="" decoding="sync" className="size-3 rounded-sm shrink-0" />
       )}
       <span className="truncate font-medium">{feedTitle ?? "Unknown"}</span>
       {relTime && (
@@ -161,7 +161,7 @@ export function ArticleCard({
             src={proxyImg(effectiveImageUrl!, 480)}
             alt=""
             loading="lazy"
-            decoding="async"
+            decoding="sync"
             onError={() => setImgFailed(true)}
             className="w-full h-32 object-cover shrink-0"
           />
