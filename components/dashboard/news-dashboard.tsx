@@ -369,7 +369,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
               </CardEnter>
             )}
             {recommended.length > 1 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
                 {recommended.slice(1).map((article, index) => (
                   <CardEnter key={article.id} index={index}>
                     <ArticleCard article={article} size="normal" onSelect={onSelectArticle} />
