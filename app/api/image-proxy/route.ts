@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { pickWidthTier, resizeImage } from "@/lib/images/resize-image";
 
 const BLOCKED_HOSTS =
   process.env.NODE_ENV === "production"
@@ -68,9 +69,18 @@ export async function GET(req: NextRequest) {
     }
 
     const body = await res.arrayBuffer();
-    return new NextResponse(body, {
+
+    // Downscale to the requested tier so thumbnails don't ship (and decode)
+    // multi-megapixel originals — full-size decoded bitmaps get evicted and
+    // re-decoded during scroll on mobile, which flickers visibly.
+    const widthTier = pickWidthTier(req.nextUrl.searchParams.get("w"));
+    const out = widthTier
+      ? await resizeImage(Buffer.from(body), contentType, widthTier)
+      : { body: Buffer.from(body), contentType };
+
+    return new NextResponse(new Uint8Array(out.body), {
       headers: {
-        "Content-Type": contentType,
+        "Content-Type": out.contentType,
         "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800, immutable",
       },
     });

@@ -49,7 +49,7 @@ function FeedIcon({ url, name }: { url: string | null; name: string }) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={proxyImg(url)}
+        src={proxyImg(url, 96)}
         alt=""
         loading="lazy"
         decoding="async"

@@ -89,7 +89,7 @@ export function ArticleList({
                   {article.feedIconUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={proxyImg(article.feedIconUrl)}
+                      src={proxyImg(article.feedIconUrl, 96)}
                       alt=""
                       decoding="async"
                       className="size-3 rounded-sm shrink-0"
@@ -116,7 +116,7 @@ export function ArticleList({
               {article.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={proxyImg(article.imageUrl)}
+                  src={proxyImg(article.imageUrl, 96)}
                   alt=""
                   loading="lazy"
                   decoding="async"
@@ -141,7 +141,7 @@ export function ArticleList({
 
   return (
     <div ref={setScrollRoot} className="overflow-y-auto h-full scrollbar-thin">
-      <div className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+      <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
         {articles.map((article, index) => (
           <CardEnter key={article.id} index={index}>
             <ArticleCard

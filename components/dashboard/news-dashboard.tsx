@@ -73,7 +73,7 @@ function ArticleCard({
         {article.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={proxyImg(article.imageUrl)}
+            src={proxyImg(article.imageUrl, 1280)}
             alt=""
             loading="lazy"
             decoding="async"
@@ -85,7 +85,7 @@ function ArticleCard({
             {article.feedIconUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={proxyImg(article.feedIconUrl)}
+                src={proxyImg(article.feedIconUrl, 96)}
                 alt=""
                 loading="lazy"
                 decoding="async"
@@ -161,7 +161,7 @@ function ArticleCard({
         {article.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={proxyImg(article.imageUrl)}
+            src={proxyImg(article.imageUrl, 96)}
             alt=""
             loading="lazy"
             decoding="async"
@@ -369,7 +369,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
               </CardEnter>
             )}
             {recommended.length > 1 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
                 {recommended.slice(1).map((article, index) => (
                   <CardEnter key={article.id} index={index}>
                     <ArticleCard article={article} size="normal" onSelect={onSelectArticle} />
