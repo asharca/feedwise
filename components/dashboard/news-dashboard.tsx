@@ -75,9 +75,9 @@ function ArticleCard({
           <img
             src={proxyImg(article.imageUrl, 1280)}
             alt=""
-            loading="lazy"
+            loading="eager"
             decoding="sync"
-            className="w-full h-48 object-cover transform-gpu backface-hidden"
+            className="w-full h-48 object-cover img-gpu"
           />
         )}
         <div className="p-5">
@@ -87,9 +87,9 @@ function ArticleCard({
               <img
                 src={proxyImg(article.feedIconUrl, 96)}
                 alt=""
-                loading="lazy"
+                loading="eager"
                 decoding="sync"
-                className="size-3.5 rounded-sm transform-gpu backface-hidden"
+                className="size-3.5 rounded-sm img-gpu"
               />
             )}
             <span className="text-[11px] text-muted-foreground font-medium">
@@ -163,9 +163,9 @@ function ArticleCard({
           <img
             src={proxyImg(article.imageUrl, 96)}
             alt=""
-            loading="lazy"
+            loading="eager"
             decoding="sync"
-            className="size-12 rounded-lg object-cover shrink-0 transform-gpu backface-hidden"
+            className="size-12 rounded-lg object-cover shrink-0 img-gpu"
           />
         )}
       </div>
@@ -303,7 +303,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
     .slice(0, 9);
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-thin animate-in fade-in duration-300 ease-[var(--ease-out)] motion-reduce:animate-none">
+    <div className="h-full overflow-y-auto scrollbar-thin">
       <div className="px-4 sm:px-6 py-5 space-y-6">
         {/* Header */}
         <div>

@@ -53,7 +53,7 @@ function FeedIcon({ url, name }: { url: string | null; name: string }) {
         alt=""
         loading="lazy"
         decoding="sync"
-        className="size-4 rounded-sm shrink-0 transform-gpu backface-hidden"
+        className="size-4 rounded-sm shrink-0 img-gpu"
       />
     );
   }

@@ -77,7 +77,7 @@ function FeedMeta({
     <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
       {feedIconUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={proxyImg(feedIconUrl, 96)} alt="" decoding="sync" className="size-3 rounded-sm shrink-0 transform-gpu backface-hidden" />
+        <img src={proxyImg(feedIconUrl, 96)} alt="" decoding="sync" className="size-3 rounded-sm shrink-0 img-gpu" />
       )}
       <span className="truncate font-medium">{feedTitle ?? "Unknown"}</span>
       {relTime && (
@@ -160,10 +160,10 @@ export function ArticleCard({
           <img
             src={proxyImg(effectiveImageUrl!, 480)}
             alt=""
-            loading="lazy"
+            loading="eager"
             decoding="sync"
             onError={() => setImgFailed(true)}
-            className="w-full h-32 object-cover shrink-0 transform-gpu backface-hidden"
+            className="w-full h-32 object-cover shrink-0 img-gpu"
           />
           <div className="flex flex-col flex-1 overflow-hidden p-3">
             <FeedMeta

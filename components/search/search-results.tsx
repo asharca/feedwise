@@ -62,7 +62,7 @@ function ArticleRow({
             alt=""
             loading="lazy"
             decoding="sync"
-            className="size-4 rounded-sm shrink-0 mt-0.5 transform-gpu backface-hidden"
+            className="size-4 rounded-sm shrink-0 mt-0.5 img-gpu"
           />
         ) : (
           <div className="size-4 rounded-sm shrink-0 mt-0.5 bg-muted" />
@@ -125,7 +125,7 @@ function FeedRow({
             alt=""
             loading="lazy"
             decoding="sync"
-            className="size-4 rounded-sm shrink-0 transform-gpu backface-hidden"
+            className="size-4 rounded-sm shrink-0 img-gpu"
           />
         ) : (
           <div className="size-4 rounded-sm shrink-0 bg-muted" />

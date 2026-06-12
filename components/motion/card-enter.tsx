@@ -25,6 +25,12 @@ const STAGGER_MAX_STEPS = 9;
  * at the element's natural state anyway, so no forwards fill is needed.
  */
 export function CardEnter({ index = 0, className, children }: CardEnterProps) {
+  // Entrance animation disabled while the iOS scroll-flicker investigation
+  // settles — restore the animated version below
+  // once the .img-gpu fix is confirmed stable on devices.
+  void index;
+  return <div className={className}>{children}</div>;
+  /*
   const delayMs = Math.min(index, STAGGER_MAX_STEPS) * STAGGER_STEP_MS;
   return (
     <div
@@ -37,4 +43,5 @@ export function CardEnter({ index = 0, className, children }: CardEnterProps) {
       {children}
     </div>
   );
+  */
 }

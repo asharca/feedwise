@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+// Temporarily unused while the crossfade is disabled (see comment below).
+// import { AnimatePresence, motion } from "motion/react";
 import { formatDistanceToNow } from "date-fns";
 import { Inbox, Search as SearchIcon, Star, X } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -182,25 +183,17 @@ export function DatedArticleListPane({
             {emptyHint && <p className="text-xs text-muted-foreground/70 max-w-xs">{emptyHint}</p>}
           </div>
         ) : (
-          <AnimatePresence mode="wait" initial={false}>
-            {/* Crossfade the grid↔compact swap that happens when an article
-                opens/closes: the old layout dissolves out, then the new one
-                dissolves in. ~0.3s total ≈ the list-column shrink spring, so
-                the two read as one motion. MotionConfig (reader template)
-                disables this under prefers-reduced-motion. */}
-            <motion.div
-              key={layout}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-              className={cn("pb-8", layout === "grid" ? "px-4" : "px-2")}
-            >
+          // AnimatePresence crossfade and the
+          // sticky date headers are temporarily disabled while the
+          // iOS scroll flicker investigation settles. Restore <AnimatePresence mode="wait"> +
+          // motion.div(key=layout, opacity fade) + `sticky top-0 z-10` on
+          // the h3 once the .img-gpu fix is confirmed stable on devices.
+          <div className={cn("pb-8", layout === "grid" ? "px-4" : "px-2")}>
               {grouped.map((g) => (
               <section key={g.key} className="mt-4 first:mt-2">
                 <h3
                   className={cn(
-                    "text-[11px] uppercase tracking-wider text-muted-foreground/70 font-medium pb-1.5 sticky top-0 bg-background z-10",
+                    "text-[11px] uppercase tracking-wider text-muted-foreground/70 font-medium pb-1.5 bg-background",
                     layout === "grid" ? "px-1" : "px-2",
                   )}
                 >
@@ -241,8 +234,7 @@ export function DatedArticleListPane({
                 onLoadMore={onLoadMore}
                 root={scrollRoot}
               />
-            </motion.div>
-          </AnimatePresence>
+          </div>
         )}
       </div>
     </div>
@@ -326,7 +318,7 @@ function DatedArticleRow({
         <img
           src={proxyImg(item.feedIconUrl, 96)}
           alt=""
-          className="size-5 rounded shrink-0 mt-0.5 transform-gpu backface-hidden"
+          className="size-5 rounded shrink-0 mt-0.5 img-gpu"
           decoding="sync"
         />
       )}
