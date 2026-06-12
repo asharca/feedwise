@@ -52,7 +52,7 @@ function FeedIcon({ url, name }: { url: string | null; name: string }) {
         src={proxyImg(url, 96)}
         alt=""
         loading="lazy"
-        decoding="async"
+        decoding="sync"
         className="size-4 rounded-sm shrink-0"
       />
     );

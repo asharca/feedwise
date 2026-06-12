@@ -76,7 +76,7 @@ function ArticleCard({
             src={proxyImg(article.imageUrl, 1280)}
             alt=""
             loading="lazy"
-            decoding="async"
+            decoding="sync"
             className="w-full h-48 object-cover"
           />
         )}
@@ -88,7 +88,7 @@ function ArticleCard({
                 src={proxyImg(article.feedIconUrl, 96)}
                 alt=""
                 loading="lazy"
-                decoding="async"
+                decoding="sync"
                 className="size-3.5 rounded-sm"
               />
             )}
@@ -164,7 +164,7 @@ function ArticleCard({
             src={proxyImg(article.imageUrl, 96)}
             alt=""
             loading="lazy"
-            decoding="async"
+            decoding="sync"
             className="size-12 rounded-lg object-cover shrink-0"
           />
         )}
