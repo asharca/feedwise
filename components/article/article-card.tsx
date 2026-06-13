@@ -77,7 +77,7 @@ function FeedMeta({
     <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
       {feedIconUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={proxyImg(feedIconUrl, 96)} alt="" decoding="sync" className="size-3 rounded-sm shrink-0 img-gpu" />
+        <img src={proxyImg(feedIconUrl, 96)} alt="" decoding="sync" className="size-3 rounded-sm shrink-0" />
       )}
       <span className="truncate font-medium">{feedTitle ?? "Unknown"}</span>
       {relTime && (
@@ -141,7 +141,7 @@ export function ArticleCard({
         if (e.key === "Enter" || e.key === " ") onSelect(article.id);
       }}
       className={cn(
-        "group relative text-left w-full flex flex-col rounded-lg overflow-hidden border bg-card cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] h-56",
+        "group relative text-left w-full flex flex-col rounded-lg overflow-hidden border bg-card cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] h-56 gpu-clip",
         active
           ? "border-primary ring-1 ring-primary/30"
           : "border-border hover:border-foreground/30",
@@ -163,7 +163,7 @@ export function ArticleCard({
             loading="eager"
             decoding="sync"
             onError={() => setImgFailed(true)}
-            className="w-full h-32 object-cover shrink-0 img-gpu"
+            className="w-full h-32 object-cover shrink-0"
           />
           <div className="flex flex-col flex-1 overflow-hidden p-3">
             <FeedMeta

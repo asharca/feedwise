@@ -92,7 +92,7 @@ export function ArticleList({
                       src={proxyImg(article.feedIconUrl, 96)}
                       alt=""
                       decoding="sync"
-                      className="size-3 rounded-sm shrink-0 img-gpu"
+                      className="size-3 rounded-sm shrink-0"
                     />
                   )}
                   <span className="text-[10px] text-muted-foreground/70 truncate">
@@ -120,7 +120,7 @@ export function ArticleList({
                   alt=""
                   loading="eager"
                   decoding="sync"
-                  className="size-10 rounded-md object-cover shrink-0 self-center img-gpu"
+                  className="size-10 rounded-md object-cover shrink-0 self-center"
                 />
               )}
               {article.isStarred && (

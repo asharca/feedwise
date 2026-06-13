@@ -65,7 +65,7 @@ function ArticleCard({
           if (e.key === "Enter") onSelect(article.id);
         }}
         className={cn(
-          "group relative rounded-lg overflow-hidden cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] hover:border-foreground/20",
+          "group relative rounded-lg overflow-hidden cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] hover:border-foreground/20 gpu-clip",
           "bg-card border border-border",
           article.isRead && "opacity-70",
         )}
@@ -77,7 +77,7 @@ function ArticleCard({
             alt=""
             loading="eager"
             decoding="sync"
-            className="w-full h-48 object-cover img-gpu"
+            className="w-full h-48 object-cover"
           />
         )}
         <div className="p-5">
@@ -89,7 +89,7 @@ function ArticleCard({
                 alt=""
                 loading="eager"
                 decoding="sync"
-                className="size-3.5 rounded-sm img-gpu"
+                className="size-3.5 rounded-sm"
               />
             )}
             <span className="text-[11px] text-muted-foreground font-medium">
@@ -165,7 +165,7 @@ function ArticleCard({
             alt=""
             loading="eager"
             decoding="sync"
-            className="size-12 rounded-lg object-cover shrink-0 img-gpu"
+            className="size-12 rounded-lg object-cover shrink-0"
           />
         )}
       </div>

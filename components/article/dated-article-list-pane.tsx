@@ -187,7 +187,7 @@ export function DatedArticleListPane({
           // sticky date headers are temporarily disabled while the
           // iOS scroll flicker investigation settles. Restore <AnimatePresence mode="wait"> +
           // motion.div(key=layout, opacity fade) + `sticky top-0 z-10` on
-          // the h3 once the .img-gpu fix is confirmed stable on devices.
+          // the h3 once the .gpu-clip fix is confirmed stable on devices.
           <div className={cn("pb-8", layout === "grid" ? "px-4" : "px-2")}>
               {grouped.map((g) => (
               <section key={g.key} className="mt-4 first:mt-2">
@@ -318,7 +318,7 @@ function DatedArticleRow({
         <img
           src={proxyImg(item.feedIconUrl, 96)}
           alt=""
-          className="size-5 rounded shrink-0 mt-0.5 img-gpu"
+          className="size-5 rounded shrink-0 mt-0.5"
           decoding="sync"
         />
       )}

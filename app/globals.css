@@ -255,24 +255,21 @@
   }
 }
 
-/* ─── iOS Safari image layer pinning ─────────────────────────────
-   WebKit "layer thrashing": images that aren't pinned to a dedicated
-   compositing layer bounce between CPU repaint and GPU compositing
-   while their scroll container moves, repainting visibly (flicker on
-   iPhone; reproducible on desktop Safari with DevTools attached).
-   Literal translateZ(0) + backface-visibility on the <img> itself —
-   NOT Tailwind's transform-gpu, whose var()-composed transform does
-   not reliably promote in WebKit. Safe to apply broadly here because
-   list thumbnails are proxy-downscaled (96/480px WebP ≈ ≤0.6MB
-   texture each); do not reuse for full-size article-body images. */
-.img-gpu {
+/* ─── iOS Safari rounded-clip scroll flicker ─────────────────────
+   WebKit bug #98538: a box with border-radius + overflow:hidden that
+   contains a composited descendant must re-clip that layer against the
+   rounded rect every frame; while its scroll container moves this
+   flickers (only iPhone WebKit; reproducible on desktop Safari with
+   DevTools attached). The documented cure (Simon Fraser / WebKit) is to
+   make the CLIPPING CONTAINER its own stacking context + layer — NOT to
+   composite the child image, which is the very thing that triggers the
+   bug. Apply to rounded cards that clip a cover <img>; the leaf images
+   themselves get no transform. */
+.gpu-clip {
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  /* Deliberately NO will-change here: the article's final recommendation
-     (and its §6 warning) — permanent will-change on an unbounded
-     infinite-scroll list of images would pile up texture memory on older
-     iPhones until Safari falls back to CPU rendering. translateZ(0)
-     already pins the layer unambiguously. */
+  isolation: isolate;
+  /* No will-change: one cheap layer per visible card, not per image. */
 }
