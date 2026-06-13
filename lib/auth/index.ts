@@ -3,9 +3,19 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/lib/db";
 import { users, sessions, accounts, verifications } from "@/lib/db/schema";
+import { devLoginPlugin } from "./dev-login";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _auth: any = null;
+
+/**
+ * Password-less dev user switching is enabled ONLY when not in production AND
+ * explicitly opted in via ENABLE_DEV_LOGIN=1. Both gates must hold — the env
+ * var is never set in the production deployment, and NODE_ENV blocks it anyway,
+ * so the dev-login endpoints simply don't exist in prod.
+ */
+export const DEV_LOGIN_ENABLED =
+  process.env.NODE_ENV !== "production" && process.env.ENABLE_DEV_LOGIN === "1";
 
 function buildTrustedOrigins() {
   const origins = new Set<string>();
@@ -71,8 +81,14 @@ export function getAuth() {
         // emit `__Secure-`/`Secure` session cookies and login never sticks
         // off-localhost. Pin secure cookies to production deployments only.
         useSecureCookies: process.env.NODE_ENV === "production",
+        // In dev, skip the origin/CSRF check entirely so any origin (LAN IP,
+        // alternate port, tunnel) works without maintaining a trustedOrigins
+        // allowlist. Production keeps the check on.
+        disableCSRFCheck: process.env.NODE_ENV !== "production",
       },
       trustedOrigins: buildTrustedOrigins(),
+      // Dev-only password-less user switcher. Empty in prod → endpoints 404.
+      plugins: DEV_LOGIN_ENABLED ? [devLoginPlugin()] : [],
     });
   }
   return _auth;
