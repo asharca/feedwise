@@ -65,7 +65,7 @@ function ArticleCard({
           if (e.key === "Enter") onSelect(article.id);
         }}
         className={cn(
-          "group relative rounded-lg overflow-hidden cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] hover:border-foreground/20 gpu-clip",
+          "group relative rounded-lg overflow-hidden cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] hover:border-foreground/20",
           "bg-card border border-border",
           article.isRead && "opacity-70",
         )}
@@ -75,8 +75,8 @@ function ArticleCard({
           <img
             src={proxyImg(article.imageUrl, 1280)}
             alt=""
-            loading="eager"
-            decoding="sync"
+            loading="lazy"
+            decoding="async"
             className="w-full h-48 object-cover"
           />
         )}
@@ -87,8 +87,8 @@ function ArticleCard({
               <img
                 src={proxyImg(article.feedIconUrl, 96)}
                 alt=""
-                loading="eager"
-                decoding="sync"
+                loading="lazy"
+                decoding="async"
                 className="size-3.5 rounded-sm"
               />
             )}
@@ -163,8 +163,8 @@ function ArticleCard({
           <img
             src={proxyImg(article.imageUrl, 96)}
             alt=""
-            loading="eager"
-            decoding="sync"
+            loading="lazy"
+            decoding="async"
             className="size-12 rounded-lg object-cover shrink-0"
           />
         )}
@@ -303,7 +303,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
     .slice(0, 9);
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-thin">
+    <div className="h-full overflow-y-auto scrollbar-thin animate-in fade-in duration-300 ease-[var(--ease-out)] motion-reduce:animate-none">
       <div className="px-4 sm:px-6 py-5 space-y-6">
         {/* Header */}
         <div>

@@ -77,7 +77,7 @@ function FeedMeta({
     <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
       {feedIconUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={proxyImg(feedIconUrl, 96)} alt="" decoding="sync" className="size-3 rounded-sm shrink-0" />
+        <img src={proxyImg(feedIconUrl, 96)} alt="" decoding="async" className="size-3 rounded-sm shrink-0" />
       )}
       <span className="truncate font-medium">{feedTitle ?? "Unknown"}</span>
       {relTime && (
@@ -141,7 +141,7 @@ export function ArticleCard({
         if (e.key === "Enter" || e.key === " ") onSelect(article.id);
       }}
       className={cn(
-        "group relative text-left w-full flex flex-col rounded-lg overflow-hidden border bg-card cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] h-56 gpu-clip",
+        "group relative text-left w-full flex flex-col rounded-lg overflow-hidden border bg-card cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] h-56",
         active
           ? "border-primary ring-1 ring-primary/30"
           : "border-border hover:border-foreground/30",
@@ -160,8 +160,8 @@ export function ArticleCard({
           <img
             src={proxyImg(effectiveImageUrl!, 480)}
             alt=""
-            loading="eager"
-            decoding="sync"
+            loading="lazy"
+            decoding="async"
             onError={() => setImgFailed(true)}
             className="w-full h-32 object-cover shrink-0"
           />

@@ -81,7 +81,11 @@ export async function GET(req: NextRequest) {
     return new NextResponse(new Uint8Array(out.body), {
       headers: {
         "Content-Type": out.contentType,
-        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800, immutable",
+        // Behave like a real CDN asset: long-lived + immutable, and crucially
+        // NO `stale-while-revalidate` — SWR tells the browser to fire a
+        // background revalidation request on access, which on iOS WebKit shows
+        // up as an image request on every scroll-back and flashes the image.
+        "Cache-Control": "public, max-age=31536000, immutable",
       },
     });
   } catch (_err) {

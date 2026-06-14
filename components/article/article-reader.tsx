@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, memo } from "react";
 import { formatDistanceToNow } from "date-fns";
 import DOMPurify from "dompurify";
 import {
@@ -18,11 +18,28 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
+/**
+ * The article body, isolated in a memoized component. ArticleReader re-renders
+ * on every scroll frame (scroll-progress state); without this memo the
+ * `dangerouslySetInnerHTML` below re-injects on each of those renders, which
+ * destroys and recreates all <img> nodes → every image re-decodes → visible
+ * flicker while scrolling on iOS WebKit. Memoizing on the (stable) html string
+ * keeps the DOM subtree untouched across scroll re-renders.
+ */
+const ArticleBody = memo(function ArticleBody({ html }: { html: string }) {
+  return <div className="article-content" dangerouslySetInnerHTML={{ __html: html }} />;
+});
+
 function proxyImagesInHtml(html: string): string {
   return html.replace(
     /(<img\b[^>]*?\ssrc=)(["'])(https?:\/\/[^"']+)\2/gi,
     (_, prefix, quote, url) =>
-      `${prefix}${quote}/api/image-proxy?url=${encodeURIComponent(url)}${quote} loading="lazy" decoding="async"`,
+      // Downscale body images to the 1280 tier (WebP) like every other image in
+      // the app. Full-size originals (often 2000px+) decode to huge bitmaps; in
+      // a long article's inner scroller iOS WebKit evicts the offscreen ones and
+      // re-decodes on scroll-back, which flashes. The proven-clean lab images
+      // were all downscaled — body images were the one place still full-size.
+      `${prefix}${quote}/api/image-proxy?url=${encodeURIComponent(url)}&w=1280${quote} loading="lazy" decoding="async"`,
   );
 }
 
@@ -117,6 +134,14 @@ export function ArticleReader({
   const [acceptedTagNames, setAcceptedTagNames] = useState<Set<string>>(new Set());
   const [currentTags, setCurrentTags] = useState<Array<{ id: string; name: string }>>(
     article?.tags?.map((t) => ({ id: t.id, name: t.name })) ?? [],
+  );
+
+  // Sanitize + proxy the body HTML once per article (NOT on every scroll
+  // re-render) so the memoized ArticleBody never re-injects and the image
+  // nodes stay put. See ArticleBody above for why this matters.
+  const bodyHtml = useMemo(
+    () => (article?.contentHtml ? proxyImagesInHtml(sanitize(article.contentHtml)) : ""),
+    [article?.contentHtml],
   );
 
   // Track which article ids we already auto-triggered for, so flipping
@@ -531,10 +556,7 @@ export function ArticleReader({
 
           {/* Body */}
           {article.contentHtml ? (
-            <div
-              className="article-content"
-              dangerouslySetInnerHTML={{ __html: proxyImagesInHtml(sanitize(article.contentHtml)) }}
-            />
+            <ArticleBody html={bodyHtml} />
           ) : (
             <p className="text-muted-foreground text-sm">No content available.</p>
           )}

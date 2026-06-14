@@ -254,22 +254,3 @@
     scroll-behavior: auto !important;
   }
 }
-
-/* ─── iOS Safari rounded-clip scroll flicker ─────────────────────
-   WebKit bug #98538: a box with border-radius + overflow:hidden that
-   contains a composited descendant must re-clip that layer against the
-   rounded rect every frame; while its scroll container moves this
-   flickers (only iPhone WebKit; reproducible on desktop Safari with
-   DevTools attached). The documented cure (Simon Fraser / WebKit) is to
-   make the CLIPPING CONTAINER its own stacking context + layer — NOT to
-   composite the child image, which is the very thing that triggers the
-   bug. Apply to rounded cards that clip a cover <img>; the leaf images
-   themselves get no transform. */
-.gpu-clip {
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  isolation: isolate;
-  /* No will-change: one cheap layer per visible card, not per image. */
-}

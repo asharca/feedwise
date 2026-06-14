@@ -61,7 +61,7 @@ function ArticleRow({
             src={proxyImg(hit.feedIconUrl, 96)}
             alt=""
             loading="lazy"
-            decoding="sync"
+            decoding="async"
             className="size-4 rounded-sm shrink-0 mt-0.5"
           />
         ) : (
@@ -124,7 +124,7 @@ function FeedRow({
             src={proxyImg(hit.iconUrl, 96)}
             alt=""
             loading="lazy"
-            decoding="sync"
+            decoding="async"
             className="size-4 rounded-sm shrink-0"
           />
         ) : (

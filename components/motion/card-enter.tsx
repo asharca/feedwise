@@ -16,32 +16,18 @@ const STAGGER_MAX_STEPS = 9;
  * Wraps a grid card in a restrained fade + slight rise on mount. The entrance
  * lives on this wrapper (not the card) so the card's own hover transform never
  * collides with the animation's final transform. Honors reduced-motion.
- *
- * fill-mode must stay `backwards` (hide during the stagger delay), NOT
- * `both`/`forwards`: a filling transform/opacity animation never "finishes"
- * for WebKit's compositor, so every card keeps a GPU layer forever. On
- * mobile Safari dozens of permanently-composited cards exhaust tile memory
- * and re-rasterize during scroll — visible as flickering. The animation ends
- * at the element's natural state anyway, so no forwards fill is needed.
  */
 export function CardEnter({ index = 0, className, children }: CardEnterProps) {
-  // Entrance animation disabled while the iOS scroll-flicker investigation
-  // settles — restore the animated version below
-  // once the .gpu-clip fix is confirmed stable on devices.
-  void index;
-  return <div className={className}>{children}</div>;
-  /*
   const delayMs = Math.min(index, STAGGER_MAX_STEPS) * STAGGER_STEP_MS;
   return (
     <div
       style={{ "--tw-animation-delay": `${delayMs}ms` } as React.CSSProperties}
       className={cn(
-        "animate-in fade-in slide-in-from-bottom-2 duration-300 ease-[var(--ease-out)] fill-mode-backwards motion-reduce:animate-none",
+        "animate-in fade-in slide-in-from-bottom-2 duration-300 ease-[var(--ease-out)] fill-mode-both motion-reduce:animate-none",
         className,
       )}
     >
       {children}
     </div>
   );
-  */
 }
