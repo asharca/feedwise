@@ -91,6 +91,9 @@ export interface DashboardTimeline {
     tag: { id: string; name: string };
     counts: number[];
     total: number;
+    // Total for the equal-length window immediately before [from, to]. Used to
+    // derive momentum (rising/falling) for the trending board.
+    prevTotal: number;
   }>;
 }
 
@@ -127,6 +130,10 @@ export async function getDashboardTimeline(
   // Half-open upper bound for SQL `< endExclusive`
   const endExclusive = new Date(endDate);
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+
+  // Previous equal-length window [prevStart, startDate) for per-tag momentum.
+  const prevStart = new Date(startDate);
+  prevStart.setUTCDate(prevStart.getUTCDate() - safeDays);
 
   const dayList: string[] = [];
   for (let i = 0; i < safeDays; i++) {
@@ -189,7 +196,37 @@ export async function getDashboardTimeline(
     .where(and(eq(tags.userId, userId), gte(articles.createdAt, startDate)))
     .groupBy(tags.id, tags.name, sql`date_trunc('day', ${articles.createdAt})`);
 
-  const [newRows, readRows, tagRows] = await Promise.all([newRowsP, readRowsP, tagRowsP]);
+  // Per-tag totals for the previous equal-length window (momentum baseline).
+  const prevTagRowsP = db
+    .select({
+      tagId: tags.id,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(articleTags)
+    .innerJoin(tags, eq(articleTags.tagId, tags.id))
+    .innerJoin(articles, eq(articles.id, articleTags.articleId))
+    .innerJoin(
+      subscriptions,
+      and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
+    )
+    .where(
+      and(
+        eq(tags.userId, userId),
+        gte(articles.createdAt, prevStart),
+        sql`${articles.createdAt} < ${startDate}`,
+      ),
+    )
+    .groupBy(tags.id);
+
+  const [newRows, readRows, tagRows, prevTagRows] = await Promise.all([
+    newRowsP,
+    readRowsP,
+    tagRowsP,
+    prevTagRowsP,
+  ]);
+
+  const prevByTag = new Map<string, number>();
+  for (const r of prevTagRows) prevByTag.set(r.tagId, r.n);
 
   const newPerDay = makeSeries();
   for (const r of newRows) {
@@ -220,7 +257,12 @@ export async function getDashboardTimeline(
   const tagActivity = Array.from(byTag.values())
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
     .slice(0, MAX_TAGS_IN_HEATMAP)
-    .map((t) => ({ tag: { id: t.id, name: t.name }, counts: t.counts, total: t.total }));
+    .map((t) => ({
+      tag: { id: t.id, name: t.name },
+      counts: t.counts,
+      total: t.total,
+      prevTotal: prevByTag.get(t.id) ?? 0,
+    }));
 
   return { days: dayList, newPerDay, readsPerDay, tagActivity };
 }

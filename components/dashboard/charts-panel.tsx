@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import { Segmented } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +13,7 @@ interface Timeline {
     tag: { id: string; name: string };
     counts: number[];
     total: number;
+    prevTotal: number;
   }>;
 }
 
@@ -142,7 +144,11 @@ export function ChartsPanel() {
             tone="success"
           />
           <div className="lg:col-span-2">
-            <TagHeatmap days={data.days} rows={data.tagActivity} />
+            <TrendingBoard
+              days={data.days}
+              rows={data.tagActivity}
+              comparisonLabel={range === "custom" ? "the previous period" : `the previous ${range}d`}
+            />
           </div>
         </div>
       )}
@@ -217,15 +223,23 @@ function BarsCard({
   );
 }
 
-function TagHeatmap({ days, rows }: { days: string[]; rows: Timeline["tagActivity"] }) {
+function TrendingBoard({
+  days,
+  rows,
+  comparisonLabel,
+}: {
+  days: string[];
+  rows: Timeline["tagActivity"];
+  comparisonLabel: string;
+}) {
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium mb-1">
-          Tag heatmap
+          Trending
         </div>
         <div className="text-[11px] text-muted-foreground/70 mb-3">
-          Daily article counts per tag, deepest = busiest day for that tag.
+          Top tags by volume, with momentum vs {comparisonLabel}.
         </div>
         <p className="text-sm text-muted-foreground py-4">
           No tagged articles in this range. Enable Auto-tag in Settings → Smart Digest to populate
@@ -235,83 +249,155 @@ function TagHeatmap({ days, rows }: { days: string[]; rows: Timeline["tagActivit
     );
   }
 
-  const allValues = rows.flatMap((r) => r.counts);
-  const max = Math.max(1, ...allValues);
+  // rows arrive sorted by current-window volume (desc) from the API.
+  const maxTotal = Math.max(1, ...rows.map((r) => r.total));
+  const rangeLabel = days.length
+    ? `${shortDate(days[0])} – ${shortDate(days[days.length - 1])}`
+    : "";
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-baseline justify-between gap-2 mb-3">
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-            Tag heatmap
+            Trending
           </div>
           <div className="text-[11px] text-muted-foreground/70 mt-0.5">
-            Daily article counts per tag, deepest cell = busiest day.
+            Top tags by volume · momentum vs {comparisonLabel}
           </div>
         </div>
-        <Legend />
+        <span className="shrink-0 text-[10px] text-muted-foreground/60 tabular-nums">
+          {rangeLabel}
+        </span>
       </div>
-      <div className="overflow-x-auto">
-        <div className="min-w-fit space-y-0.5">
-          {rows.map((row) => (
-            <div key={row.tag.id} className="flex items-center gap-2">
-              <div
-                className="w-20 shrink-0 text-xs truncate text-foreground/80"
-                title={row.tag.name}
-              >
-                {row.tag.name}
-              </div>
-              <div className="flex gap-[2px] flex-1">
-                {row.counts.map((v, i) => (
-                  <div
-                    key={days[i]}
-                    className={cn("h-4 flex-1 rounded-[2px]", cellClass(v, max))}
-                    title={`${row.tag.name} · ${days[i]}: ${v}`}
-                  />
-                ))}
-              </div>
-              <div className="w-10 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground/80">
-                {row.total}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="flex items-center gap-2 mt-1.5 ml-[5.5rem] mr-[3rem]">
-        <div className="flex justify-between flex-1 text-[10px] text-muted-foreground/70 tabular-nums">
-          <span>{shortDate(days[0])}</span>
-          {days.length > 6 && <span>{shortDate(days[Math.floor(days.length / 2)])}</span>}
-          <span>{shortDate(days[days.length - 1])}</span>
-        </div>
-      </div>
+      <ol className="space-y-1">
+        {rows.map((row, i) => (
+          <TrendingRow key={row.tag.id} rank={i + 1} row={row} days={days} maxTotal={maxTotal} />
+        ))}
+      </ol>
     </div>
   );
 }
 
-function Legend() {
-  const steps = [0, 0.2, 0.4, 0.6, 0.85];
+function TrendingRow({
+  rank,
+  row,
+  days,
+  maxTotal,
+}: {
+  rank: number;
+  row: Timeline["tagActivity"][number];
+  days: string[];
+  maxTotal: number;
+}) {
+  const fillPct = Math.max(5, (row.total / maxTotal) * 100);
+  const delta = row.total - row.prevTotal;
+  const isNew = row.prevTotal === 0 && row.total > 0;
+  const lead = rank === 1;
+
   return (
-    <div className="flex items-center gap-1 shrink-0">
-      <span className="text-[10px] text-muted-foreground/70">less</span>
-      {steps.map((s, i) => (
-        <div key={i} className={cn("size-2.5 rounded-[2px]", bucketClass(s))} />
-      ))}
-      <span className="text-[10px] text-muted-foreground/70">more</span>
+    <li className="grid grid-cols-[1.5rem_1fr_auto] items-center gap-2.5">
+      <span
+        className={cn(
+          "text-right text-sm font-semibold tabular-nums",
+          lead ? "text-primary" : "text-muted-foreground/45",
+        )}
+      >
+        {rank}
+      </span>
+
+      {/* Tag name + count layered over a bar sized to the tag's share of volume */}
+      <div className="relative min-w-0 h-8 rounded-md overflow-hidden bg-muted/35">
+        <div
+          className={cn(
+            "absolute inset-y-0 left-0 transition-[width] duration-500 ease-[var(--ease-out)]",
+            lead ? "bg-primary/25" : "bg-primary/12",
+          )}
+          style={{ width: `${fillPct}%` }}
+        />
+        <div className="relative flex h-full items-center justify-between gap-2 px-2.5">
+          <span
+            className="truncate text-[13px] font-medium text-foreground"
+            title={row.tag.name}
+          >
+            {row.tag.name}
+          </span>
+          <span className="shrink-0 text-[13px] font-semibold tabular-nums text-foreground/90">
+            {row.total}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2.5">
+        <MomentumChip delta={delta} isNew={isNew} />
+        <Sparkline counts={row.counts} days={days} />
+      </div>
+    </li>
+  );
+}
+
+function MomentumChip({ delta, isNew }: { delta: number; isNew: boolean }) {
+  if (isNew) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+        New
+      </span>
+    );
+  }
+  if (delta === 0) {
+    return (
+      <span className="inline-flex w-12 items-center justify-end gap-0.5 text-[11px] tabular-nums text-muted-foreground/55">
+        <Minus className="size-3" />0
+      </span>
+    );
+  }
+  const up = delta > 0;
+  return (
+    <span
+      className={cn(
+        "inline-flex w-12 items-center justify-end gap-0.5 text-[11px] font-medium tabular-nums",
+        up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500 dark:text-rose-400",
+      )}
+    >
+      {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+      {up ? "+" : "−"}
+      {Math.abs(delta)}
+    </span>
+  );
+}
+
+// Compact daily-trend bars. Long ranges are bucketed so each bar stays legible.
+function Sparkline({ counts, days }: { counts: number[]; days: string[] }) {
+  const bars = bucketSeries(counts, 16);
+  const max = Math.max(1, ...bars);
+  const label = days.length ? `${shortDate(days[0])} – ${shortDate(days[days.length - 1])}` : "";
+  return (
+    <div className="hidden sm:flex h-7 w-20 items-end gap-px" title={`Daily volume · ${label}`}>
+      {bars.map((v, i) => {
+        const h = v === 0 ? 10 : Math.max(10, (v / max) * 100);
+        const last = i === bars.length - 1;
+        return (
+          <div
+            key={i}
+            className={cn("flex-1 rounded-[1px]", v === 0 ? "bg-muted" : last ? "bg-primary" : "bg-primary/40")}
+            style={{ height: `${h}%` }}
+          />
+        );
+      })}
     </div>
   );
 }
 
-function cellClass(value: number, max: number): string {
-  if (value === 0) return "bg-muted/40";
-  return bucketClass(value / max);
-}
-
-function bucketClass(ratio: number): string {
-  if (ratio === 0) return "bg-muted/40";
-  if (ratio < 0.25) return "bg-primary/20";
-  if (ratio < 0.5) return "bg-primary/40";
-  if (ratio < 0.75) return "bg-primary/65";
-  return "bg-primary/90";
+// Sum adjacent days into at most `maxBars` buckets so sparklines stay readable
+// across 7/30/90-day ranges without becoming a wall of hairline bars.
+function bucketSeries(values: number[], maxBars: number): number[] {
+  if (values.length <= maxBars) return values;
+  const size = Math.ceil(values.length / maxBars);
+  const out: number[] = [];
+  for (let i = 0; i < values.length; i += size) {
+    out.push(values.slice(i, i + size).reduce((s, v) => s + v, 0));
+  }
+  return out;
 }
 
 function shortDate(iso: string): string {
