@@ -75,7 +75,15 @@ export function SearchResultsPage({
   // on back/forward nav or when the user picks a result that changes URL.
   const [query, setQuery] = useState(search);
   const inputRef = useRef<HTMLInputElement>(null);
+  // The value we most recently pushed to the URL (debounced or committed). The
+  // parent feeds the URL back down as `search`; this lets the sync effect tell
+  // an *external* nav (back/forward, result click, clear) from the echo of our
+  // own push. Without it, a stale echo arriving mid-typing clobbers characters
+  // typed during the round-trip — e.g. fast-typing "minimax" reverts to "mini".
+  const lastPushedRef = useRef(search);
   useEffect(() => {
+    if (search === lastPushedRef.current) return;
+    lastPushedRef.current = search;
     setQuery(search);
   }, [search]);
 
@@ -109,6 +117,7 @@ export function SearchResultsPage({
       // Pop the open article when the query changes — the active one likely
       // isn't relevant to the new query.
       p.delete("articleId");
+      lastPushedRef.current = trimmed;
       router.replace(`/reader?${p.toString()}`);
     }, 300);
     return () => clearTimeout(id);
@@ -119,6 +128,7 @@ export function SearchResultsPage({
     const p = new URLSearchParams(searchParams.toString());
     p.set("search", trimmed);
     p.delete("articleId");
+    lastPushedRef.current = trimmed;
     router.replace(`/reader?${p.toString()}`);
   }
 
