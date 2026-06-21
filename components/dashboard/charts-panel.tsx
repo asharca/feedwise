@@ -232,6 +232,9 @@ function TrendingBoard({
   rows: Timeline["tagActivity"];
   comparisonLabel: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const COLLAPSED = 10;
+
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-4">
@@ -254,6 +257,7 @@ function TrendingBoard({
   const rangeLabel = days.length
     ? `${shortDate(days[0])} – ${shortDate(days[days.length - 1])}`
     : "";
+  const visible = expanded ? rows : rows.slice(0, COLLAPSED);
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -271,10 +275,20 @@ function TrendingBoard({
         </span>
       </div>
       <ol className="space-y-1">
-        {rows.map((row, i) => (
+        {visible.map((row, i) => (
           <TrendingRow key={row.tag.id} rank={i + 1} row={row} days={days} maxTotal={maxTotal} />
         ))}
       </ol>
+      {rows.length > COLLAPSED && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          className="mt-2 w-full rounded-md py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+        >
+          {expanded ? "Show less" : `Show all ${rows.length} tags`}
+        </button>
+      )}
     </div>
   );
 }

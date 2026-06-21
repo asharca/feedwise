@@ -97,7 +97,7 @@ export interface DashboardTimeline {
   }>;
 }
 
-const MAX_TAGS_IN_HEATMAP = 10;
+const MAX_TRENDING_TAGS = 200;
 const MAX_DAYS = 365;
 
 /**
@@ -256,7 +256,7 @@ export async function getDashboardTimeline(
   }
   const tagActivity = Array.from(byTag.values())
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
-    .slice(0, MAX_TAGS_IN_HEATMAP)
+    .slice(0, MAX_TRENDING_TAGS)
     .map((t) => ({
       tag: { id: t.id, name: t.name },
       counts: t.counts,
