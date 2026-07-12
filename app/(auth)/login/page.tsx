@@ -41,11 +41,14 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-sm space-y-8">
         <div className="flex flex-col items-center gap-3">
-          <div className="size-11 rounded-lg bg-primary flex items-center justify-center">
-            <Rss className="size-6 text-primary-foreground" />
+          <div className="flex items-center gap-2.5" aria-label="Feedwise">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-primary">
+              <Rss className="size-5 text-primary-foreground" />
+            </div>
+            <span className="text-lg font-semibold tracking-tight">Feedwise</span>
           </div>
           <div className="text-center">
             <h1 className="text-xl font-semibold tracking-tight">Welcome back</h1>
@@ -63,6 +66,8 @@ function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoFocus
+              autoComplete="email"
+              aria-describedby={error ? "login-error" : undefined}
               className="rounded-md h-10"
             />
           </div>
@@ -74,10 +79,16 @@ function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
+              aria-describedby={error ? "login-error" : undefined}
               className="rounded-md h-10"
             />
           </div>
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {error && (
+            <p id="login-error" role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <Button type="submit" className="w-full rounded-md h-10" disabled={loading}>
             {loading ? "Signing in..." : "Sign in"}
           </Button>
@@ -93,7 +104,7 @@ function LoginForm() {
           </Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }
 

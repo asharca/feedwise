@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getSubscriptions, getFolders } from "@/lib/db/queries/feeds";
@@ -17,16 +16,14 @@ export default async function ReaderLayout({ children }: { children: React.React
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen w-full overflow-hidden">
-        <Suspense>
-          <AppSidebar
-            subscriptions={subscriptions.map((s) => ({
-              ...s,
-              lastFetchError: s.lastFetchError,
-            }))}
-            folders={folders.map((f) => ({ id: f.id, name: f.name }))}
-          />
-        </Suspense>
+      <div className="reader-app-shell flex min-h-0 w-full overflow-hidden">
+        <AppSidebar
+          subscriptions={subscriptions.map((s) => ({
+            ...s,
+            lastFetchError: s.lastFetchError,
+          }))}
+          folders={folders.map((f) => ({ id: f.id, name: f.name }))}
+        />
         <SidebarInset className="flex-1 overflow-hidden bg-background">{children}</SidebarInset>
         <GlobalSettingsDialog />
       </div>

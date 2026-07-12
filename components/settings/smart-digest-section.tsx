@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { SettingRow } from "@/components/settings/setting-row";
 import { Segmented } from "@/components/ui/segmented";
@@ -123,16 +124,23 @@ export function SmartDigestSection({
           <SettingRow
             title="Enable LLM clustering"
             description="Group and rank articles before sending"
-            control={<Switch checked={llmEnabled} onCheckedChange={onLlmEnabledChange} />}
+            control={
+              <Switch
+                checked={llmEnabled}
+                onCheckedChange={onLlmEnabledChange}
+                aria-label="Enable LLM clustering"
+              />
+            }
           />
           <SettingRow
             title="Auto-summarise articles on open"
-            description="Run AI summary the moment an article is opened. Turn off to require manual ✨ click."
+            description="Run an AI summary when an article opens. Turn off to summarise manually."
             control={
               <Switch
                 checked={llmAutoSummarize}
                 onCheckedChange={onLlmAutoSummarizeChange}
                 disabled={!llmEnabled}
+                aria-label="Auto-summarise articles on open"
               />
             }
           />
@@ -144,6 +152,7 @@ export function SmartDigestSection({
                 checked={llmAutoTag}
                 onCheckedChange={onLlmAutoTagChange}
                 disabled={!llmEnabled}
+                aria-label="Auto-tag articles in the background"
               />
             }
           />
@@ -163,7 +172,7 @@ export function SmartDigestSection({
           </label>
           <label className="block">
             <span className="block text-xs text-muted-foreground mb-1">API Base URL</span>
-            <input
+            <Input
               type="url"
               value={llmBaseUrl}
               onChange={(e) => onLlmBaseUrlChange(e.target.value)}
@@ -172,14 +181,14 @@ export function SmartDigestSection({
                   ? "https://api.anthropic.com/v1"
                   : "https://api.openai.com/v1"
               }
-              className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+              className="h-10 bg-muted"
             />
           </label>
           <label className="block">
             <span className="block text-xs text-muted-foreground mb-1">
               API Key {llmKeyMask && <span>· stored: {llmKeyMask}</span>}
             </span>
-            <input
+            <Input
               type="password"
               value={llmApiKey}
               onChange={(e) => onLlmApiKeyChange(e.target.value)}
@@ -190,13 +199,14 @@ export function SmartDigestSection({
                     ? "sk-ant-..."
                     : "sk-..."
               }
-              className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+              autoComplete="off"
+              className="h-10 bg-muted"
             />
           </label>
           <label className="block">
             <span className="block text-xs text-muted-foreground mb-1">Model</span>
             <div className="flex gap-1.5">
-              <input
+              <Input
                 type="text"
                 value={llmModel}
                 onChange={(e) => onLlmModelChange(e.target.value)}
@@ -204,13 +214,14 @@ export function SmartDigestSection({
                   llmFormat === "anthropic" ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini"
                 }
                 list={modelsLoaded ? "llm-models-datalist" : undefined}
-                className="flex-1 text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                className="h-10 flex-1 bg-muted"
               />
               {modelsLoaded ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={<button type="button" />}
-                    className="inline-flex items-center gap-1 text-xs px-2.5 rounded-md bg-muted hover:bg-accent transition-colors shrink-0"
+                    aria-label="Choose model"
+                    className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-md bg-muted px-2.5 text-xs outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     Pick
                     <ChevronDown className="size-3" />

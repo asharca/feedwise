@@ -10,21 +10,8 @@ import {
   closestCenter,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import {
-  Rss,
-  Plus,
-  LogOut,
-  Settings,
-  Sun,
-  Moon,
-  FolderOpen,
-  Sparkles,
-} from "lucide-react";
+import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { Rss, Plus, LogOut, Settings, Sun, Moon, X, FolderOpen, Sparkles } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useSSE } from "@/lib/hooks/use-sse";
 import {
@@ -46,9 +33,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/lib/auth/client";
+import { cn } from "@/lib/utils";
 import {
   UNREAD_DELTA_EVENT,
   MARK_ALL_READ_EVENT,
+  SUBSCRIPTIONS_CHANGED_EVENT,
   type UnreadDeltaDetail,
   type MarkAllReadDetail,
 } from "@/lib/reader/events";
@@ -78,8 +67,9 @@ export function AppSidebar({
   const pathname = usePathname();
   const activeFeedId = searchParams.get("feedId");
   const activeFolderId = searchParams.get("folderId");
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const { setOpenMobile } = useSidebar();
+  const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
 
   // Persist sidebar scroll position across navigations (URL changes cause re-renders
   // that can reset the scroll container back to top).
@@ -103,17 +93,55 @@ export function AppSidebar({
 
   const [subs, setSubs] = useState(initialSubs);
 
+  useEffect(() => {
+    setSubs(initialSubs);
+  }, [initialSubs]);
+
+  useEffect(() => {
+    let controller: AbortController | null = null;
+
+    async function refreshSubscriptions() {
+      controller?.abort();
+      const requestController = new AbortController();
+      controller = requestController;
+
+      try {
+        const response = await fetch("/api/feeds", { signal: requestController.signal });
+        if (!response.ok) throw new Error("Failed to refresh subscriptions");
+
+        const data = (await response.json()) as {
+          success: boolean;
+          data?: Subscription[];
+        };
+        if (!data.success || !Array.isArray(data.data)) {
+          throw new Error("Invalid subscriptions response");
+        }
+
+        setSubs(data.data);
+      } catch {
+        if (requestController.signal.aborted) return;
+        router.refresh();
+      }
+    }
+
+    function onSubscriptionsChanged() {
+      void refreshSubscriptions();
+    }
+
+    window.addEventListener(SUBSCRIPTIONS_CHANGED_EVENT, onSubscriptionsChanged);
+    return () => {
+      controller?.abort();
+      window.removeEventListener(SUBSCRIPTIONS_CHANGED_EVENT, onSubscriptionsChanged);
+    };
+  }, [router]);
+
   useSSE((event) => {
     if (event.type === "feed.deleted") {
       setSubs((prev) => prev.filter((s) => s.id !== event.subscriptionId));
     }
     if (event.type === "feed.error") {
       setSubs((prev) =>
-        prev.map((s) =>
-          s.feedId === event.feedId
-            ? { ...s, lastFetchError: event.message }
-            : s,
-        ),
+        prev.map((s) => (s.feedId === event.feedId ? { ...s, lastFetchError: event.message } : s)),
       );
     }
   });
@@ -194,6 +222,18 @@ export function AppSidebar({
     router.replace(`/reader?${p.toString()}`);
   }
 
+  function handleSettingsClick() {
+    setOpenMobile(false);
+
+    // The dedicated settings route already renders SettingsContent. Do not
+    // layer the query-driven settings dialog over the same page.
+    if (pathname === "/settings") return;
+
+    const p = new URLSearchParams(searchParams.toString());
+    p.set("settings", "appearance");
+    router.replace(`${pathname}?${p.toString()}`);
+  }
+
   function toggleFolder(folderId: string) {
     setCollapsedFolders((prev) => {
       const next = new Set(prev);
@@ -210,9 +250,22 @@ export function AppSidebar({
   }
 
   async function handleMarkFeedAllRead(sub: Subscription) {
-    await fetch(`/api/articles/mark-all-read?feedId=${sub.feedId}`, { method: "POST" });
-    setSubs((prev) => prev.map((s) => (s.id === sub.id ? { ...s, unreadCount: 0 } : s)));
-    toast.success("Marked all as read");
+    try {
+      const response = await fetch(`/api/articles/mark-all-read?feedId=${sub.feedId}`, {
+        method: "POST",
+      });
+      const body = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+      } | null;
+      if (!response.ok || !body?.success) {
+        throw new Error(body?.error ?? "Failed to mark articles as read");
+      }
+      setSubs((prev) => prev.map((s) => (s.id === sub.id ? { ...s, unreadCount: 0 } : s)));
+      toast.success("Marked all as read");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to mark articles as read");
+    }
   }
 
   const dndSensors = useSensors(
@@ -295,10 +348,21 @@ export function AppSidebar({
       `Unsubscribe from "${sub.title ?? sub.feedTitle ?? sub.url}"?`,
     );
     if (!confirmed) return;
-    await fetch(`/api/feeds/${sub.id}`, { method: "DELETE" });
-    setSubs((prev) => prev.filter((s) => s.id !== sub.id));
-    if (activeFeedId === sub.feedId) {
-      navigate({ feedId: null, view: "all" });
+    try {
+      const response = await fetch(`/api/feeds/${sub.id}`, { method: "DELETE" });
+      const body = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+      } | null;
+      if (!response.ok || !body?.success) {
+        throw new Error(body?.error ?? "Failed to unsubscribe");
+      }
+      setSubs((prev) => prev.filter((s) => s.id !== sub.id));
+      if (activeFeedId === sub.feedId) {
+        navigate({ feedId: null, view: "all" });
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to unsubscribe");
     }
   }
 
@@ -306,8 +370,14 @@ export function AppSidebar({
     onNavigate: (sub) => navigate({ feedId: sub.feedId, folderId: null, tag: null, view: "all" }),
     onMarkAllRead: handleMarkFeedAllRead,
     onRefresh: handleRefresh,
-    onRename: (sub) => { setRenameTarget(sub); setRenameOpen(true); },
-    onEditUrl: (sub) => { setEditUrlTarget(sub); setEditUrlOpen(true); },
+    onRename: (sub) => {
+      setRenameTarget(sub);
+      setRenameOpen(true);
+    },
+    onEditUrl: (sub) => {
+      setEditUrlTarget(sub);
+      setEditUrlOpen(true);
+    },
     onMoveToFolder: handleMoveFeedToFolder,
     onDelete: handleDelete,
   };
@@ -323,16 +393,18 @@ export function AppSidebar({
           <button
             type="button"
             onClick={() => setAiSearchOpen(true)}
+            aria-label="Ask AI"
             title="Ask AI"
-            className="size-6 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
+            className="size-6 inline-flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-primary outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
             <Sparkles className="size-3.5" />
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger
-              render={<span />}
-              nativeButton={false}
-              className="size-6 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors cursor-pointer"
+              render={<button type="button" />}
+              aria-label="Add feed or folder"
+              title="Add feed or folder"
+              className="size-6 inline-flex items-center justify-center rounded-md transition-colors hover:bg-accent outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
               <Plus className="size-3.5" />
             </DropdownMenuTrigger>
@@ -351,6 +423,16 @@ export function AppSidebar({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="size-6 rounded-md md:hidden"
+            onClick={() => setOpenMobile(false)}
+            aria-label="Close sidebar"
+            title="Close sidebar"
+          >
+            <X className="size-3.5" />
+          </Button>
         </div>
       </SidebarHeader>
 
@@ -379,8 +461,13 @@ export function AppSidebar({
                 isActiveFolder={activeFolderId === folder.id}
                 activeFeedId={activeFeedId}
                 onToggle={toggleFolder}
-                onViewAll={(f) => navigate({ folderId: f.id, feedId: null, tag: null, view: "all" })}
-                onRename={(f) => { setFolderRenameTarget(f); setFolderRenameOpen(true); }}
+                onViewAll={(f) =>
+                  navigate({ folderId: f.id, feedId: null, tag: null, view: "all" })
+                }
+                onRename={(f) => {
+                  setFolderRenameTarget(f);
+                  setFolderRenameOpen(true);
+                }}
                 onDelete={handleFolderDelete}
                 feedActions={feedActions}
               />
@@ -396,7 +483,9 @@ export function AppSidebar({
               <button
                 type="button"
                 onClick={() => setAddOpen(true)}
-                className="size-5 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                aria-label="Add feed"
+                title="Add feed"
+                className="size-5 inline-flex items-center justify-center rounded-md transition-colors hover:bg-accent outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               >
                 <Plus className="size-3" />
               </button>
@@ -424,30 +513,36 @@ export function AppSidebar({
             variant="ghost"
             size="icon"
             className="size-8 rounded-md"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            onClick={() => setTheme(nextTheme)}
+            aria-label="Toggle theme"
+            title="Toggle theme"
           >
             <Sun className="size-4 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute size-4 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 rounded-md"
-            onClick={() => {
-              const p = new URLSearchParams(searchParams.toString());
-              p.set("settings", "appearance");
-              router.replace(`${pathname}?${p.toString()}`);
-            }}
-            title="Settings"
-          >
-            <Settings className="size-4" />
           </Button>
           <div className="flex-1" />
           <Button
             variant="ghost"
             size="icon"
+            className={cn(
+              "size-8 rounded-md",
+              pathname === "/settings" &&
+                "bg-primary/10 text-foreground shadow-[inset_2px_0_0_var(--primary)]",
+            )}
+            onClick={handleSettingsClick}
+            aria-label="Settings"
+            aria-current={pathname === "/settings" ? "page" : undefined}
+            title="Settings"
+          >
+            <Settings className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             className="size-8 rounded-md text-muted-foreground"
             onClick={() => signOut().then(() => router.push("/login"))}
+            aria-label="Sign out"
+            title="Sign out"
           >
             <LogOut className="size-4" />
           </Button>
@@ -463,7 +558,9 @@ export function AppSidebar({
         open={renameOpen}
         target={renameTarget}
         onOpenChange={setRenameOpen}
-        onRenamed={(id, title) => setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)))}
+        onRenamed={(id, title) =>
+          setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)))
+        }
       />
       <EditFeedUrlDialog
         open={editUrlOpen}

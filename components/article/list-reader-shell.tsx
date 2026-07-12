@@ -35,9 +35,10 @@ export function ListReaderShell({ hasActive, list, reader, className }: Props) {
         transition={spring}
         className={cn(
           "border-r border-border min-w-0 overflow-hidden shrink-0",
-          // Mobile: hide list when reader is open. Desktop: always shown,
-          // width handled by the spring above.
-          hasActive ? "hidden md:block" : "block",
+          // Keep one focused pane until the shell is wide enough to give both
+          // the compact list and reader useful space alongside the app sidebar.
+          // Width on wide screens is still handled by the spring above.
+          hasActive ? "hidden xl:block" : "block",
         )}
       >
         {list}

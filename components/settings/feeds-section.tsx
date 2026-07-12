@@ -178,7 +178,8 @@ export function FeedsSection({
                   <select
                     value={sub.fetchIntervalMinutes ?? 60}
                     onChange={(e) => onIntervalChange(sub, Number(e.target.value))}
-                    className="text-xs bg-muted rounded-lg px-1.5 py-1 outline-none cursor-pointer"
+                    aria-label={`Refresh interval for ${sub.title ?? sub.feedTitle ?? sub.url}`}
+                    className="min-h-9 cursor-pointer rounded-md border border-input bg-muted px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     <option value={5}>5m</option>
                     <option value={15}>15m</option>
@@ -195,6 +196,7 @@ export function FeedsSection({
                   size="icon"
                   className="size-7 rounded-lg shrink-0 text-destructive hover:text-destructive"
                   onClick={() => onDeleteFeed(sub)}
+                  aria-label={`Delete ${sub.title ?? sub.feedTitle ?? sub.url}`}
                 >
                   <Trash2 className="size-3.5" />
                 </Button>

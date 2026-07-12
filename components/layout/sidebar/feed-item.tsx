@@ -10,10 +10,7 @@ import {
   CheckCheck,
   RefreshCw,
 } from "lucide-react";
-import {
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
+import { SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,7 +56,7 @@ function FeedIcon({ url, name }: { url: string | null; name: string }) {
   }
   const letter = (name || "?")[0].toUpperCase();
   return (
-    <span className="size-4 rounded-sm bg-muted flex items-center justify-center text-[10px] font-medium text-muted-foreground shrink-0">
+    <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-muted text-xs font-medium text-muted-foreground">
       {letter}
     </span>
   );
@@ -72,7 +69,7 @@ export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
       <SidebarMenuButton
         isActive={isActive}
         onClick={() => actions.onNavigate(sub)}
-        className="group rounded-md h-8 transition-all duration-150"
+        className="group h-8 rounded-md transition-colors duration-150"
       >
         <FeedIcon url={sub.iconUrl} name={name} />
         <span className="truncate flex-1 text-sm">{name}</span>
@@ -87,110 +84,109 @@ export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
           >
             <AlertTriangle className="size-3 text-destructive/70" />
             {(sub.consecutiveFailures ?? 0) >= 3 && (
-              <span className="text-[9px] tabular-nums text-destructive/70 font-medium">
+              <span className="text-xs font-medium tabular-nums text-destructive">
                 {sub.consecutiveFailures}
               </span>
             )}
           </span>
         )}
         {sub.unreadCount != null && sub.unreadCount > 0 && (
-          <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium tabular-nums text-primary">
             {sub.unreadCount}
           </span>
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<span />}
-            nativeButton={false}
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded-md hover:bg-accent/80 transition-opacity cursor-pointer"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreHorizontal className="size-3.5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="rounded-md">
-            {(sub.unreadCount ?? 0) > 0 && (
-              <>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    actions.onMarkAllRead(sub);
-                  }}
-                >
-                  <CheckCheck className="size-4" />
-                  Mark all read
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                actions.onRefresh(sub);
-              }}
-            >
-              <RefreshCw className="size-4" />
-              {sub.lastFetchError ? "Retry now" : "Refresh now"}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                actions.onRename(sub);
-              }}
-            >
-              <Pencil className="size-4" />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                actions.onEditUrl(sub);
-              }}
-            >
-              <Link className="size-4" />
-              Edit URL
-            </DropdownMenuItem>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <FolderOpen className="size-4" />
-                Move to folder
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    actions.onMoveToFolder(sub, null);
-                  }}
-                >
-                  No folder
-                </DropdownMenuItem>
-                {folders.length > 0 && <DropdownMenuSeparator />}
-                {folders.map((f) => (
-                  <DropdownMenuItem
-                    key={f.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      actions.onMoveToFolder(sub, f.id);
-                    }}
-                    disabled={sub.folderId === f.id}
-                  >
-                    {f.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                actions.onDelete(sub);
-              }}
-            >
-              <Trash2 className="size-4" />
-              Unsubscribe
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </SidebarMenuButton>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<SidebarMenuAction showOnHover />}
+          aria-label={`Actions for ${name}`}
+          title={`Actions for ${name}`}
+        >
+          <MoreHorizontal className="size-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="rounded-md">
+          {(sub.unreadCount ?? 0) > 0 && (
+            <>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.onMarkAllRead(sub);
+                }}
+              >
+                <CheckCheck className="size-4" />
+                Mark all read
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              actions.onRefresh(sub);
+            }}
+          >
+            <RefreshCw className="size-4" />
+            {sub.lastFetchError ? "Retry now" : "Refresh now"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              actions.onRename(sub);
+            }}
+          >
+            <Pencil className="size-4" />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              actions.onEditUrl(sub);
+            }}
+          >
+            <Link className="size-4" />
+            Edit URL
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <FolderOpen className="size-4" />
+              Move to folder
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.onMoveToFolder(sub, null);
+                }}
+              >
+                No folder
+              </DropdownMenuItem>
+              {folders.length > 0 && <DropdownMenuSeparator />}
+              {folders.map((f) => (
+                <DropdownMenuItem
+                  key={f.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    actions.onMoveToFolder(sub, f.id);
+                  }}
+                  disabled={sub.folderId === f.id}
+                >
+                  {f.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuItem
+            className="text-destructive"
+            onClick={(e) => {
+              e.stopPropagation();
+              actions.onDelete(sub);
+            }}
+          >
+            <Trash2 className="size-4" />
+            Unsubscribe
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </SidebarMenuItem>
   );
 }

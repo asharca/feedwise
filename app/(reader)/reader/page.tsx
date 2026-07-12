@@ -12,14 +12,15 @@ import { NewsDashboard } from "@/components/dashboard/news-dashboard";
 import { SearchResultsPage } from "./_search-view/search-results-page";
 import type { Article } from "./_search-view/types";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { CheckCheck, BookOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CheckCheck, BookOpen, CircleAlert, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAutoSummarize } from "@/lib/hooks/use-auto-summarize";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { useArticleDetail } from "@/lib/hooks/use-article-detail";
 import { dispatchUnreadDelta, dispatchMarkAllRead } from "@/lib/reader/events";
-import { patchArticle } from "@/lib/reader/article-api";
+import { mergeUniqueArticles, patchArticle } from "@/lib/reader/article-api";
 
 function ReaderContent() {
   const router = useRouter();
@@ -29,6 +30,7 @@ function ReaderContent() {
   const tagId = searchParams.get("tag") ?? undefined;
   const view = searchParams.get("view") ?? "all";
   const search = searchParams.get("search") ?? undefined;
+  const since = searchParams.get("since") ?? undefined;
   const articleId = searchParams.get("articleId") ?? undefined;
 
   const [articleList, setArticleList] = useState<Article[]>([]);
@@ -55,12 +57,25 @@ function ReaderContent() {
   const debouncedPaneSearch = useDebouncedValue(paneSearch.trim(), 250);
   const effectivePaneSearch = paneSearch.trim() === "" ? "" : debouncedPaneSearch;
   const [reloadKey, setReloadKey] = useState(0);
+  const [listError, setListError] = useState<string | null>(null);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+  const articleMutationVersionRef = useRef(new Map<string, number>());
   const PAGE_SIZE = 50;
 
-  const { detail: activeArticle, setDetail: setActiveArticle } = useArticleDetail(articleId, {
+  const {
+    detail: activeArticle,
+    setDetail: setActiveArticle,
+    loading: articleLoading,
+    error: articleError,
+    retry: retryArticle,
+  } = useArticleDetail(articleId, {
     markReadOnOpen: true,
     onMarkedRead: (id) => {
       setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: true } : a)));
+    },
+    onMarkReadFailed: (id) => {
+      setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: false } : a)));
+      toast.error("Could not mark article as read");
     },
   });
 
@@ -120,14 +135,21 @@ function ReaderContent() {
       // path renders SearchResultsPage, the pane is mounted only otherwise).
       const effectiveSearch = search || effectivePaneSearch;
       if (effectiveSearch) params.set("search", effectiveSearch);
+      if (since) params.set("since", since);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(pageOffset));
       const res = await fetch(`/api/articles?${params}`, { signal });
-      const data = await res.json();
-      if (data.success) return data.data as Article[];
-      return [];
+      const data = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        data?: Article[];
+        error?: string;
+      } | null;
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error ?? "Failed to load articles");
+      }
+      return data.data ?? [];
     },
-    [feedId, folderId, tagId, view, search, effectivePaneSearch, PAGE_SIZE],
+    [feedId, folderId, tagId, view, search, since, effectivePaneSearch, PAGE_SIZE],
   );
 
   // Reset and reload the LIST when filters change. The currently-open article
@@ -139,26 +161,38 @@ function ReaderContent() {
   // pagination "load more" race also fires). Cancelling on filter change keeps
   // only the latest request's result.
   useEffect(() => {
-    if (showDashboard) return;
-    const controller = new AbortController();
     // Cancel any in-flight pagination from the previous filter — its result
     // would otherwise be appended onto the new list.
     loadMoreAbortRef.current?.abort();
+    loadMoreAbortRef.current = null;
+    setLoadingMore(false);
+    if (showDashboard) return;
+    if (inSearchMode && !search?.trim()) {
+      setArticleList([]);
+      setOffset(0);
+      setHasMore(false);
+      setListError(null);
+      return;
+    }
+
+    const controller = new AbortController();
     setOffset(0);
     setHasMore(false);
+    setListError(null);
     startTransition(async () => {
       try {
         const data = await fetchArticles(0, controller.signal);
         if (controller.signal.aborted) return;
-        setArticleList(data);
+        setArticleList(mergeUniqueArticles([], data));
         setHasMore(data.length === PAGE_SIZE);
       } catch (err) {
         if ((err as Error)?.name === "AbortError") return;
-        throw err;
+        setArticleList([]);
+        setListError("Check your connection and try again.");
       }
     });
     return () => controller.abort();
-  }, [fetchArticles, showDashboard, PAGE_SIZE, reloadKey]);
+  }, [fetchArticles, showDashboard, inSearchMode, search, PAGE_SIZE, reloadKey]);
 
   function openArticle(id: string, opts?: { feedId?: string }) {
     const p = new URLSearchParams(searchParams.toString());
@@ -200,6 +234,7 @@ function ReaderContent() {
   }
 
   async function handleLoadMore() {
+    if (loadingMore || !hasMore) return;
     const nextOffset = offset + PAGE_SIZE;
     loadMoreAbortRef.current?.abort();
     const controller = new AbortController();
@@ -208,14 +243,18 @@ function ReaderContent() {
     try {
       const data = await fetchArticles(nextOffset, controller.signal);
       if (controller.signal.aborted) return;
-      setArticleList((prev) => [...prev, ...data]);
+      setArticleList((prev) => mergeUniqueArticles(prev, data));
       setOffset(nextOffset);
       setHasMore(data.length === PAGE_SIZE);
     } catch (err) {
       if ((err as Error)?.name === "AbortError") return;
-      throw err;
+      setHasMore(false);
+      toast.error("Could not load more articles");
     } finally {
-      if (!controller.signal.aborted) setLoadingMore(false);
+      if (loadMoreAbortRef.current === controller) {
+        loadMoreAbortRef.current = null;
+        setLoadingMore(false);
+      }
     }
   }
 
@@ -231,34 +270,115 @@ function ReaderContent() {
   }
 
   async function handleStar(id: string, starred: boolean) {
+    const previous =
+      articleList.find((article) => article.id === id)?.isStarred ??
+      (activeArticle?.id === id ? activeArticle.isStarred : !starred);
+    const mutationKey = `${id}:starred`;
+    const version = (articleMutationVersionRef.current.get(mutationKey) ?? 0) + 1;
+    articleMutationVersionRef.current.set(mutationKey, version);
     setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isStarred: starred } : a)));
     if (activeArticle?.id === id) {
       setActiveArticle((prev) => (prev ? { ...prev, isStarred: starred } : prev));
     }
-    await patchArticle(id, { isStarred: starred });
+    try {
+      await patchArticle(id, { isStarred: starred });
+    } catch {
+      if (articleMutationVersionRef.current.get(mutationKey) !== version) return;
+      setArticleList((prev) =>
+        prev.map((article) => (article.id === id ? { ...article, isStarred: previous } : article)),
+      );
+      setActiveArticle((current) =>
+        current?.id === id ? { ...current, isStarred: previous } : current,
+      );
+      toast.error("Could not update star");
+    }
   }
 
   async function handleMarkRead(id: string, read: boolean) {
-    const article = articleList.find((a) => a.id === id);
-    const wasRead = article?.isRead ?? false;
+    const listArticle = articleList.find((a) => a.id === id);
+    const detailArticle = activeArticle?.id === id ? activeArticle : undefined;
+    const sourceArticle = listArticle ?? detailArticle;
+    const wasRead = sourceArticle?.isRead ?? false;
+    const mutationKey = `${id}:read`;
+    const version = (articleMutationVersionRef.current.get(mutationKey) ?? 0) + 1;
+    articleMutationVersionRef.current.set(mutationKey, version);
     setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: read } : a)));
     if (activeArticle?.id === id) {
       setActiveArticle((prev) => (prev ? { ...prev, isRead: read } : prev));
     }
-    if (article && wasRead !== read) {
-      dispatchUnreadDelta(article.feedId, read ? -1 : 1);
+    if (sourceArticle && wasRead !== read) {
+      dispatchUnreadDelta(sourceArticle.feedId, read ? -1 : 1);
     }
-    await patchArticle(id, { isRead: read });
+    try {
+      await patchArticle(id, { isRead: read });
+    } catch {
+      if (articleMutationVersionRef.current.get(mutationKey) !== version) return;
+      setArticleList((prev) =>
+        prev.map((article) => (article.id === id ? { ...article, isRead: wasRead } : article)),
+      );
+      setActiveArticle((current) =>
+        current?.id === id ? { ...current, isRead: wasRead } : current,
+      );
+      if (sourceArticle && wasRead !== read) {
+        dispatchUnreadDelta(sourceArticle.feedId, read ? 1 : -1);
+      }
+      toast.error("Could not update read status");
+    }
   }
 
   async function handleMarkAllRead() {
+    if (tagId || view === "starred" || markingAllRead) return;
     const params = new URLSearchParams();
     if (feedId) params.set("feedId", feedId);
     if (folderId) params.set("folderId", folderId);
-    await fetch(`/api/articles/mark-all-read?${params}`, { method: "POST" });
-    setArticleList((prev) => prev.map((a) => ({ ...a, isRead: true })));
-    dispatchMarkAllRead(feedId, folderId);
-    toast.success("Marked all as read");
+    setMarkingAllRead(true);
+    try {
+      const response = await fetch(`/api/articles/mark-all-read?${params}`, { method: "POST" });
+      const body = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+      } | null;
+      if (!response.ok || !body?.success) {
+        throw new Error(body?.error ?? "Failed to mark articles as read");
+      }
+      setArticleList((prev) => prev.map((a) => ({ ...a, isRead: true })));
+      dispatchMarkAllRead(feedId, folderId);
+      toast.success("Marked all as read");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to mark articles as read");
+    } finally {
+      setMarkingAllRead(false);
+    }
+  }
+
+  const hasActive = Boolean(articleId);
+  const detailReady = activeArticle?.id === articleId;
+
+  function renderActiveReader(contextLabel: string) {
+    if (!articleId) return null;
+    if (detailReady && activeArticle) {
+      return (
+        <ArticleReader
+          article={{
+            ...activeArticle,
+            publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null,
+            createdAt: activeArticle.createdAt ? new Date(activeArticle.createdAt) : null,
+          }}
+          onMarkRead={handleMarkRead}
+          onStar={handleStar}
+          onBack={closeArticle}
+          contextLabel={contextLabel}
+          autoSummarize={autoSummarize ?? false}
+        />
+      );
+    }
+    if (articleError) {
+      return (
+        <ArticleDetailError error={articleError} onRetry={retryArticle} onBack={closeArticle} />
+      );
+    }
+    if (articleLoading) return <ReaderSkeleton />;
+    return <ReaderSkeleton />;
   }
 
   // Search results view. Shares the same two-pane container as the default
@@ -267,10 +387,10 @@ function ReaderContent() {
   if (inSearchMode) {
     return (
       <div className="flex h-full">
-        <div className={cn("shrink-0", activeArticle ? "hidden md:block" : "w-full md:w-auto")}>
+        <div className={cn("shrink-0", hasActive ? "hidden xl:block" : "w-full xl:w-auto")}>
           <SearchResultsPage
             search={search!}
-            activeArticle={activeArticle as Article | null}
+            activeArticle={detailReady ? (activeArticle as Article | null) : null}
             onSelect={handleSelect}
             onStar={handleStar}
             articleList={articleList}
@@ -282,22 +402,11 @@ function ReaderContent() {
         <div
           className={cn(
             "flex-1 min-w-0 overflow-hidden border-l border-border",
-            !activeArticle && "hidden md:block",
+            !hasActive && "hidden xl:block",
           )}
         >
-          {activeArticle ? (
-            <ArticleReader
-              article={{
-                ...activeArticle,
-                publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null,
-                createdAt: activeArticle.createdAt ? new Date(activeArticle.createdAt) : null,
-              }}
-              onMarkRead={handleMarkRead}
-              onStar={handleStar}
-              onBack={closeArticle}
-              contextLabel={`"${search}"`}
-              autoSummarize={autoSummarize ?? false}
-            />
+          {hasActive ? (
+            renderActiveReader(`"${search}"`)
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
               <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
@@ -324,21 +433,8 @@ function ReaderContent() {
             <NewsDashboard onSelectArticle={handleDashboardSelect} />
           </div>
         </div>
-        <ArticleDrawer open={Boolean(activeArticle)} onClose={closeArticle}>
-          {activeArticle && (
-            <ArticleReader
-              article={{
-                ...activeArticle,
-                publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null,
-                createdAt: activeArticle.createdAt ? new Date(activeArticle.createdAt) : null,
-              }}
-              onMarkRead={handleMarkRead}
-              onStar={handleStar}
-              onBack={closeArticle}
-              contextLabel="Today's News"
-              autoSummarize={autoSummarize ?? false}
-            />
-          )}
+        <ArticleDrawer open={hasActive} onClose={closeArticle}>
+          {renderActiveReader("Today's News")}
         </ArticleDrawer>
       </>
     );
@@ -362,14 +458,20 @@ function ReaderContent() {
       {isPending && (
         <div className="size-3 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
       )}
-      {articleList.some((a) => !a.isRead) && (
+      {!tagId && view !== "starred" && articleList.some((a) => !a.isRead) && (
         <button
           type="button"
           onClick={handleMarkAllRead}
+          disabled={markingAllRead}
           title="Mark all read"
-          className="size-7 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+          aria-label="Mark all read"
+          className="inline-flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50 md:size-7"
         >
-          <CheckCheck className="size-3.5" />
+          {markingAllRead ? (
+            <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          ) : (
+            <CheckCheck className="size-3.5" />
+          )}
         </button>
       )}
     </>
@@ -379,9 +481,6 @@ function ReaderContent() {
   // otherwise the slide-in animation waits for the article fetch to resolve,
   // which the user perceives as click lag. The reader slot renders a
   // skeleton until the fetch lands.
-  const hasActive = Boolean(articleId);
-  const detailReady = activeArticle?.id === articleId;
-
   return (
     <ListReaderShell
       hasActive={hasActive}
@@ -398,6 +497,8 @@ function ReaderContent() {
           onSelect={handleSelect}
           layout={hasActive ? "compact" : "grid"}
           loading={isPending && articleList.length === 0}
+          error={listError}
+          onRetry={() => setReloadKey((key) => key + 1)}
           hasMore={hasMore}
           loadingMore={loadingMore}
           onLoadMore={handleLoadMore}
@@ -409,25 +510,42 @@ function ReaderContent() {
           }
         />
       }
-      reader={
-        detailReady && activeArticle ? (
-          <ArticleReader
-            article={{
-              ...activeArticle,
-              publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null,
-              createdAt: activeArticle.createdAt ? new Date(activeArticle.createdAt) : null,
-            }}
-            onMarkRead={handleMarkRead}
-            onStar={handleStar}
-            onBack={closeArticle}
-            contextLabel={viewTitle}
-            autoSummarize={autoSummarize ?? false}
-          />
-        ) : (
-          <ReaderSkeleton />
-        )
-      }
+      reader={renderActiveReader(viewTitle)}
     />
+  );
+}
+
+function ArticleDetailError({
+  error,
+  onRetry,
+  onBack,
+}: {
+  error: string;
+  onRetry: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center"
+    >
+      <div className="flex size-14 items-center justify-center rounded-lg bg-destructive/10">
+        <CircleAlert className="size-6 text-destructive" />
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Could not open this article</p>
+        <p className="text-xs text-muted-foreground">{error}</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button type="button" size="sm" onClick={onRetry}>
+          <RefreshCw className="size-4" />
+          Retry
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onBack}>
+          Back to list
+        </Button>
+      </div>
+    </div>
   );
 }
 

@@ -66,14 +66,15 @@ export function SortableFolderGroup(props: FolderGroupProps) {
         <SidebarGroupLabel
           className={cn(
             "group/folder flex items-center justify-between pr-1 text-xs uppercase tracking-wider text-muted-foreground/70",
-            isActiveFolder && "text-foreground",
+            isActiveFolder && "bg-primary/10 text-foreground shadow-[inset_2px_0_0_var(--primary)]",
           )}
         >
           <button
             type="button"
             {...listeners}
             onClick={() => onToggle(folder.id)}
-            className="flex items-center gap-1 flex-1 min-w-0 cursor-grab active:cursor-grabbing select-none"
+            aria-expanded={!isCollapsed}
+            className="flex flex-1 min-w-0 cursor-grab items-center gap-1 rounded-sm outline-none select-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             title="Click to toggle, drag to reorder"
           >
             <ChevronRight
@@ -86,16 +87,16 @@ export function SortableFolderGroup(props: FolderGroupProps) {
           </button>
           <div className="flex items-center gap-1 shrink-0">
             {unreadCount > 0 && (
-              <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium tabular-nums text-primary">
                 {unreadCount}
               </span>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger
-                render={<span />}
-                nativeButton={false}
-                className="opacity-0 group-hover/folder:opacity-100 size-5 inline-flex items-center justify-center rounded-md hover:bg-accent transition-opacity cursor-pointer"
-                onClick={(e) => e.stopPropagation()}
+                render={<button type="button" />}
+                aria-label={`Actions for ${folder.name}`}
+                title={`Actions for ${folder.name}`}
+                className="size-5 inline-flex items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-accent hover:text-sidebar-accent-foreground aria-expanded:text-sidebar-accent-foreground outline-none focus-visible:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               >
                 <MoreHorizontal className="size-3" />
               </DropdownMenuTrigger>
@@ -147,7 +148,7 @@ export function SortableFolderGroup(props: FolderGroupProps) {
                   />
                 ))
               ) : (
-                <li className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
+                <li className="px-2 py-1 text-xs italic text-muted-foreground">
                   Empty — drag a feed in or use Move to folder.
                 </li>
               )}

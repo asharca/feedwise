@@ -25,8 +25,10 @@ function SettingRow({
   return (
     <div
       className={cn(
-        "flex gap-4 py-3",
-        stacked ? "flex-col" : "items-center justify-between",
+        "flex gap-3 py-3.5",
+        stacked
+          ? "flex-col"
+          : "flex-col items-stretch sm:flex-row sm:items-center sm:justify-between sm:gap-6",
         className,
       )}
     >
@@ -34,7 +36,7 @@ function SettingRow({
         <p className="text-sm font-medium leading-none">{title}</p>
         {description && <p className="text-xs text-muted-foreground">{description}</p>}
       </div>
-      {control && <div className="shrink-0">{control}</div>}
+      {control && <div className="w-full shrink-0 sm:w-auto">{control}</div>}
       {children}
     </div>
   );

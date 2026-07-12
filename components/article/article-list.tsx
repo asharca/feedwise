@@ -35,8 +35,8 @@ interface ArticleListProps {
   loadingMore?: boolean;
   onLoadMore?: () => void;
   searchQuery?: string;
+  scrollRoot?: HTMLElement | null;
 }
-
 
 export function ArticleList({
   articles,
@@ -48,6 +48,7 @@ export function ArticleList({
   loadingMore,
   onLoadMore,
   searchQuery,
+  scrollRoot: externalScrollRoot,
 }: ArticleListProps) {
   // Callback ref state so InfiniteScrollSentinel can use the actual scroll
   // container (not the viewport) as the IntersectionObserver root — the list
@@ -67,7 +68,7 @@ export function ArticleList({
 
   if (compact) {
     return (
-      <div ref={setScrollRoot} className="overflow-y-auto h-full scrollbar-thin">
+      <div>
         <div className="flex flex-col gap-px p-1.5">
           {articles.map((article) => (
             <div
@@ -75,8 +76,15 @@ export function ArticleList({
               role="button"
               tabIndex={0}
               onClick={() => onSelect(article.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(article.id);
+                }
+              }}
+              aria-label={`Read ${article.title ?? "untitled article"}`}
               className={cn(
-                "group relative flex gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-100",
+                "group relative flex cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 outline-none transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-ring",
                 activeId === article.id ? "bg-accent" : "hover:bg-accent/50",
                 article.isRead && activeId !== article.id && "opacity-55",
               )}
@@ -95,18 +103,18 @@ export function ArticleList({
                       className="size-3 rounded-sm shrink-0"
                     />
                   )}
-                  <span className="text-[10px] text-muted-foreground/70 truncate">
+                  <span className="truncate text-xs text-muted-foreground">
                     {article.feedTitle ?? "Unknown"}
                   </span>
                   {displayedAt(article) && (
-                    <span className="text-[10px] text-muted-foreground/50 shrink-0 ml-auto">
+                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                       {formatDistanceToNow(displayedAt(article)!, { addSuffix: false })}
                     </span>
                   )}
                 </div>
                 <p
                   className={cn(
-                    "text-[12px] leading-snug line-clamp-2",
+                    "line-clamp-2 text-sm leading-snug",
                     !article.isRead ? "font-semibold" : "font-normal text-foreground/75",
                   )}
                 >
@@ -133,7 +141,7 @@ export function ArticleList({
           hasMore={hasMore}
           loadingMore={loadingMore}
           onLoadMore={onLoadMore}
-          root={scrollRoot}
+          root={externalScrollRoot}
         />
       </div>
     );
@@ -141,7 +149,7 @@ export function ArticleList({
 
   return (
     <div ref={setScrollRoot} className="overflow-y-auto h-full scrollbar-thin">
-      <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-2.5 p-3 sm:p-4">
         {articles.map((article, index) => (
           <CardEnter key={article.id} index={index}>
             <ArticleCard
@@ -184,7 +192,7 @@ function InfiniteScrollSentinel({
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!hasMore || !onLoadMore) return;
+    if (!hasMore || !onLoadMore || !root) return;
     const target = sentinelRef.current;
     if (!target) return;
 
@@ -196,7 +204,7 @@ function InfiniteScrollSentinel({
           }
         }
       },
-      { root: root ?? null, rootMargin: "400px 0px" },
+      { root, rootMargin: "400px 0px" },
     );
     observer.observe(target);
     return () => observer.disconnect();

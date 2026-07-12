@@ -30,7 +30,20 @@ function Inner() {
     router.replace(q ? `${pathname}?${q}` : pathname);
   }
 
-  return <SettingsDialog open={open} onOpenChange={handleOpenChange} initialSection={section} />;
+  function handleSectionChange(next: SettingsSectionKey) {
+    const p = new URLSearchParams(searchParams.toString());
+    p.set("settings", next);
+    router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+  }
+
+  return (
+    <SettingsDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      initialSection={section}
+      onSectionChange={handleSectionChange}
+    />
+  );
 }
 
 /**

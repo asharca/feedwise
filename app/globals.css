@@ -56,7 +56,7 @@
   --card-foreground: oklch(0.18 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0 0);
-  --primary: oklch(0.58 0.2 252);
+  --primary: oklch(0.54 0.2 252);
   --primary-foreground: oklch(0.98 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.25 0 0);
@@ -66,25 +66,29 @@
   --accent-foreground: oklch(0.25 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.92 0 0);
-  --input: oklch(0.92 0 0);
-  --ring: oklch(0.58 0.2 252);
-  --chart-1: oklch(0.58 0.2 252);
+  --input: oklch(0.86 0 0);
+  --ring: oklch(0.54 0.2 252);
+  --chart-1: oklch(0.54 0.2 252);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.375rem;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
   /* Restrained motion (Linear/Vercel-style easeOut). Single source of truth
      for entrance/transition easing across the app. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.18 0 0);
-  --sidebar-primary: oklch(0.58 0.2 252);
+  --sidebar-primary: oklch(0.54 0.2 252);
   --sidebar-primary-foreground: oklch(0.98 0 0);
   --sidebar-accent: oklch(0.95 0 0);
   --sidebar-accent-foreground: oklch(0.25 0 0);
   --sidebar-border: oklch(0.92 0 0);
-  --sidebar-ring: oklch(0.58 0.2 252);
+  --sidebar-ring: oklch(0.54 0.2 252);
 }
 
 /* ─── Dark Theme ─── */
@@ -95,8 +99,8 @@
   --card-foreground: oklch(0.97 0 0);
   --popover: oklch(0.165 0 0);
   --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.62 0.19 252);
-  --primary-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.68 0.16 252);
+  --primary-foreground: oklch(0.16 0 0);
   --secondary: oklch(0.22 0 0);
   --secondary-foreground: oklch(0.97 0 0);
   --muted: oklch(0.22 0 0);
@@ -105,21 +109,21 @@
   --accent-foreground: oklch(0.97 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.62 0.19 252);
-  --chart-1: oklch(0.62 0.19 252);
+  --input: oklch(1 0 0 / 20%);
+  --ring: oklch(0.68 0.16 252);
+  --chart-1: oklch(0.68 0.16 252);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.1 0 0);
   --sidebar-foreground: oklch(0.97 0 0);
-  --sidebar-primary: oklch(0.62 0.19 252);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.68 0.16 252);
+  --sidebar-primary-foreground: oklch(0.16 0 0);
   --sidebar-accent: oklch(0.2 0 0);
   --sidebar-accent-foreground: oklch(0.97 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.62 0.19 252);
+  --sidebar-ring: oklch(0.68 0.16 252);
 }
 
 @layer base {
@@ -131,11 +135,45 @@
   }
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 28%, transparent);
+    color: var(--foreground);
+  }
+  :where(a, button, input, select, textarea, summary, [role="button"]):focus-visible {
+    scroll-margin-block: 1rem;
+  }
+  :where(a, button, input, select, textarea, summary, [role="button"]):not(
+      [data-slot]
+    ):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 
 /* ─── Layout utilities ─── */
 @layer utilities {
+  .reader-app-shell {
+    height: 100vh;
+    height: 100svh;
+    height: 100dvh;
+    padding-block: var(--safe-area-top) var(--safe-area-bottom);
+  }
+  .reader-app-shell > [data-slot="sidebar-inset"] {
+    padding-inline: var(--safe-area-left) var(--safe-area-right);
+  }
+  .reader-app-shell [data-slot="sidebar-container"] {
+    top: var(--safe-area-top);
+    bottom: var(--safe-area-bottom);
+    height: auto;
+  }
+  .reader-app-shell [data-slot="sidebar-container"][data-side="left"] {
+    padding-left: var(--safe-area-left);
+  }
+  .reader-app-shell [data-slot="sidebar-container"][data-side="right"] {
+    padding-right: var(--safe-area-right);
+  }
   .glass {
     background: color-mix(in oklch, var(--background) 80%, transparent);
     backdrop-filter: blur(8px);
@@ -143,9 +181,11 @@
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: var(--muted-foreground) transparent;
+    scrollbar-gutter: stable;
   }
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
   }
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
@@ -161,17 +201,49 @@
 
 /* ─── Article content typography ─────────────────────────────── */
 .article-content {
+  max-width: 100%;
+  min-width: 0;
   line-height: 1.75;
   font-size: 1rem;
+  overflow-wrap: anywhere;
 }
 .article-content p {
   margin-bottom: 1.25em;
 }
-.article-content img {
+.article-content img,
+.article-content video {
+  display: block;
   border-radius: var(--radius-lg);
   margin: 1.5em 0;
+  width: auto;
   max-width: 100%;
   height: auto;
+}
+.article-content iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: 1.5em 0;
+  border: 0;
+}
+.article-content figure,
+.article-content svg,
+.article-content canvas,
+.article-content audio {
+  max-width: 100%;
+}
+.article-content figure {
+  margin-inline: 0;
+}
+.article-content table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  -webkit-overflow-scrolling: touch;
 }
 .article-content a {
   color: var(--primary);
@@ -179,6 +251,7 @@
   text-underline-offset: 2px;
   text-decoration-color: var(--border);
   transition: text-decoration-color 150ms;
+  overflow-wrap: anywhere;
 }
 .article-content a:hover {
   text-decoration-color: var(--primary);
@@ -191,16 +264,30 @@
   font-style: italic;
 }
 .article-content pre {
+  max-width: 100%;
   background: var(--muted);
   border-radius: 0.5rem;
   padding: 1em;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  overflow-wrap: normal;
+  word-break: normal;
+  -webkit-overflow-scrolling: touch;
   font-size: 0.875em;
   margin: 1.5em 0;
 }
 .article-content code {
   font-family: var(--font-mono);
   font-size: 0.9em;
+}
+.article-content :not(pre) > code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.article-content pre code {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .article-content h1,
 .article-content h2,
@@ -238,6 +325,27 @@
   background: var(--primary);
   transition: width 100ms ease-out;
   z-index: 10;
+}
+
+/* Preserve compact toolbars while removing avoidable touch delays. Switches
+   get a larger invisible hit area because their visual track is only 36x20px. */
+@media (pointer: coarse) {
+  :where(a, button, input, select, textarea, [role="button"]) {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  [data-slot="switch"]::after {
+    content: "";
+    position: absolute;
+    inset: -12px -4px;
+  }
+}
+
+/* The mobile sidebar is portalled outside the reader shell. */
+[data-mobile="true"][data-sidebar="sidebar"] {
+  padding-block: var(--safe-area-top) var(--safe-area-bottom);
+  padding-inline: var(--safe-area-left) var(--safe-area-right);
 }
 
 /* ─── Reduced motion ─────────────────────────────────────────────

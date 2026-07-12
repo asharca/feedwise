@@ -67,7 +67,7 @@ export function SidebarNav({ totalUnread }: SidebarNavProps) {
                 />
                 <span className="flex-1">{label}</span>
                 {key === "unread" && totalUnread > 0 && (
-                  <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium tabular-nums text-primary">
                     {totalUnread}
                   </span>
                 )}

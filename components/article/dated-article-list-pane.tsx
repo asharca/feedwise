@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { formatDistanceToNow } from "date-fns";
-import { Inbox, Search as SearchIcon, Star, X } from "lucide-react";
+import { CircleAlert, Inbox, RefreshCw, Search as SearchIcon, Star, X } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
 import { cn, proxyImg } from "@/lib/utils";
 import { CardEnter } from "@/components/motion/card-enter";
 import { ArticleCard } from "./article-card";
@@ -50,6 +51,8 @@ interface Props {
   layout?: PaneLayout;
 
   loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
@@ -108,6 +111,8 @@ export function DatedArticleListPane({
   activeId,
   onSelect,
   loading,
+  error,
+  onRetry,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -155,13 +160,13 @@ export function DatedArticleListPane({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={searchPlaceholder}
-            className="w-full h-9 pl-8 pr-8 rounded-md border border-border bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30"
+            className="h-11 w-full rounded-md border border-input bg-background pl-8 pr-11 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 md:h-9 md:pr-9 md:text-sm"
           />
           {search && (
             <button
               type="button"
               onClick={() => onSearchChange("")}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 size-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground"
+              className="absolute right-0 top-1/2 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring md:right-0.5 md:size-9"
               aria-label="Clear filter"
             >
               <X className="size-3.5" />
@@ -172,8 +177,28 @@ export function DatedArticleListPane({
 
       <div ref={setScrollRoot} className="flex-1 overflow-y-auto scrollbar-thin">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
+          <div className="flex items-center justify-center gap-2 py-16" role="status">
             <div className="size-5 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
+            <span className="sr-only">Loading articles</span>
+          </div>
+        ) : error ? (
+          <div
+            role="alert"
+            className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 py-16 text-center"
+          >
+            <div className="flex size-12 items-center justify-center rounded-lg bg-destructive/10">
+              <CircleAlert className="size-5 text-destructive" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Could not load articles</p>
+              <p className="max-w-xs text-xs text-muted-foreground">{error}</p>
+            </div>
+            {onRetry && (
+              <Button type="button" variant="outline" onClick={onRetry}>
+                <RefreshCw className="size-4" />
+                Retry
+              </Button>
+            )}
           </div>
         ) : articles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-4 text-muted-foreground gap-2 text-center">
@@ -197,44 +222,44 @@ export function DatedArticleListPane({
               className={cn("pb-8", layout === "grid" ? "px-4" : "px-2")}
             >
               {grouped.map((g) => (
-              <section key={g.key} className="mt-4 first:mt-2">
-                <h3
-                  className={cn(
-                    "text-[11px] uppercase tracking-wider text-muted-foreground/70 font-medium pb-1.5 sticky top-0 bg-background z-10",
-                    layout === "grid" ? "px-1" : "px-2",
+                <section key={g.key} className="mt-4 first:mt-2">
+                  <h3
+                    className={cn(
+                      "sticky top-0 z-10 bg-background pb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground",
+                      layout === "grid" ? "px-1" : "px-2",
+                    )}
+                  >
+                    {g.label}
+                  </h3>
+                  {layout === "grid" ? (
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
+                      {g.rows.map((item, i) => (
+                        <CardEnter key={item.id} index={i}>
+                          <ArticleCard
+                            article={item}
+                            active={activeId === item.id}
+                            onSelect={onSelect}
+                            displayedAt={pickDate(item, dateField)}
+                          />
+                        </CardEnter>
+                      ))}
+                    </div>
+                  ) : (
+                    <ul className="space-y-0.5">
+                      {g.rows.map((item) => (
+                        <li key={item.id}>
+                          <DatedArticleRow
+                            item={item}
+                            dateField={dateField}
+                            active={activeId === item.id}
+                            onOpen={() => onSelect(item.id)}
+                          />
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                >
-                  {g.label}
-                </h3>
-                {layout === "grid" ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {g.rows.map((item, i) => (
-                      <CardEnter key={item.id} index={i}>
-                        <ArticleCard
-                          article={item}
-                          active={activeId === item.id}
-                          onSelect={onSelect}
-                          displayedAt={pickDate(item, dateField)}
-                        />
-                      </CardEnter>
-                    ))}
-                  </div>
-                ) : (
-                  <ul className="space-y-0.5">
-                    {g.rows.map((item) => (
-                      <li key={item.id}>
-                        <DatedArticleRow
-                          item={item}
-                          dateField={dateField}
-                          active={activeId === item.id}
-                          onOpen={() => onSelect(item.id)}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            ))}
+                </section>
+              ))}
               <InfiniteScrollSentinel
                 hasMore={hasMore}
                 loadingMore={loadingMore}
@@ -313,7 +338,7 @@ function DatedArticleRow({
       type="button"
       onClick={onOpen}
       className={cn(
-        "w-full text-left flex items-start gap-3 p-2.5 rounded-md transition-colors group relative",
+        "group relative flex w-full items-start gap-3 rounded-md p-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
         !active && isRead && "opacity-60",
       )}
@@ -349,4 +374,3 @@ function DatedArticleRow({
     </button>
   );
 }
-

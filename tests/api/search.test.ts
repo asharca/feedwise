@@ -26,28 +26,32 @@ function makeReq(qs: string): Request {
   return new Request("https://test.local/api/search?" + qs);
 }
 
+function callGet(qs: string) {
+  return GET(makeReq(qs), { params: Promise.resolve({}) });
+}
+
 describe("GET /api/search", () => {
   it("returns 401 when unauthenticated", async () => {
     vi.mocked(requireSession).mockRejectedValueOnce(new Error("nope"));
-    const res = await GET(makeReq("q=async"));
+    const res = await callGet("q=async");
     expect(res.status).toBe(401);
   });
 
   it("returns 400 when q is missing", async () => {
     vi.mocked(requireSession).mockResolvedValueOnce(mockSession as never);
-    const res = await GET(makeReq(""));
+    const res = await callGet("");
     expect(res.status).toBe(400);
   });
 
   it("returns 400 when q is empty after trim", async () => {
     vi.mocked(requireSession).mockResolvedValueOnce(mockSession as never);
-    const res = await GET(makeReq("q=%20%20"));
+    const res = await callGet("q=%20%20");
     expect(res.status).toBe(400);
   });
 
   it("returns 400 when q is too long", async () => {
     vi.mocked(requireSession).mockResolvedValueOnce(mockSession as never);
-    const res = await GET(makeReq("q=" + "a".repeat(501)));
+    const res = await callGet("q=" + "a".repeat(501));
     expect(res.status).toBe(400);
   });
 
@@ -74,7 +78,7 @@ describe("GET /api/search", () => {
       { id: "t1", name: "async", color: null, articleCount: 4 },
     ]);
 
-    const res = await GET(makeReq("q=async"));
+    const res = await callGet("q=async");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
@@ -90,7 +94,7 @@ describe("GET /api/search", () => {
     vi.mocked(searchFeedsByName).mockResolvedValueOnce([]);
     vi.mocked(searchTagsByName).mockRejectedValueOnce(new Error("boom"));
 
-    const res = await GET(makeReq("q=async"));
+    const res = await callGet("q=async");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data.tags).toEqual([]);

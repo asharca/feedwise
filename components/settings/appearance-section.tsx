@@ -57,6 +57,7 @@ export function AppearanceSection({ theme, mounted, onSelect }: Props) {
               value={mounted ? (theme ?? "system") : "system"}
               options={themeOptions}
               onChange={onSelect}
+              aria-label="Theme"
             />
           }
         />

@@ -74,7 +74,7 @@ function FeedMeta({
   relTime: string | null;
 }) {
   return (
-    <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
+    <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
       {feedIconUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={proxyImg(feedIconUrl, 96)} alt="" decoding="async" className="size-3 rounded-sm shrink-0" />
@@ -133,21 +133,22 @@ export function ArticleCard({
     : null;
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(article.id)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onSelect(article.id);
-      }}
+    <article
       className={cn(
-        "group relative text-left w-full flex flex-col rounded-lg overflow-hidden border bg-card cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] h-56",
+        "group relative flex h-60 w-full flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors duration-200 ease-[var(--ease-out)] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30",
         active
           ? "border-primary ring-1 ring-primary/30"
           : "border-border hover:border-foreground/30",
         !active && isRead && "opacity-60",
       )}
     >
+      <button
+        type="button"
+        onClick={() => onSelect(article.id)}
+        aria-label={`Read ${article.title ?? "untitled article"}`}
+        className="absolute inset-0 z-10 rounded-lg outline-none"
+      />
+
       {/* Unread indicator dot */}
       {!isRead && !active && (
         <span className="absolute top-2.5 left-2.5 size-1.5 rounded-full bg-primary z-10" />
@@ -165,7 +166,7 @@ export function ArticleCard({
             onError={() => setImgFailed(true)}
             className="w-full h-32 object-cover shrink-0"
           />
-          <div className="flex flex-col flex-1 overflow-hidden p-3">
+          <div className="pointer-events-none flex flex-1 flex-col overflow-hidden p-3">
             <FeedMeta
               feedIconUrl={article.feedIconUrl}
               feedTitle={article.feedTitle}
@@ -173,7 +174,7 @@ export function ArticleCard({
             />
             <h4
               className={cn(
-                "text-[13px] leading-snug line-clamp-2 mt-1.5",
+                "mt-1.5 line-clamp-2 text-sm leading-snug",
                 !isRead
                   ? "font-semibold text-foreground"
                   : "font-medium text-foreground/80",
@@ -186,7 +187,7 @@ export function ArticleCard({
         </>
       ) : (
         /* ── Text card: full height, more content shown ── */
-        <div className="flex flex-col h-full p-4">
+        <div className="pointer-events-none flex h-full flex-col p-4">
           <FeedMeta
             feedIconUrl={article.feedIconUrl}
             feedTitle={article.feedTitle}
@@ -194,7 +195,7 @@ export function ArticleCard({
           />
           <h4
             className={cn(
-              "text-[13px] leading-snug line-clamp-4 mt-2",
+              "mt-2 line-clamp-4 text-sm leading-snug",
               !isRead
                 ? "font-semibold text-foreground"
                 : "font-medium text-foreground/80",
@@ -204,7 +205,7 @@ export function ArticleCard({
             <Highlight text={article.title ?? "(untitled)"} query={searchQuery} />
           </h4>
           {excerpt && (
-            <p className="text-[11px] text-muted-foreground/70 leading-relaxed line-clamp-5 mt-2">
+            <p className="mt-2 line-clamp-5 text-xs leading-relaxed text-muted-foreground">
               {excerpt}
             </p>
           )}
@@ -212,21 +213,24 @@ export function ArticleCard({
       )}
 
       {/* Star: badge if starred, hover button if onStar provided */}
-      {article.isStarred ? (
-        <Star className="absolute top-2.5 right-2.5 size-3 fill-yellow-400 text-yellow-400 z-10" />
-      ) : onStar ? (
+      {onStar ? (
         <button
           type="button"
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-accent/80 z-10"
+          className={cn(
+            "absolute right-1.5 top-1.5 z-20 inline-flex size-8 items-center justify-center rounded-md bg-background/85 text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-yellow-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            article.isStarred && "text-yellow-500 opacity-100",
+          )}
           onClick={(e) => {
             e.stopPropagation();
-            onStar(article.id, true);
+            onStar(article.id, !article.isStarred);
           }}
-          aria-label="Star article"
+          aria-label={article.isStarred ? "Unstar article" : "Star article"}
         >
-          <Star className="size-3 text-muted-foreground/40 hover:text-yellow-400 transition-colors" />
+          <Star className={cn("size-4", article.isStarred && "fill-current")} />
         </button>
+      ) : article.isStarred ? (
+        <Star className="absolute right-2.5 top-2.5 z-20 size-3 fill-yellow-400 text-yellow-400" />
       ) : null}
-    </div>
+    </article>
   );
 }

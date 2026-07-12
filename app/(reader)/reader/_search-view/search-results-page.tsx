@@ -45,7 +45,14 @@ export function SearchResultsPage({
   const searchParams = useSearchParams();
   const { data, loading, filters, setFilter, toggleFilter, clearFilters } = usePageSearch(search);
 
-  const articleCount = data?.articles.length ?? 0;
+  const topArticles = data?.articles ?? [];
+  const topArticleIds = new Set(topArticles.map((article) => article.id));
+  const chronologicalArticles = articleList.filter((article) => {
+    if (topArticleIds.has(article.id)) return false;
+    topArticleIds.add(article.id);
+    return true;
+  });
+  const articleCount = topArticleIds.size;
   const feedCount = data?.feeds.length ?? 0;
   const tagCount = data?.tags.length ?? 0;
   const hasAnyHit = articleCount + feedCount + tagCount > 0;
@@ -74,6 +81,7 @@ export function SearchResultsPage({
   // debounce-pushes to URL so the parent re-runs the search. Syncs from prop
   // on back/forward nav or when the user picks a result that changes URL.
   const [query, setQuery] = useState(search);
+  const [resultsScrollRoot, setResultsScrollRoot] = useState<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // The value we most recently pushed to the URL (debounced or committed). The
   // parent feeds the URL back down as `search`; this lets the sync effect tell
@@ -133,8 +141,8 @@ export function SearchResultsPage({
   }
 
   return (
-    <div className="flex flex-col border-r border-border bg-background shrink-0 md:w-[28rem] h-full">
-      <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border">
+    <div className="flex h-full w-full shrink-0 flex-col border-r border-border bg-background xl:w-[28rem]">
+      <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-1 md:h-11 md:gap-2 md:px-3">
         <SidebarTrigger className="md:hidden" />
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/70 pointer-events-none" />
@@ -154,7 +162,7 @@ export function SearchResultsPage({
               }
             }}
             placeholder="Search articles…"
-            className="w-full h-8 pl-8 pr-7 rounded-md border border-border bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30"
+            className="h-11 w-full rounded-md border border-input bg-background pl-8 pr-11 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 md:h-8 md:pr-7 md:text-sm"
           />
           {query && (
             <button
@@ -164,7 +172,7 @@ export function SearchResultsPage({
                 commitQuery("");
                 inputRef.current?.focus();
               }}
-              className="absolute right-1 top-1/2 -translate-y-1/2 size-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground"
+              className="absolute right-0 top-1/2 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring md:right-1 md:size-6"
               aria-label="Clear search"
             >
               <X className="size-3.5" />
@@ -185,7 +193,7 @@ export function SearchResultsPage({
         onToggleFilter={toggleFilter}
         onClearAll={clearFilters}
       />
-      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+      <div ref={setResultsScrollRoot} className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
         {search.trim().length === 0 ? (
           <CenterHint>
             <Search className="size-8 text-muted-foreground/30" />
@@ -224,7 +232,7 @@ export function SearchResultsPage({
                   key={f.feedId}
                   type="button"
                   onClick={() => navigateToFeed(f.feedId)}
-                  className="w-full flex items-center gap-2 py-1.5 px-3 rounded-none hover:bg-accent/50 text-sm text-left transition-colors border-b border-border/50"
+                  className="flex min-h-10 w-full items-center gap-2 rounded-none border-b border-border/50 px-3 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   {f.iconUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -249,7 +257,7 @@ export function SearchResultsPage({
                   key={t.id}
                   type="button"
                   onClick={() => navigateToTag(t.id)}
-                  className="w-full flex items-center gap-2 py-1.5 px-3 rounded-none hover:bg-accent/50 text-sm text-left transition-colors border-b border-border/50"
+                  className="flex min-h-10 w-full items-center gap-2 rounded-none border-b border-border/50 px-3 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   <span
                     className="size-2 rounded-full shrink-0"
@@ -266,7 +274,7 @@ export function SearchResultsPage({
 
             {/* Inline hint when no top-20 hits but feeds/tags do */}
             {data &&
-              data.articles.length === 0 &&
+              topArticles.length === 0 &&
               (data.feeds.length > 0 || data.tags.length > 0) && (
                 <div className="px-3 py-2 text-[11px] text-muted-foreground/80 border-b border-border/50">
                   No articles matched. {data.feeds.length + data.tags.length} feed/tag match
@@ -277,18 +285,18 @@ export function SearchResultsPage({
             {/* Articles: top-20 from /api/search (with snippets) merged with
                 the chronological tail from /api/articles (no snippets).
                 Deduped by id; the top list wins. */}
-            {data && data.articles.length > 0 && (
+            {topArticles.length > 0 && (
               <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                 Articles
               </div>
             )}
-            {data?.articles.map((a) => (
+            {topArticles.map((a) => (
               <button
                 key={`s-${a.id}`}
                 type="button"
                 onClick={() => onSelect(a.id)}
                 className={cn(
-                  "text-left px-3 py-2 border-b border-border/50 hover:bg-accent/50 transition-colors",
+                  "border-b border-border/50 px-3 py-2 text-left outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                   activeArticle?.id === a.id && "bg-accent",
                 )}
               >
@@ -319,17 +327,15 @@ export function SearchResultsPage({
               </button>
             ))}
 
-            {/* Chronological tail — the full list comes from the parent
-                (which already dedupes against the top-20 via articleList). */}
-            {articleList.length > 0 && (
+            {/* Chronological tail — remove every id already rendered in the
+                relevance-ranked top hits, with the top-hit version winning. */}
+            {chronologicalArticles.length > 0 && (
               <>
-                {data && data.articles.length > 0 && (
-                  <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                    More
-                  </div>
-                )}
+                <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {topArticles.length > 0 ? "More" : "Articles"}
+                </div>
                 <ArticleList
-                  articles={articleList.map((a) => ({
+                  articles={chronologicalArticles.map((a) => ({
                     ...a,
                     publishedAt: a.publishedAt ? new Date(a.publishedAt) : null,
                     createdAt: a.createdAt ? new Date(a.createdAt) : null,
@@ -342,6 +348,7 @@ export function SearchResultsPage({
                   loadingMore={loadingMore}
                   onLoadMore={onLoadMore}
                   searchQuery={search}
+                  scrollRoot={resultsScrollRoot}
                 />
               </>
             )}

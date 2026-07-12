@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { Card, CardContent } from "@/components/ui/card";
+import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AppearanceSection } from "@/components/settings/appearance-section";
@@ -46,6 +46,35 @@ interface UserAccount {
   createdAt: string;
 }
 
+type SettingsSource = "feeds" | "email" | "account" | "llm";
+type SourceStatus = "loading" | "ready" | "error";
+
+interface SourceState {
+  status: SourceStatus;
+  error: string | null;
+}
+
+const INITIAL_SOURCE_STATE: Record<SettingsSource, SourceState> = {
+  feeds: { status: "loading", error: null },
+  email: { status: "loading", error: null },
+  account: { status: "loading", error: null },
+  llm: { status: "loading", error: null },
+};
+
+const SOURCE_LABELS: Record<SettingsSource, string> = {
+  feeds: "subscriptions",
+  email: "email digest settings",
+  account: "account details",
+  llm: "Smart Digest settings",
+};
+
+async function requestJson<T>(url: string): Promise<T> {
+  const response = await fetch(url);
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data) throw new Error(`Request failed (${response.status})`);
+  return data as T;
+}
+
 export const SETTINGS_SECTIONS = [
   { key: "appearance", label: "Appearance" },
   { key: "feeds", label: "Feeds" },
@@ -60,11 +89,13 @@ interface SettingsContentProps {
   initialSection?: SettingsSectionKey;
   /** Optional dense layout for use inside a dialog (drops outer padding). */
   variant?: "page" | "dialog";
+  onSectionChange?: (section: SettingsSectionKey) => void;
 }
 
 export function SettingsContent({
   initialSection = "appearance",
   variant = "page",
+  onSectionChange,
 }: SettingsContentProps) {
   const { theme, setTheme } = useTheme();
   const [active, setActive] = useState<SettingsSectionKey>(initialSection);
@@ -90,51 +121,106 @@ export function SettingsContent({
   const [llmSaving, setLlmSaving] = useState(false);
   const [llmTesting, setLlmTesting] = useState(false);
   const [userAccount, setUserAccount] = useState<UserAccount | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [sourceState, setSourceState] =
+    useState<Record<SettingsSource, SourceState>>(INITIAL_SOURCE_STATE);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
+    setActive(initialSection);
+  }, [initialSection]);
+
+  function selectSection(section: SettingsSectionKey) {
+    setActive(section);
+    onSectionChange?.(section);
+  }
+
+  const loadSource = useCallback(async (source: SettingsSource) => {
+    setSourceState((current) => ({
+      ...current,
+      [source]: { status: "loading", error: null },
+    }));
+
+    try {
+      switch (source) {
+        case "feeds": {
+          const data = await requestJson<{ success: boolean; data?: Sub[]; error?: string }>(
+            "/api/feeds",
+          );
+          if (!data.success) throw new Error(data.error ?? "The server rejected the request");
+          setSubs(data.data ?? []);
+          break;
+        }
+        case "email": {
+          const data = await requestJson<{
+            success: boolean;
+            data?: EmailSettings | null;
+            error?: string;
+          }>("/api/settings/email");
+          if (!data.success || !data.data) {
+            throw new Error(data.error ?? "No email settings were returned");
+          }
+          setEmailSettings(data.data);
+          break;
+        }
+        case "account": {
+          const data = await requestJson<{
+            success: boolean;
+            data?: UserAccount | null;
+            error?: string;
+          }>("/api/settings/account");
+          if (!data.success || !data.data) {
+            throw new Error(data.error ?? "No account details were returned");
+          }
+          setUserAccount(data.data);
+          break;
+        }
+        case "llm": {
+          const data = await requestJson<{
+            enabled?: boolean;
+            baseUrl?: string;
+            model?: string;
+            format?: "openai" | "anthropic";
+            apiKeyMask?: string;
+            autoSummarize?: boolean;
+            autoTag?: boolean;
+          }>("/api/email/llm/config");
+          setLlmEnabled(!!data.enabled);
+          setLlmBaseUrl(data.baseUrl ?? "");
+          setLlmModel(data.model ?? "");
+          setLlmFormat(data.format ?? "openai");
+          setLlmKeyMask(data.apiKeyMask ?? "");
+          setLlmAutoSummarize(data.autoSummarize ?? true);
+          setLlmAutoTag(data.autoTag ?? false);
+          break;
+        }
+      }
+
+      setSourceState((current) => ({
+        ...current,
+        [source]: { status: "ready", error: null },
+      }));
+    } catch (error) {
+      setSourceState((current) => ({
+        ...current,
+        [source]: {
+          status: "error",
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+      }));
+    }
+  }, []);
+
+  useEffect(() => {
     if (loadedOnceRef.current) return;
     loadedOnceRef.current = true;
 
-    Promise.all([
-      fetch("/api/feeds")
-        .then((r) => r.json())
-        .catch(() => ({ success: false })),
-      fetch("/api/settings/email")
-        .then((r) => r.json())
-        .catch(() => ({ success: false })),
-      fetch("/api/settings/account")
-        .then((r) => r.json())
-        .catch(() => ({ success: false })),
-      fetch("/api/email/llm/config")
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
-    ])
-      .then(([feedsData, emailData, accountData, llmData]) => {
-        if (feedsData.success) setSubs(feedsData.data || []);
-        if (emailData.success) setEmailSettings(emailData.data);
-        if (accountData.success) setUserAccount(accountData.data);
-        if (llmData) {
-          setLlmEnabled(!!llmData.enabled);
-          setLlmBaseUrl(llmData.baseUrl ?? "");
-          setLlmModel(llmData.model ?? "");
-          setLlmFormat(llmData.format ?? "openai");
-          setLlmKeyMask(llmData.apiKeyMask ?? "");
-          setLlmAutoSummarize(llmData.autoSummarize ?? true);
-          setLlmAutoTag(llmData.autoTag ?? false);
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setError("Failed to load settings");
-        setLoading(false);
-      });
-  }, []);
+    void Promise.allSettled(
+      (["feeds", "email", "account", "llm"] as const).map((source) => loadSource(source)),
+    );
+  }, [loadSource]);
 
   async function saveLlmConfig() {
     setLlmSaving(true);
@@ -192,15 +278,19 @@ export function SettingsContent({
   }
 
   async function handleExportOPML() {
-    const res = await fetch("/api/opml/export");
-    if (!res.ok) return;
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "feedwise-subscriptions.opml";
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const res = await fetch("/api/opml/export");
+      if (!res.ok) throw new Error("Could not export subscriptions");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "feedwise-subscriptions.opml";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not export subscriptions");
+    }
   }
 
   async function handleImportOPML() {
@@ -212,9 +302,16 @@ export function SettingsContent({
       if (!file) return;
       const formData = new FormData();
       formData.append("file", file);
-      await fetch("/api/opml/import", { method: "POST", body: formData });
+      const importResponse = await fetch("/api/opml/import", { method: "POST", body: formData });
+      if (!importResponse.ok) {
+        toast.error("Could not import subscriptions");
+        return;
+      }
       const data = await fetch("/api/feeds").then((r) => r.json());
-      if (data.success) setSubs(data.data);
+      if (data.success) {
+        setSubs(data.data);
+        toast.success("Subscriptions imported");
+      }
     };
     input.click();
   }
@@ -223,18 +320,26 @@ export function SettingsContent({
     if (syncing) return;
     setSyncing(true);
     try {
-      await fetch("/api/feeds/sync", { method: "POST" });
+      const response = await fetch("/api/feeds/sync", { method: "POST" });
+      if (!response.ok) throw new Error("Could not start feed sync");
+      toast.success("Feed sync started");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not start feed sync");
     } finally {
-      setTimeout(() => setSyncing(false), 2000);
+      setSyncing(false);
     }
   }
 
   async function handleIntervalChange(sub: Sub, minutes: number) {
-    await fetch(`/api/feeds/${sub.id}`, {
+    const response = await fetch(`/api/feeds/${sub.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fetchIntervalMinutes: minutes }),
     });
+    if (!response.ok) {
+      toast.error("Could not update refresh interval");
+      return;
+    }
     setSubs((prev) =>
       prev.map((s) => (s.id === sub.id ? { ...s, fetchIntervalMinutes: minutes } : s)),
     );
@@ -245,8 +350,13 @@ export function SettingsContent({
       `Unsubscribe from "${sub.title ?? sub.feedTitle ?? sub.url}"?`,
     );
     if (!confirmed) return;
-    await fetch(`/api/feeds/${sub.id}`, { method: "DELETE" });
+    const response = await fetch(`/api/feeds/${sub.id}`, { method: "DELETE" });
+    if (!response.ok) {
+      toast.error("Could not unsubscribe from this feed");
+      return;
+    }
     setSubs((prev) => prev.filter((s) => s.id !== sub.id));
+    toast.success("Feed removed");
   }
 
   function isSMTPConfigValid() {
@@ -255,7 +365,7 @@ export function SettingsContent({
     if (!smtpHost || !smtpUser) return false;
 
     const hostRegex =
-      /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$/;
+      /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
     const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
     if (!hostRegex.test(smtpHost) && !ipRegex.test(smtpHost)) return false;
 
@@ -357,7 +467,7 @@ export function SettingsContent({
 
     if (field === "smtpHost" && value && typeof value === "string") {
       const hostRegex =
-        /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$/;
+        /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
       const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
       if (!hostRegex.test(value) && !ipRegex.test(value)) {
         setEmailError("Invalid SMTP host format");
@@ -431,21 +541,80 @@ export function SettingsContent({
   }
 
   async function handleNameSave() {
-    await fetch("/api/settings/account", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: userAccount?.name }),
-    });
+    try {
+      const res = await fetch("/api/settings/account", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: userAccount?.name }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) throw new Error(data?.error ?? "Could not update name");
+      toast.success("Name updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update name");
+    }
   }
 
   async function handleEmailSave() {
-    const res = await fetch("/api/settings/account", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userAccount?.email }),
-    });
-    const data = await res.json();
-    if (!data.success) alert(data.error || "Failed to update email");
+    try {
+      const res = await fetch("/api/settings/account", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userAccount?.email }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) throw new Error(data?.error ?? "Could not update email");
+      toast.success("Email updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update email");
+    }
+  }
+
+  function renderSourceState(source: SettingsSource) {
+    const state = sourceState[source];
+    if (state.status === "ready") return null;
+
+    const loading = state.status === "loading";
+    return (
+      <div
+        role={loading ? "status" : "alert"}
+        aria-live="polite"
+        className={cn(
+          "flex min-h-24 items-start gap-3 rounded-md border px-4 py-3",
+          loading ? "border-border bg-muted/40" : "border-destructive/30 bg-destructive/5",
+        )}
+      >
+        {loading ? (
+          <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground" />
+        ) : (
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">
+            {loading
+              ? `Loading ${SOURCE_LABELS[source]}...`
+              : `Could not load ${SOURCE_LABELS[source]}`}
+          </p>
+          {!loading && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {state.error}. Other settings remain available.
+            </p>
+          )}
+        </div>
+        {!loading && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="min-h-10 shrink-0 rounded-md"
+            onClick={() => void loadSource(source)}
+          >
+            <RefreshCw className="size-3.5" />
+            Retry
+          </Button>
+        )}
+      </div>
+    );
   }
 
   function renderActiveSection() {
@@ -453,6 +622,7 @@ export function SettingsContent({
       case "appearance":
         return <AppearanceSection theme={theme} mounted={mounted} onSelect={setTheme} />;
       case "feeds":
+        if (sourceState.feeds.status !== "ready") return renderSourceState("feeds");
         return (
           <FeedsSection
             subs={subs}
@@ -467,32 +637,38 @@ export function SettingsContent({
       case "digest":
         return (
           <div className="space-y-4">
-            <DigestEmailSection
-              loading={loading}
-              emailSettings={emailSettings}
-              emailSaving={emailSaving}
-              emailTesting={emailTesting}
-              emailError={emailError}
-              smtpPassDraft={smtpPassDraft}
-              pendingCron={pendingCron}
-              subs={subs}
-              isSmtpValid={isSMTPConfigValid()}
-              onEmailToggle={handleEmailToggle}
-              onCronChange={setPendingCron}
-              onCronSave={handleCronSave}
-              onCronCancel={() => setPendingCron(null)}
-              onSMTPChange={handleSMTPChange}
-              onSmtpPassDraftChange={setSmtpPassDraft}
-              onEmailSettingsChange={setEmailSettings}
-              onFeedToggle={handleFeedToggle}
-              onTestEmail={handleTestEmail}
-              onAutoSaveToggle={handleAutoSaveToggle}
-              onMarkReadOnClickToggle={handleMarkReadOnClickToggle}
-            />
+            {sourceState.feeds.status !== "ready" && renderSourceState("feeds")}
+            {sourceState.email.status === "error" ? (
+              renderSourceState("email")
+            ) : (
+              <DigestEmailSection
+                loading={sourceState.email.status === "loading"}
+                emailSettings={emailSettings}
+                emailSaving={emailSaving}
+                emailTesting={emailTesting}
+                emailError={emailError}
+                smtpPassDraft={smtpPassDraft}
+                pendingCron={pendingCron}
+                subs={subs}
+                isSmtpValid={isSMTPConfigValid()}
+                onEmailToggle={handleEmailToggle}
+                onCronChange={setPendingCron}
+                onCronSave={handleCronSave}
+                onCronCancel={() => setPendingCron(null)}
+                onSMTPChange={handleSMTPChange}
+                onSmtpPassDraftChange={setSmtpPassDraft}
+                onEmailSettingsChange={setEmailSettings}
+                onFeedToggle={handleFeedToggle}
+                onTestEmail={handleTestEmail}
+                onAutoSaveToggle={handleAutoSaveToggle}
+                onMarkReadOnClickToggle={handleMarkReadOnClickToggle}
+              />
+            )}
             <DigestHistorySection />
           </div>
         );
       case "smart":
+        if (sourceState.llm.status !== "ready") return renderSourceState("llm");
         return (
           <SmartDigestSection
             llmEnabled={llmEnabled}
@@ -517,6 +693,7 @@ export function SettingsContent({
           />
         );
       case "account":
+        if (sourceState.account.status !== "ready") return renderSourceState("account");
         return (
           <AccountSection
             userAccount={userAccount}
@@ -528,38 +705,18 @@ export function SettingsContent({
     }
   }
 
-  if (error) {
-    return (
-      <Card className="rounded-lg">
-        <CardContent className="p-6">
-          <div className="text-center text-destructive">
-            <p className="text-sm font-medium">Failed to load settings</p>
-            <p className="text-xs text-muted-foreground mt-1">{error}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4"
-              onClick={() => window.location.reload()}
-            >
-              Reload Page
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   const gap = variant === "dialog" ? "gap-5" : "gap-6";
   const railWidth = variant === "dialog" ? "w-40" : "w-44";
 
   return (
     <>
       {/* Mobile section picker */}
-      <div className="md:hidden mb-4">
+      <div className="mb-4 md:hidden">
         <select
+          aria-label="Settings section"
           value={active}
-          onChange={(e) => setActive(e.target.value as SettingsSectionKey)}
-          className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none cursor-pointer"
+          onChange={(e) => selectSection(e.target.value as SettingsSectionKey)}
+          className="h-11 w-full cursor-pointer rounded-md border border-input bg-muted px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {SETTINGS_SECTIONS.map((s) => (
             <option key={s.key} value={s.key}>
@@ -569,7 +726,7 @@ export function SettingsContent({
         </select>
       </div>
 
-      <div className={cn("flex", gap)}>
+      <div className={cn("flex flex-col md:flex-row", gap)}>
         <nav
           aria-label="Settings sections"
           className={cn("hidden md:flex flex-col gap-1 shrink-0", railWidth)}
@@ -578,7 +735,7 @@ export function SettingsContent({
             <button
               key={s.key}
               type="button"
-              onClick={() => setActive(s.key)}
+              onClick={() => selectSection(s.key)}
               aria-current={active === s.key ? "page" : undefined}
               className={cn(
                 "text-left px-3 py-2 rounded-md text-sm font-medium transition-colors",
@@ -592,7 +749,9 @@ export function SettingsContent({
           ))}
         </nav>
 
-        <div className="flex-1 min-w-0">{renderActiveSection()}</div>
+        <div className="settings-section min-w-0 flex-1 [&_[data-slot=card]]:gap-5 [&_[data-slot=card]]:overflow-visible [&_[data-slot=card]]:border-0 [&_[data-slot=card]]:bg-transparent [&_[data-slot=card]]:py-0 [&_[data-slot=card-header]]:px-0 [&_[data-slot=card-content]]:px-0">
+          {renderActiveSection()}
+        </div>
       </div>
     </>
   );

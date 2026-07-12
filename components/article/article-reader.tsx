@@ -8,8 +8,9 @@ import {
   Star,
   CheckCheck,
   BookOpen,
-  PanelRightClose,
+  ArrowLeft,
   Copy,
+  Ellipsis,
   Sparkles,
   Tag,
   X,
@@ -17,6 +18,13 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 /**
  * The article body, isolated in a memoized component. ArticleReader re-renders
@@ -91,19 +99,26 @@ function ActionButton({
   title,
   children,
   className,
+  disabled,
+  pressed,
 }: {
   onClick?: () => void;
   title: string;
   children: React.ReactNode;
   className?: string;
+  disabled?: boolean;
+  pressed?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
+      aria-label={title}
+      aria-pressed={pressed}
+      disabled={disabled}
       className={cn(
-        "size-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors",
+        "size-11 md:size-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50",
         className,
       )}
     >
@@ -157,7 +172,9 @@ export function ArticleReader({
     currentArticleIdRef.current = article?.id;
     setAiSummary(article?.aiSummary ?? null);
     setImportance(article?.importance ?? null);
+    setSummarizing(false);
     setTagSuggestions(null);
+    setSuggestingTags(false);
     setAcceptedTagNames(new Set());
     setCurrentTags(article?.tags?.map((t) => ({ id: t.id, name: t.name })) ?? []);
   }, [article?.id, article?.aiSummary, article?.importance, article?.tags]);
@@ -228,30 +245,37 @@ export function ArticleReader({
 
   async function handleSuggestTags() {
     if (!article) return;
+    const targetId = article.id;
     setSuggestingTags(true);
     try {
-      const res = await fetch(`/api/articles/${article.id}/tag-suggestions`, { method: "POST" });
+      const res = await fetch(`/api/articles/${targetId}/tag-suggestions`, { method: "POST" });
       const data = (await res.json()) as {
         success: boolean;
         error?: string;
         data?: { suggestions: TagSuggestion[] };
       };
+      if (targetId !== currentArticleIdRef.current) return;
       if (!data.success) {
         toast.error(data.error ?? "Failed to suggest tags");
         return;
       }
       setTagSuggestions(data.data?.suggestions ?? []);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to suggest tags");
+      if (targetId === currentArticleIdRef.current) {
+        toast.error(err instanceof Error ? err.message : "Failed to suggest tags");
+      }
     } finally {
-      setSuggestingTags(false);
+      if (targetId === currentArticleIdRef.current) {
+        setSuggestingTags(false);
+      }
     }
   }
 
   async function handleAcceptTag(suggestion: TagSuggestion) {
     if (!article) return;
+    const targetId = article.id;
     try {
-      const res = await fetch(`/api/articles/${article.id}/tags`, {
+      const res = await fetch(`/api/articles/${targetId}/tags`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: suggestion.name }),
@@ -261,6 +285,10 @@ export function ArticleReader({
         error?: string;
         data?: { tagId: string; name: string };
       };
+      if (targetId !== currentArticleIdRef.current) {
+        if (data.success) window.dispatchEvent(new CustomEvent("tags-changed"));
+        return;
+      }
       if (!data.success) {
         toast.error(data.error ?? "Failed to add tag");
         return;
@@ -276,26 +304,33 @@ export function ArticleReader({
       window.dispatchEvent(new CustomEvent("tags-changed"));
       toast.success(`Tagged: ${suggestion.name}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add tag");
+      if (targetId === currentArticleIdRef.current) {
+        toast.error(err instanceof Error ? err.message : "Failed to add tag");
+      }
     }
   }
 
   async function handleRemoveTag(tagId: string) {
     if (!article) return;
+    const targetId = article.id;
     const prev = currentTags;
     setCurrentTags((cur) => cur.filter((t) => t.id !== tagId));
     try {
-      const res = await fetch(`/api/articles/${article.id}/tags/${tagId}`, { method: "DELETE" });
+      const res = await fetch(`/api/articles/${targetId}/tags/${tagId}`, { method: "DELETE" });
       const data = (await res.json()) as { success: boolean; error?: string };
       if (!data.success) {
-        setCurrentTags(prev);
-        toast.error(data.error ?? "Failed to remove tag");
+        if (targetId === currentArticleIdRef.current) {
+          setCurrentTags(prev);
+          toast.error(data.error ?? "Failed to remove tag");
+        }
         return;
       }
       window.dispatchEvent(new CustomEvent("tags-changed"));
     } catch (err) {
-      setCurrentTags(prev);
-      toast.error(err instanceof Error ? err.message : "Failed to remove tag");
+      if (targetId === currentArticleIdRef.current) {
+        setCurrentTags(prev);
+        toast.error(err instanceof Error ? err.message : "Failed to remove tag");
+      }
     }
   }
 
@@ -330,6 +365,11 @@ export function ArticleReader({
     toast.success("Link copied");
   }
 
+  function handleOpenOriginal() {
+    if (!article?.url) return;
+    window.open(article.url, "_blank", "noopener,noreferrer");
+  }
+
   if (!article) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
@@ -349,14 +389,12 @@ export function ArticleReader({
       <div className="scroll-progress" style={{ width: `${scrollProgress * 100}%` }} />
 
       {/* Action bar */}
-      <div className="flex items-center gap-0.5 px-3 py-1.5 shrink-0 border-b border-border/50">
-        <div className="flex items-center gap-0.5">
-          {/* On mobile the list is hidden when an article is open, so expose
-              both a back-to-list button and the sidebar trigger here. */}
-          <SidebarTrigger className="md:hidden" />
+      <div className="flex min-h-11 items-center gap-0.5 px-1 md:px-3 md:py-1.5 shrink-0 border-b border-border/50">
+        <div className="flex min-w-0 items-center gap-0.5">
+          <SidebarTrigger className="md:hidden size-11" />
           {onBack && (
-            <ActionButton title="Collapse" onClick={onBack}>
-              <PanelRightClose className="size-4 text-muted-foreground" />
+            <ActionButton title="Back to article list" onClick={onBack}>
+              <ArrowLeft className="size-4 text-muted-foreground" />
             </ActionButton>
           )}
           {contextLabel && (
@@ -365,67 +403,122 @@ export function ArticleReader({
             </span>
           )}
         </div>
-        <ActionButton
-          title={article.isRead ? "Mark unread" : "Mark read"}
-          onClick={() => onMarkRead(article.id, !article.isRead)}
-        >
-          <CheckCheck
-            className={cn("size-4", article.isRead ? "text-primary" : "text-muted-foreground")}
-          />
-        </ActionButton>
 
-        <ActionButton
-          title={article.isStarred ? "Unstar" : "Star"}
-          onClick={() => onStar(article.id, !article.isStarred)}
-        >
-          <Star
-            className={cn(
-              "size-4",
-              article.isStarred ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground",
+        <div className="ml-auto flex items-center gap-0.5">
+          <ActionButton
+            title={article.isRead ? "Mark unread" : "Mark read"}
+            pressed={article.isRead}
+            onClick={() => onMarkRead(article.id, !article.isRead)}
+          >
+            <CheckCheck
+              className={cn("size-4", article.isRead ? "text-primary" : "text-muted-foreground")}
+            />
+          </ActionButton>
+
+          <ActionButton
+            title={article.isStarred ? "Unstar article" : "Star article"}
+            pressed={article.isStarred}
+            onClick={() => onStar(article.id, !article.isStarred)}
+          >
+            <Star
+              className={cn(
+                "size-4",
+                article.isStarred ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground",
+              )}
+            />
+          </ActionButton>
+
+          <div className="hidden md:flex items-center gap-0.5">
+            {article.url && (
+              <>
+                <ActionButton title="Copy link" onClick={handleCopyUrl}>
+                  <Copy className="size-4 text-muted-foreground" />
+                </ActionButton>
+                <a
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open original"
+                  aria-label="Open original"
+                  className="size-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
+                  <ExternalLink className="size-4 text-muted-foreground" />
+                </a>
+              </>
             )}
-          />
-        </ActionButton>
-
-        {article.url && (
-          <>
-            <ActionButton title="Copy link" onClick={handleCopyUrl}>
-              <Copy className="size-4 text-muted-foreground" />
-            </ActionButton>
-            <a
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Open original"
-              className="size-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+            <div className="w-px h-5 bg-border/60 mx-1" aria-hidden />
+            <ActionButton
+              title={aiSummary ? "Re-summarise" : "Summarise with AI"}
+              onClick={() => handleSummarize({ manual: true })}
+              disabled={summarizing}
             >
-              <ExternalLink className="size-4 text-muted-foreground" />
-            </a>
-          </>
-        )}
-        <div className="w-px h-5 bg-border/60 mx-1" aria-hidden />
-        <ActionButton
-          title={aiSummary ? "Re-summarise" : "Summarise with AI"}
-          onClick={() => handleSummarize({ manual: true })}
-        >
-          <Sparkles
-            className={cn(
-              "size-4",
-              summarizing
-                ? "animate-pulse text-primary"
-                : aiSummary
-                  ? "text-primary"
-                  : "text-muted-foreground",
-            )}
-          />
-        </ActionButton>
-        <ActionButton title="Suggest tags with AI" onClick={handleSuggestTags}>
-          <Tag
-            className={cn(
-              "size-4",
-              suggestingTags ? "animate-pulse text-primary" : "text-muted-foreground",
-            )}
-          />
-        </ActionButton>
+              <Sparkles
+                className={cn(
+                  "size-4",
+                  summarizing
+                    ? "animate-pulse text-primary"
+                    : aiSummary
+                      ? "text-primary"
+                      : "text-muted-foreground",
+                )}
+              />
+            </ActionButton>
+            <ActionButton
+              title="Suggest tags with AI"
+              onClick={handleSuggestTags}
+              disabled={suggestingTags}
+            >
+              <Tag
+                className={cn(
+                  "size-4",
+                  suggestingTags ? "animate-pulse text-primary" : "text-muted-foreground",
+                )}
+              />
+            </ActionButton>
+          </div>
+
+          <div className="md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<button type="button" aria-label="More article actions" />}
+                className="size-11 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <Ellipsis className="size-5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-52 rounded-md">
+                {article.url && (
+                  <>
+                    <DropdownMenuItem className="min-h-11 px-3" onClick={handleCopyUrl}>
+                      <Copy className="size-4" />
+                      Copy link
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="min-h-11 px-3" onClick={handleOpenOriginal}>
+                      <ExternalLink className="size-4" />
+                      Open original
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem
+                  className="min-h-11 px-3"
+                  onClick={() => handleSummarize({ manual: true })}
+                  disabled={summarizing}
+                >
+                  <Sparkles className="size-4" />
+                  {summarizing ? "Summarising…" : aiSummary ? "Re-summarise" : "Summarise with AI"}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="min-h-11 px-3"
+                  onClick={handleSuggestTags}
+                  disabled={suggestingTags}
+                >
+                  <Tag className="size-4" />
+                  {suggestingTags ? "Suggesting tags…" : "Suggest tags with AI"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
       </div>
 
       {/* Content */}
@@ -436,8 +529,8 @@ export function ArticleReader({
       >
         <div className="max-w-2xl mx-auto px-6 py-8 sm:px-8">
           {/* Source meta */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
-            <span className="font-medium">{article.feedTitle}</span>
+          <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span className="max-w-full truncate font-medium">{article.feedTitle}</span>
             {article.author && (
               <>
                 <span className="text-muted-foreground/40">&middot;</span>

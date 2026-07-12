@@ -3,6 +3,7 @@
 import { User, Calendar } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface UserAccount {
   id: string;
@@ -53,7 +54,7 @@ export function AccountSection({ userAccount, onAccountChange, onNameSave, onEma
                 Display Name
               </label>
               <div className="flex gap-2">
-                <input
+                <Input
                   id="user-name"
                   type="text"
                   placeholder="Enter your name"
@@ -61,7 +62,8 @@ export function AccountSection({ userAccount, onAccountChange, onNameSave, onEma
                   onChange={(e) =>
                     onAccountChange((prev) => (prev ? { ...prev, name: e.target.value } : null))
                   }
-                  className="flex-1 text-sm bg-muted rounded-lg px-3 py-2 outline-none"
+                  autoComplete="name"
+                  className="h-10 flex-1 bg-muted"
                 />
                 <Button size="sm" className="rounded-md" onClick={onNameSave}>
                   Save
@@ -73,7 +75,7 @@ export function AccountSection({ userAccount, onAccountChange, onNameSave, onEma
                 Email
               </label>
               <div className="flex gap-2">
-                <input
+                <Input
                   id="user-email"
                   type="email"
                   placeholder="Enter your email"
@@ -81,7 +83,8 @@ export function AccountSection({ userAccount, onAccountChange, onNameSave, onEma
                   onChange={(e) =>
                     onAccountChange((prev) => (prev ? { ...prev, email: e.target.value } : null))
                   }
-                  className="flex-1 text-sm bg-muted rounded-lg px-3 py-2 outline-none"
+                  autoComplete="email"
+                  className="h-10 flex-1 bg-muted"
                 />
                 <Button size="sm" className="rounded-md" onClick={onEmailSave}>
                   Save

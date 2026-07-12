@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Mail, Check, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { SettingRow } from "@/components/settings/setting-row";
 import { SettingsSubTabs, type SettingsSubTab } from "@/components/settings/settings-sub-tabs";
@@ -162,6 +163,7 @@ export function DigestEmailSection({
                       checked={enabled}
                       onCheckedChange={onEmailToggle}
                       disabled={emailSaving || emailTesting}
+                      aria-label="Enable email digest"
                     />
                   }
                 />
@@ -175,6 +177,7 @@ export function DigestEmailSection({
                           checked={emailSettings?.markReadOnClick ?? true}
                           onCheckedChange={onMarkReadOnClickToggle}
                           disabled={emailSaving}
+                          aria-label="Mark read on click"
                         />
                       }
                     />
@@ -186,6 +189,7 @@ export function DigestEmailSection({
                           checked={emailSettings?.autoSaveOnClick ?? false}
                           onCheckedChange={onAutoSaveToggle}
                           disabled={emailSaving}
+                          aria-label="Star on click"
                         />
                       }
                     />
@@ -236,7 +240,7 @@ export function DigestEmailSection({
                   <label htmlFor="smtp-host" className="text-xs text-muted-foreground block mb-1">
                     SMTP Host
                   </label>
-                  <input
+                  <Input
                     id="smtp-host"
                     type="text"
                     placeholder="smtp.gmail.com"
@@ -248,7 +252,7 @@ export function DigestEmailSection({
                     }
                     onBlur={(e) => onSMTPChange("smtpHost", e.target.value)}
                     disabled={emailSaving || emailTesting}
-                    className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                    className="h-10 bg-muted"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -256,7 +260,7 @@ export function DigestEmailSection({
                     <label htmlFor="smtp-port" className="text-xs text-muted-foreground block mb-1">
                       Port
                     </label>
-                    <input
+                    <Input
                       id="smtp-port"
                       type="number"
                       placeholder="587"
@@ -268,14 +272,14 @@ export function DigestEmailSection({
                       }
                       onBlur={(e) => onSMTPChange("smtpPort", parseInt(e.target.value) || 587)}
                       disabled={emailSaving || emailTesting}
-                      className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                      className="h-10 bg-muted"
                     />
                   </div>
                   <div>
                     <label htmlFor="smtp-from" className="text-xs text-muted-foreground block mb-1">
                       From Name
                     </label>
-                    <input
+                    <Input
                       id="smtp-from"
                       type="text"
                       placeholder="Feedwise"
@@ -287,7 +291,7 @@ export function DigestEmailSection({
                       }
                       onBlur={(e) => onSMTPChange("smtpFrom", e.target.value)}
                       disabled={emailSaving || emailTesting}
-                      className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                      className="h-10 bg-muted"
                     />
                   </div>
                 </div>
@@ -295,7 +299,7 @@ export function DigestEmailSection({
                   <label htmlFor="smtp-user" className="text-xs text-muted-foreground block mb-1">
                     Username / Email
                   </label>
-                  <input
+                  <Input
                     id="smtp-user"
                     type="text"
                     placeholder="your-email@gmail.com"
@@ -307,14 +311,14 @@ export function DigestEmailSection({
                     }
                     onBlur={(e) => onSMTPChange("smtpUser", e.target.value)}
                     disabled={emailSaving || emailTesting}
-                    className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                    className="h-10 bg-muted"
                   />
                 </div>
                 <div>
                   <label htmlFor="smtp-pass" className="text-xs text-muted-foreground block mb-1">
                     Password / App Password
                   </label>
-                  <input
+                  <Input
                     id="smtp-pass"
                     type="password"
                     placeholder="Enter password"
@@ -324,10 +328,11 @@ export function DigestEmailSection({
                       if (e.target.value) onSMTPChange("smtpPass", e.target.value);
                     }}
                     disabled={emailSaving || emailTesting}
-                    className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none"
+                    autoComplete="new-password"
+                    className="h-10 bg-muted"
                   />
                   {emailSettings!.hasSmtpPass && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       SMTP password is saved.
                     </p>
                   )}

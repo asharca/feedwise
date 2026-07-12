@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Minus } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ChartNoAxesColumn,
+  Minus,
+  RefreshCw,
+} from "lucide-react";
 import { Segmented } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +55,8 @@ export function ChartsPanel() {
   // the previous result while the new one loads — eliminates the spinner flash.
   const [data, setData] = useState<Timeline | null>(null);
   const [refreshing, setRefreshing] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   const queryUrl = useMemo(() => {
     if (range === "custom" && customFrom && customTo) {
@@ -56,23 +65,40 @@ export function ChartsPanel() {
     return `/api/dashboard/timeline?days=${range}`;
   }, [range, customFrom, customTo]);
 
+  const hasActivity = Boolean(
+    data &&
+    (data.newPerDay.some((value) => value > 0) ||
+      data.readsPerDay.some((value) => value > 0) ||
+      data.tagActivity.length > 0),
+  );
+
   useEffect(() => {
     let cancelled = false;
     setRefreshing(true);
+    setError(null);
     fetch(queryUrl)
-      .then((r) => r.json())
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok || !payload?.success) {
+          throw new Error("Could not load activity");
+        }
+        return payload;
+      })
       .then((d) => {
         if (cancelled) return;
-        if (d?.success) setData(d.data as Timeline);
+        setData(d.data as Timeline);
       })
-      .catch(() => {})
+      .catch((requestError: unknown) => {
+        if (cancelled) return;
+        setError(requestError instanceof Error ? requestError.message : "Could not load activity");
+      })
       .finally(() => {
         if (!cancelled) setRefreshing(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [queryUrl]);
+  }, [queryUrl, retryKey]);
 
   return (
     <section className="space-y-3">
@@ -91,7 +117,8 @@ export function ChartsPanel() {
                 value={customFrom}
                 max={customTo || todayIso()}
                 onChange={(e) => setCustomFrom(e.target.value)}
-                className="bg-muted rounded-md px-2 py-1 text-xs outline-none cursor-pointer"
+                aria-label="Start date"
+                className="min-h-9 min-w-0 cursor-pointer rounded-md border border-input bg-muted px-2 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-sm"
               />
               <span className="text-muted-foreground text-xs">→</span>
               <input
@@ -100,7 +127,8 @@ export function ChartsPanel() {
                 min={customFrom || undefined}
                 max={todayIso()}
                 onChange={(e) => setCustomTo(e.target.value)}
-                className="bg-muted rounded-md px-2 py-1 text-xs outline-none cursor-pointer"
+                aria-label="End date"
+                className="min-h-9 min-w-0 cursor-pointer rounded-md border border-input bg-muted px-2 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-sm"
               />
             </div>
           )}
@@ -113,14 +141,48 @@ export function ChartsPanel() {
         </div>
       </div>
 
-      {!data ? (
+      {error && (
         <div
-          className="rounded-lg border border-border bg-card p-6 flex items-center justify-center"
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3"
+        >
+          <div className="flex min-w-0 items-start gap-2.5">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Activity unavailable</p>
+              <p className="text-xs text-muted-foreground">{error}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Retry activity"
+            onClick={() => setRetryKey((key) => key + 1)}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <RefreshCw className="size-3.5" />
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!data && !error ? (
+        <div
+          role="status"
+          aria-label="Loading activity"
           aria-busy="true"
+          className="flex items-center justify-center rounded-lg border border-border bg-card p-6"
         >
           <div className="size-4 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
         </div>
-      ) : (
+      ) : data && !hasActivity ? (
+        <div className="flex min-h-20 items-center gap-3 rounded-lg border border-border px-4 py-3 text-muted-foreground">
+          <ChartNoAxesColumn className="size-5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-foreground">No activity in this range</p>
+            <p className="text-xs">New articles and reading trends will appear here.</p>
+          </div>
+        </div>
+      ) : data ? (
         // Keep charts mounted across range changes; faint dim while refreshing
         // signals that values are stale without unmounting/relayout.
         <div
@@ -147,11 +209,13 @@ export function ChartsPanel() {
             <TrendingBoard
               days={data.days}
               rows={data.tagActivity}
-              comparisonLabel={range === "custom" ? "the previous period" : `the previous ${range}d`}
+              comparisonLabel={
+                range === "custom" ? "the previous period" : `the previous ${range}d`
+              }
             />
           </div>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -330,10 +394,7 @@ function TrendingRow({
           style={{ width: `${fillPct}%` }}
         />
         <div className="relative flex h-full items-center justify-between gap-2 px-2.5">
-          <span
-            className="truncate text-[13px] font-medium text-foreground"
-            title={row.tag.name}
-          >
+          <span className="truncate text-[13px] font-medium text-foreground" title={row.tag.name}>
             {row.tag.name}
           </span>
           <span className="shrink-0 text-[13px] font-semibold tabular-nums text-foreground/90">
@@ -393,7 +454,10 @@ function Sparkline({ counts, days }: { counts: number[]; days: string[] }) {
         return (
           <div
             key={i}
-            className={cn("flex-1 rounded-[1px]", v === 0 ? "bg-muted" : last ? "bg-primary" : "bg-primary/40")}
+            className={cn(
+              "flex-1 rounded-[1px]",
+              v === 0 ? "bg-muted" : last ? "bg-primary" : "bg-primary/40",
+            )}
             style={{ height: `${h}%` }}
           />
         );

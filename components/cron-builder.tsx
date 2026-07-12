@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { CronExpressionParser } from "cron-parser";
 import { cn } from "@/lib/utils";
 import { describeCron, formatTimeList } from "@/lib/cron/describe";
@@ -35,6 +35,7 @@ function validateCron(expr: string): string | null {
 }
 
 export default function CronBuilder({ value, onChange, disabled }: CronBuilderProps) {
+  const fieldId = useId();
   const [mode, setMode] = useState<CronPreset>("daily");
   const [hour, setHour] = useState(8);
   const [minute, setMinute] = useState(0);
@@ -174,16 +175,17 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
   ];
 
   return (
-    <div className={cn("space-y-3", disabled && "opacity-60 pointer-events-none")}>
+    <div className={cn("space-y-3", disabled && "opacity-60")} aria-disabled={disabled}>
       {/* Mode tabs */}
-      <div className="flex gap-1.5">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Schedule frequency">
         {presets.map((p) => (
           <button
             key={p.key}
             type="button"
+            disabled={disabled}
             onClick={() => handleModeChange(p.key)}
             className={cn(
-              "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+              "min-h-10 rounded-md px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed",
               mode === p.key ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-accent",
             )}
           >
@@ -196,11 +198,15 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
       {mode !== "custom" && (
         <div className="flex items-center gap-3">
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">Hour</label>
+            <label htmlFor={`${fieldId}-hour`} className="text-xs text-muted-foreground block mb-1">
+              Hour
+            </label>
             <select
+              id={`${fieldId}-hour`}
+              disabled={disabled}
               value={hour}
               onChange={(e) => setHour(Number(e.target.value))}
-              className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer min-w-[64px]"
+              className="min-h-10 min-w-16 cursor-pointer rounded-md border border-input bg-muted px-2 py-1.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed md:text-sm"
             >
               {Array.from({ length: 24 }, (_, i) => (
                 <option key={i} value={i}>
@@ -211,11 +217,15 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
           </div>
           <span className="text-muted-foreground pt-5">:</span>
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">Minute</label>
+            <label htmlFor={`${fieldId}-minute`} className="text-xs text-muted-foreground block mb-1">
+              Minute
+            </label>
             <select
+              id={`${fieldId}-minute`}
+              disabled={disabled}
               value={minute}
               onChange={(e) => setMinute(Number(e.target.value))}
-              className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer min-w-[64px]"
+              className="min-h-10 min-w-16 cursor-pointer rounded-md border border-input bg-muted px-2 py-1.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed md:text-sm"
             >
               {[0, 15, 30, 45].map((m) => (
                 <option key={m} value={m}>
@@ -234,9 +244,10 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
             <button
               key={wd.value}
               type="button"
+              disabled={disabled}
               onClick={() => setWeekday(wd.value)}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-sm transition-colors",
+                "min-h-10 rounded-md px-3 py-1.5 text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed",
                 weekday === wd.value
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted hover:bg-accent",
@@ -251,11 +262,15 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
       {/* Monthly selector */}
       {mode === "monthly" && (
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">Day</label>
+          <label htmlFor={`${fieldId}-day`} className="text-xs text-muted-foreground block mb-1">
+            Day
+          </label>
           <select
+            id={`${fieldId}-day`}
+            disabled={disabled}
             value={monthDay}
             onChange={(e) => setMonthDay(Number(e.target.value))}
-            className="text-sm bg-muted rounded-lg px-2 py-1.5 outline-none cursor-pointer"
+            className="min-h-10 cursor-pointer rounded-md border border-input bg-muted px-2 py-1.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed md:text-sm"
           >
             {MONTH_DAYS.map((d) => (
               <option key={d} value={d}>
@@ -269,22 +284,26 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
       {/* Custom cron input */}
       {mode === "custom" && (
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">Cron expression</label>
+          <label htmlFor={`${fieldId}-expression`} className="text-xs text-muted-foreground block mb-1">
+            Cron expression
+          </label>
           <input
+            id={`${fieldId}-expression`}
             type="text"
+            disabled={disabled}
             value={customDraft}
             onChange={handleCustomChange}
             placeholder="0 8 * * *"
             className={cn(
-              "w-full text-sm bg-muted rounded-lg px-3 py-2 outline-none font-mono",
+              "min-h-10 w-full rounded-md border border-input bg-muted px-3 py-2 font-mono text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed md:text-sm",
               customError && "ring-1 ring-destructive",
             )}
             spellCheck={false}
           />
           {customError ? (
-            <p className="text-[11px] text-destructive mt-1">{customError}</p>
+            <p className="mt-1 text-xs text-destructive" role="alert">{customError}</p>
           ) : (
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="mt-1 text-xs text-muted-foreground">
               Format: min hour day month weekday — e.g.{" "}
               <span className="font-mono">0 8,18 * * *</span> (twice daily)
             </p>

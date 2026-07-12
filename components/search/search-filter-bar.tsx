@@ -63,7 +63,7 @@ export function SearchFilterBar({ filters, onSetFilter, onToggleFilter, onClearA
     filters.starred;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-border">
+    <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
       <FilterDropdown
         label="Feed"
         activeId={filters.feedId}
@@ -84,6 +84,7 @@ export function SearchFilterBar({ filters, onSetFilter, onToggleFilter, onClearA
       />
       <FilterDropdown
         label="Date"
+        align="end"
         activeId={filters.since}
         loadOptions={loadSince}
         onSelect={(v) => onSetFilter("since", v)}
@@ -92,7 +93,7 @@ export function SearchFilterBar({ filters, onSetFilter, onToggleFilter, onClearA
         type="button"
         onClick={() => onToggleFilter("unread")}
         className={cn(
-          "inline-flex items-center h-6 rounded-full px-2 text-[11px] border transition-colors",
+          "inline-flex h-11 items-center rounded-full border px-3 text-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-10",
           filters.unread
             ? "bg-primary/10 border-primary/30 text-primary"
             : "bg-muted border-transparent hover:border-border text-muted-foreground",
@@ -104,7 +105,7 @@ export function SearchFilterBar({ filters, onSetFilter, onToggleFilter, onClearA
         type="button"
         onClick={() => onToggleFilter("starred")}
         className={cn(
-          "inline-flex items-center h-6 rounded-full px-2 text-[11px] border transition-colors",
+          "inline-flex h-11 items-center rounded-full border px-3 text-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-10",
           filters.starred
             ? "bg-primary/10 border-primary/30 text-primary"
             : "bg-muted border-transparent hover:border-border text-muted-foreground",
@@ -116,7 +117,7 @@ export function SearchFilterBar({ filters, onSetFilter, onToggleFilter, onClearA
         <button
           type="button"
           onClick={onClearAll}
-          className="text-[11px] text-muted-foreground hover:text-foreground ml-auto"
+          className="ml-auto inline-flex h-11 items-center px-2 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 md:h-10"
         >
           Clear
         </button>
