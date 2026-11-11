@@ -29,5 +29,11 @@ services:
       timeout: 5s
       retries: 5
 
+  dailyhot-api:
+    image: imsyy/dailyhot-api:latest
+    restart: unless-stopped
+    ports:
+      - "6688:6688"
+
 volumes:
   feedwise-db-dev:

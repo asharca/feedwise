@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Pencil,
   Link,
@@ -41,15 +42,41 @@ export interface FeedItemProps {
   actions: FeedItemActions;
 }
 
-function FeedIcon({ url, name }: { url: string | null; name: string }) {
-  if (url) {
+function FeedIcon({
+  url,
+  siteUrl,
+  feedUrl,
+  name,
+}: {
+  url: string | null;
+  siteUrl?: string | null;
+  feedUrl: string;
+  name: string;
+}) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  let iconUrl = url;
+  if (!iconUrl) {
+    for (const candidate of [siteUrl, feedUrl]) {
+      if (!candidate) continue;
+      try {
+        const site = new URL(candidate);
+        if (!/^https?:$/.test(site.protocol)) continue;
+        iconUrl = `${site.origin}/favicon.ico`;
+        break;
+      } catch {
+        // A malformed site URL can still fall back to the feed's origin.
+      }
+    }
+  }
+  if (iconUrl && failedUrl !== iconUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={proxyImg(url, 96)}
+        src={proxyImg(iconUrl, 96)}
         alt=""
         loading="lazy"
         decoding="async"
+        onError={() => setFailedUrl(iconUrl)}
         className="size-4 rounded-sm shrink-0"
       />
     );
@@ -71,7 +98,7 @@ export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
         onClick={() => actions.onNavigate(sub)}
         className="group h-8 rounded-md transition-colors duration-150"
       >
-        <FeedIcon url={sub.iconUrl} name={name} />
+        <FeedIcon url={sub.iconUrl} siteUrl={sub.siteUrl} feedUrl={sub.url} name={name} />
         <span className="truncate flex-1 text-sm">{name}</span>
         {sub.lastFetchError && (
           <span

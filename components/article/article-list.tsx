@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { Star, Inbox } from "lucide-react";
-import { cn, proxyImg } from "@/lib/utils";
+import { Inbox } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { CardEnter } from "@/components/motion/card-enter";
-import { ArticleCard, Highlight } from "./article-card";
+import { ArticleCard } from "./article-card";
+import { ArticleRow } from "./article-row";
+import { ArticleViewToggle, useArticleSelection, useArticleView } from "./article-list-controls";
 
 interface Article {
   id: string;
@@ -18,11 +19,6 @@ interface Article {
   createdAt: Date | null;
   isRead: boolean;
   isStarred: boolean;
-}
-
-/** Prefer article's own pubdate, fall back to when we fetched/created it. */
-function displayedAt(article: { publishedAt: Date | null; createdAt: Date | null }): Date | null {
-  return article.publishedAt ?? article.createdAt;
 }
 
 interface ArticleListProps {
@@ -50,123 +46,62 @@ export function ArticleList({
   searchQuery,
   scrollRoot: externalScrollRoot,
 }: ArticleListProps) {
-  // Callback ref state so InfiniteScrollSentinel can use the actual scroll
-  // container (not the viewport) as the IntersectionObserver root — the list
-  // is inside an overflow-y-auto wrapper.
   const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
+  const [view, setView] = useArticleView();
+  const effectiveView = compact ? "list" : view;
+  const selectedId = useArticleSelection(articles, activeId, scrollRoot, effectiveView);
 
   if (articles.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-8">
-        <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
-          <Inbox className="size-6 text-muted-foreground/40" />
-        </div>
-        <p className="text-sm">No articles</p>
-      </div>
-    );
-  }
-
-  if (compact) {
-    return (
-      <div>
-        <div className="flex flex-col gap-px p-1.5">
-          {articles.map((article) => (
-            <div
-              key={article.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onSelect(article.id)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onSelect(article.id);
-                }
-              }}
-              aria-label={`Read ${article.title ?? "untitled article"}`}
-              className={cn(
-                "group relative flex cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 outline-none transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-ring",
-                activeId === article.id ? "bg-accent" : "hover:bg-accent/50",
-                article.isRead && activeId !== article.id && "opacity-55",
-              )}
-            >
-              {!article.isRead && (
-                <span className="absolute left-1 top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-primary shrink-0" />
-              )}
-              <div className="flex-1 min-w-0 pl-1">
-                <div className="flex items-center gap-1 mb-0.5">
-                  {article.feedIconUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={proxyImg(article.feedIconUrl, 96)}
-                      alt=""
-                      decoding="async"
-                      className="size-3 rounded-sm shrink-0"
-                    />
-                  )}
-                  <span className="truncate text-xs text-muted-foreground">
-                    {article.feedTitle ?? "Unknown"}
-                  </span>
-                  {displayedAt(article) && (
-                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                      {formatDistanceToNow(displayedAt(article)!, { addSuffix: false })}
-                    </span>
-                  )}
-                </div>
-                <p
-                  className={cn(
-                    "line-clamp-2 text-sm leading-snug",
-                    !article.isRead ? "font-semibold" : "font-normal text-foreground/75",
-                  )}
-                >
-                  <Highlight text={article.title ?? "(No title)"} query={searchQuery} />
-                </p>
-              </div>
-              {article.imageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={proxyImg(article.imageUrl, 96)}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="size-10 rounded-md object-cover shrink-0 self-center"
-                />
-              )}
-              {article.isStarred && (
-                <Star className="absolute top-2 right-2 size-2.5 fill-yellow-400 text-yellow-400" />
-              )}
-            </div>
-          ))}
-        </div>
-        <InfiniteScrollSentinel
-          hasMore={hasMore}
-          loadingMore={loadingMore}
-          onLoadMore={onLoadMore}
-          root={externalScrollRoot}
-        />
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-muted-foreground">
+        <Inbox className="size-6" />
+        <p className="text-sm">暂无文章</p>
       </div>
     );
   }
 
   return (
-    <div ref={setScrollRoot} className="overflow-y-auto h-full scrollbar-thin">
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-2.5 p-3 sm:p-4">
-        {articles.map((article, index) => (
-          <CardEnter key={article.id} index={index}>
-            <ArticleCard
+    <div ref={setScrollRoot} className={cn(!compact && "h-full overflow-y-auto scrollbar-thin")}>
+      {!compact && (
+        <div className="flex justify-end px-4 pt-3">
+          <ArticleViewToggle view={view} onChange={setView} />
+        </div>
+      )}
+      <div
+        className={
+          effectiveView === "cards"
+            ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-2.5 p-3 sm:p-4"
+            : "flex flex-col gap-px p-2 sm:p-3"
+        }
+      >
+        {articles.map((article, index) =>
+          effectiveView === "cards" ? (
+            <CardEnter key={article.id} index={index}>
+              <ArticleCard
+                article={article}
+                active={selectedId === article.id}
+                onSelect={onSelect}
+                onStar={onStar}
+                searchQuery={searchQuery}
+              />
+            </CardEnter>
+          ) : (
+            <ArticleRow
+              key={article.id}
               article={article}
-              active={activeId === article.id}
+              active={selectedId === article.id}
               onSelect={onSelect}
               onStar={onStar}
               searchQuery={searchQuery}
             />
-          </CardEnter>
-        ))}
+          ),
+        )}
       </div>
       <InfiniteScrollSentinel
         hasMore={hasMore}
         loadingMore={loadingMore}
         onLoadMore={onLoadMore}
-        root={scrollRoot}
+        root={compact ? externalScrollRoot : scrollRoot}
       />
     </div>
   );

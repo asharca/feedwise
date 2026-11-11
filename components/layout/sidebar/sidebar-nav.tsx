@@ -1,6 +1,7 @@
 "use client";
 
-import { Home, CircleDot, Star, Search, Tag, Clock, Compass } from "lucide-react";
+import { Home, CircleDot, Star, Search, Tag, Clock, Compass, Flame } from "lucide-react";
+import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useSidebar } from "@/components/ui/sidebar";
 import {
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 const smartViews = [
   { key: "all", label: "Home", icon: Home },
+  { key: "hot", label: "热榜", icon: Flame },
   { key: "unread", label: "Unread", icon: CircleDot },
   { key: "starred", label: "Starred", icon: Star },
 ] as const;
@@ -46,16 +48,20 @@ export function SidebarNav({ totalUnread }: SidebarNavProps) {
           {smartViews.map(({ key, label, icon: Icon }) => (
             <SidebarMenuItem key={key}>
               <SidebarMenuButton
+                render={key === "hot" ? <Link href="/hot" /> : undefined}
+                aria-current={key === "hot" && pathname === "/hot" ? "page" : undefined}
                 isActive={
-                  activeView === key &&
-                  !activeFeedId &&
-                  !activeFolderId &&
-                  !searchParams.has("search") &&
-                  pathname === "/reader"
+                  key === "hot"
+                    ? pathname === "/hot"
+                    : activeView === key &&
+                      !activeFeedId &&
+                      !activeFolderId &&
+                      !searchParams.has("search") &&
+                      pathname === "/reader"
                 }
                 onClick={() => {
                   setOpenMobile(false);
-                  router.replace(`/reader?view=${key}`);
+                  if (key !== "hot") router.replace(`/reader?view=${key}`);
                 }}
                 className="rounded-md h-9 transition-all duration-150"
               >

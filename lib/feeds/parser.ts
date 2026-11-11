@@ -1,3 +1,4 @@
+import { htmlToText } from "@/lib/utils";
 import { FeedError, classifyError, humanMessage } from "./feed-error";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -126,7 +127,7 @@ export async function parseFeed(
       title: (i["title"] as string) ?? null,
       author: (i["author"] as string) ?? null,
       contentHtml: (i["description"] as string) ?? null,
-      contentText: stripHtml((i["description"] as string) ?? ""),
+      contentText: htmlToText((i["description"] as string) ?? ""),
       summary: (i["summary"] as string) ?? null,
       imageUrl: getImageUrl(i),
       publishedAt: parsePublishedAt(i["pubdate"]),
@@ -140,13 +141,6 @@ export async function parseFeed(
     iconUrl: (meta["favicon"] as string) ?? null,
     articles,
   };
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function getImageUrl(item: Record<string, unknown>): string | null {
