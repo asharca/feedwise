@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 const smartViews = [
   { key: "all", label: "Home", icon: Home },
-  { key: "hot", label: "热榜", icon: Flame },
+  { key: "hot", label: "Trending", icon: Flame },
   { key: "unread", label: "Unread", icon: CircleDot },
   { key: "starred", label: "Starred", icon: Star },
 ] as const;

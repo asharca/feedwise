@@ -66,7 +66,7 @@ export function SortableFolderGroup(props: FolderGroupProps) {
         <SidebarGroupLabel
           className={cn(
             "group/folder flex items-center justify-between pr-1 text-xs uppercase tracking-wider text-muted-foreground/70",
-            isActiveFolder && "bg-primary/10 text-foreground shadow-[inset_2px_0_0_var(--primary)]",
+            isActiveFolder && "bg-primary/10 text-foreground",
           )}
         >
           <button
