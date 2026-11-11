@@ -527,7 +527,7 @@ export function AppSidebar({
             className={cn(
               "size-8 rounded-md",
               pathname === "/settings" &&
-                "bg-primary/10 text-foreground shadow-[inset_2px_0_0_var(--primary)]",
+                "bg-primary/10 text-foreground",
             )}
             onClick={handleSettingsClick}
             aria-label="Settings"

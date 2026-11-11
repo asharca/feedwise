@@ -134,7 +134,7 @@ export function ArticleCard({
       className={cn(
         "group relative flex h-60 w-full scroll-mt-8 flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors duration-200 ease-[var(--ease-out)] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30",
         active
-          ? "border-primary bg-primary/10 ring-1 ring-primary/30 before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-[3px] before:bg-primary"
+          ? "border-primary bg-primary/10 ring-1 ring-primary/30"
           : "border-border hover:border-foreground/30",
         !active && isRead && "opacity-60",
       )}
