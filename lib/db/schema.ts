@@ -7,6 +7,7 @@ import {
   timestamp,
   integer,
   real,
+  doublePrecision,
   jsonb,
   unique,
   index,
@@ -308,4 +309,61 @@ export const emailDigestLogArticles = pgTable(
       .notNull(),
   },
   (t) => [primaryKey({ columns: [t.logId, t.articleId] })],
+);
+
+// Hot lists are independent of RSS articles and per-user unread state.
+export const hotSources = pgTable("hot_sources", {
+  key: varchar("key", { length: 80 }).primaryKey(),
+  lastFetchedAt: timestamp("last_fetched_at"),
+  lastError: text("last_error"),
+  consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+});
+
+export const hotItems = pgTable(
+  "hot_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sourceKey: varchar("source_key", { length: 80 })
+      .notNull()
+      .references(() => hotSources.key, { onDelete: "cascade" }),
+    itemKey: text("item_key").notNull(),
+    title: text("title").notNull(),
+    url: text("url").notNull(),
+    cover: text("cover"),
+    desc: text("desc"),
+    firstSeenAt: timestamp("first_seen_at").notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    peakRank: integer("peak_rank").notNull(),
+  },
+  (t) => [
+    unique().on(t.sourceKey, t.itemKey),
+    index("hot_items_source_seen_idx").on(t.sourceKey, t.lastSeenAt),
+  ],
+);
+
+export const hotSnapshots = pgTable(
+  "hot_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sourceKey: varchar("source_key", { length: 80 })
+      .notNull()
+      .references(() => hotSources.key, { onDelete: "cascade" }),
+    capturedAt: timestamp("captured_at").notNull().defaultNow(),
+  },
+  (t) => [index("hot_snapshots_source_captured_idx").on(t.sourceKey, t.capturedAt)],
+);
+
+export const hotRanks = pgTable(
+  "hot_ranks",
+  {
+    snapshotId: uuid("snapshot_id")
+      .notNull()
+      .references(() => hotSnapshots.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => hotItems.id, { onDelete: "cascade" }),
+    rank: integer("rank").notNull(),
+    heat: doublePrecision("heat"),
+  },
+  (t) => [primaryKey({ columns: [t.snapshotId, t.itemId] })],
 );

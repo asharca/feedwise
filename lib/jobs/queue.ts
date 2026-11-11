@@ -18,3 +18,25 @@ export function getFeedFetchQueue(): Queue {
   }
   return _feedFetchQueue;
 }
+
+let _hotFetchQueue: Queue | null = null;
+export function getHotFetchQueue(): Queue {
+  if (!_hotFetchQueue) {
+    _hotFetchQueue = new Queue("hot.fetch", { connection: getConnection() });
+  }
+  return _hotFetchQueue;
+}
+
+export function enqueueHotFetch(key: string) {
+  return getHotFetchQueue().add(
+    "fetch",
+    { key },
+    {
+      jobId: `hot-${key}`,
+      // Failed sources are retried by the scheduler with source-level backoff.
+      attempts: 1,
+      removeOnComplete: true,
+      removeOnFail: true,
+    },
+  );
+}

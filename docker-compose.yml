@@ -26,6 +26,12 @@ services:
       timeout: 5s
       retries: 5
 
+  dailyhot-api:
+    image: imsyy/dailyhot-api:latest
+    restart: unless-stopped
+    ports:
+      - "6688:6688"
+
   feedwise-migrate:
     build:
       context: .
@@ -49,10 +55,13 @@ services:
         condition: service_completed_successfully
       feedwise-redis:
         condition: service_healthy
+      dailyhot-api:
+        condition: service_started
     environment:
       - TZ=${TZ}
       - DATABASE_URL=postgresql://feedwise:${FEEDWISE_DB_PASSWORD}@feedwise-db:5432/feedwise
       - REDIS_URL=redis://feedwise-redis:6379
+      - HOT_API_URL=${HOT_API_URL:-http://dailyhot-api:6688}
       - BETTER_AUTH_SECRET=${FEEDWISE_AUTH_SECRET}
       - BETTER_AUTH_URL=https://feedwise.${ROOT_DOMAIN}
       - NEXT_PUBLIC_APP_URL=https://feedwise.${ROOT_DOMAIN}
@@ -68,10 +77,13 @@ services:
         condition: service_completed_successfully
       feedwise-redis:
         condition: service_healthy
+      dailyhot-api:
+        condition: service_started
     environment:
       - TZ=${TZ}
       - DATABASE_URL=postgresql://feedwise:${FEEDWISE_DB_PASSWORD}@feedwise-db:5432/feedwise
       - REDIS_URL=redis://feedwise-redis:6379
+      - HOT_API_URL=${HOT_API_URL:-http://dailyhot-api:6688}
       - BETTER_AUTH_SECRET=${FEEDWISE_AUTH_SECRET}
       - BETTER_AUTH_URL=https://feedwise.${ROOT_DOMAIN}
       - NEXT_PUBLIC_APP_URL=https://feedwise.${ROOT_DOMAIN}

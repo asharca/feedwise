@@ -105,11 +105,11 @@ describe("NewsDashboard resource failures", () => {
 
     expect(await screen.findByText("Available article")).toBeTruthy();
     expect(screen.queryByText("Dashboard unavailable")).toBeNull();
-    expect(screen.getByText("Reading stats unavailable")).toBeTruthy();
+    expect(screen.getByText("阅读统计暂不可用")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Retry stats" }));
+    fireEvent.click(screen.getByRole("button", { name: "重试统计" }));
 
-    await waitFor(() => expect(screen.getByText("Unread")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("未读")).toBeTruthy());
     expect(fetchMock.mock.calls.filter(([url]) => url === "/api/articles/grouped")).toHaveLength(1);
     expect(fetchMock.mock.calls.filter(([url]) => url === "/api/dashboard/stats")).toHaveLength(2);
   });

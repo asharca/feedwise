@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
+import { zhCN } from "date-fns/locale";
 import {
   Star,
   Rss,
@@ -13,10 +14,11 @@ import {
   Tag,
   RefreshCw,
 } from "lucide-react";
-import { ArticleCard as SharedArticleCard } from "@/components/article/article-card";
+import { ArticleRow, ArticleThumbnail, articleImageUrl } from "@/components/article/article-row";
 import { ChartsPanel } from "@/components/dashboard/charts-panel";
 import { CardEnter } from "@/components/motion/card-enter";
-import { cn, proxyImg } from "@/lib/utils";
+import { HotPreview } from "./hot-preview";
+import { htmlToText } from "@/lib/utils";
 
 interface Article {
   id: string;
@@ -51,144 +53,42 @@ interface NewsDashboardProps {
   onSelectArticle: (id: string) => void;
 }
 
-function ArticleCard({
+function RecommendedArticle({
   article,
-  size = "normal",
   onSelect,
 }: {
   article: Article;
-  size?: "hero" | "normal" | "compact";
   onSelect: (id: string) => void;
 }) {
-  const excerpt = article.summary
-    ? article.summary.replace(/<[^>]*>/g, "").slice(0, size === "hero" ? 200 : 100)
-    : null;
-
-  if (size === "hero") {
-    return (
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label={`Read ${article.title ?? "untitled article"}`}
-        onClick={() => onSelect(article.id)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onSelect(article.id);
-          }
-        }}
-        className={cn(
-          "group relative rounded-lg overflow-hidden cursor-pointer transition-colors duration-200 ease-[var(--ease-out)] hover:border-foreground/20",
-          "bg-card border border-border outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          article.isRead && "opacity-70",
-        )}
-      >
-        {article.imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={proxyImg(article.imageUrl, 1280)}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="w-full h-48 object-cover"
-          />
-        )}
-        <div className="p-5">
-          <div className="flex items-center gap-1.5 mb-2">
-            {article.feedIconUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={proxyImg(article.feedIconUrl, 96)}
-                alt=""
-                loading="lazy"
-                decoding="async"
-                className="size-3.5 rounded-sm"
-              />
-            )}
-            <span className="text-xs font-medium text-muted-foreground">{article.feedTitle}</span>
-            {displayedAt(article) && (
-              <>
-                <span className="text-xs text-muted-foreground">&middot;</span>
-                <span className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(displayedAt(article)!), { addSuffix: true })}
-                </span>
-              </>
-            )}
-          </div>
-          <h3
-            className={cn(
-              "text-lg font-semibold leading-snug mb-2 line-clamp-2 group-hover:text-primary transition-colors",
-              !article.isRead && "text-foreground",
-            )}
-          >
-            {article.title ?? "(No title)"}
-          </h3>
-          {excerpt && (
-            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">{excerpt}</p>
+  const excerpt = article.summary ? htmlToText(article.summary) : undefined;
+  const date = displayedAt(article);
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(article.id)}
+      aria-label={`阅读：${article.title ?? "无标题"}`}
+      className="group flex w-full items-center gap-4 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span>{article.feedTitle ?? "未知来源"}</span>
+          {date && (
+            <span>· {formatDistanceToNow(new Date(date), { addSuffix: true, locale: zhCN })}</span>
+          )}
+          {article.isStarred && (
+            <Star aria-label="已收藏" className="size-3 fill-primary text-primary" />
           )}
         </div>
-        {article.isStarred && (
-          <Star className="absolute top-3 right-3 size-4 fill-yellow-400 text-yellow-400" />
+        <h3 className="mb-2 line-clamp-2 text-lg font-semibold leading-relaxed group-hover:text-primary">
+          {article.title ?? "无标题"}
+        </h3>
+        {excerpt && (
+          <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">{excerpt}</p>
         )}
       </div>
-    );
-  }
-
-  if (size === "compact") {
-    return (
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label={`Read ${article.title ?? "untitled article"}`}
-        onClick={() => onSelect(article.id)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onSelect(article.id);
-          }
-        }}
-        className={cn(
-          "group flex gap-3 p-3 rounded-md cursor-pointer outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring",
-          article.isRead && "opacity-60",
-        )}
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="truncate text-xs text-muted-foreground">{article.feedTitle}</span>
-            {displayedAt(article) && (
-              <>
-                <span className="text-xs text-muted-foreground">&middot;</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(displayedAt(article)!), { addSuffix: true })}
-                </span>
-              </>
-            )}
-          </div>
-          <p
-            className={cn(
-              "text-[13px] leading-snug line-clamp-2 group-hover:text-primary transition-colors",
-              !article.isRead ? "font-semibold" : "font-normal",
-            )}
-          >
-            {article.title ?? "(No title)"}
-          </p>
-        </div>
-        {article.imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={proxyImg(article.imageUrl, 96)}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="size-12 rounded-lg object-cover shrink-0"
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Normal card — delegates to the shared ArticleCard template
-  return <SharedArticleCard article={article} onSelect={onSelect} />;
+      <ArticleThumbnail url={articleImageUrl(article)} className="size-20 sm:h-32 sm:w-40" />
+    </button>
+  );
 }
 
 interface Stats {
@@ -200,58 +100,38 @@ interface Stats {
   tags: number;
 }
 
-function StatCard({
+function StatItem({
   icon,
   label,
   value,
-  sublabel,
-  sublabelTone,
   href,
   onNav,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
-  sublabel?: string;
-  sublabelTone?: "warn";
   href?: string;
   onNav?: (href: string) => void;
 }) {
-  const clickable = Boolean(href);
-  const Wrapper: React.ElementType = clickable ? "button" : "div";
-  const wrapperProps = clickable
-    ? {
-        type: "button" as const,
-        onClick: () => (href && onNav ? onNav(href) : undefined),
-      }
-    : {};
-  return (
-    <Wrapper
-      {...wrapperProps}
-      className={cn(
-        "min-w-0 border-b border-r border-border px-3.5 py-3 text-left outline-none transition-colors duration-200 ease-[var(--ease-out)] last:border-r-0 last:border-b-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&:last-child]:col-span-2 md:[&:last-child]:col-span-1 md:border-b-0",
-        clickable && "hover:border-primary/40 hover:bg-primary/5 cursor-pointer",
-      )}
+  const content = (
+    <>
+      {icon}
+      <span>{label}</span>
+      <span className="font-semibold tabular-nums text-foreground">{value}</span>
+    </>
+  );
+  return href ? (
+    <button
+      type="button"
+      onClick={() => onNav?.(href)}
+      className="inline-flex min-h-8 items-center gap-1.5 rounded px-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
     >
-      <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        {icon}
-        {label}
-      </div>
-      <div className="mt-1 text-xl font-semibold tabular-nums leading-none">{value}</div>
-      {sublabel && (
-        <div
-          className={cn(
-            "mt-1 text-xs",
-            sublabelTone === "warn" ? "text-destructive" : "text-muted-foreground",
-          )}
-        >
-          {sublabelTone === "warn" && (
-            <AlertTriangle className="inline size-3 mr-1 -mt-0.5 align-middle" />
-          )}
-          {sublabel}
-        </div>
-      )}
-    </Wrapper>
+      {content}
+    </button>
+  ) : (
+    <span className="inline-flex min-h-8 items-center gap-1.5 px-1 text-xs text-muted-foreground">
+      {content}
+    </span>
   );
 }
 
@@ -310,12 +190,12 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
       try {
         const groupedRes = await fetch("/api/articles/grouped");
         const groupedData = await groupedRes.json();
-        if (!groupedRes.ok || !groupedData.success) throw new Error("Could not load your articles");
+        if (!groupedRes.ok || !groupedData.success) throw new Error("无法加载文章，请稍后重试");
         if (cancelled) return;
         setGroups(groupedData.data);
       } catch (error) {
         if (!cancelled) {
-          setGroupsError(error instanceof Error ? error.message : "Could not load your articles");
+          setGroupsError(error instanceof Error ? error.message : "无法加载文章，请稍后重试");
         }
       } finally {
         if (!cancelled) setGroupsLoading(false);
@@ -337,12 +217,12 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
       try {
         const statsRes = await fetch("/api/dashboard/stats");
         const statsData = await statsRes.json();
-        if (!statsRes.ok || !statsData.success) throw new Error("Could not load reading stats");
+        if (!statsRes.ok || !statsData.success) throw new Error("无法加载阅读统计，请稍后重试");
         if (cancelled) return;
         setStats(statsData.data);
       } catch (error) {
         if (!cancelled) {
-          setStatsError(error instanceof Error ? error.message : "Could not load reading stats");
+          setStatsError(error instanceof Error ? error.message : "无法加载阅读统计，请稍后重试");
         }
       } finally {
         if (!cancelled) setStatsLoading(false);
@@ -372,78 +252,85 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
 
   return (
     <div className="h-full overflow-y-auto scrollbar-thin animate-in fade-in duration-300 ease-[var(--ease-out)] motion-reduce:animate-none">
-      <div className="mx-auto max-w-[100rem] space-y-7 px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-5 sm:px-6 lg:px-8">
         {/* Header */}
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Today&apos;s News</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Your personalized news feed</p>
+          <h1 className="text-xl font-semibold tracking-tight">今日阅读</h1>
+          <p className="mt-1 text-sm text-muted-foreground">从订阅与热点中，发现值得读的内容</p>
         </div>
 
         {/* Stats row */}
         {stats && (
-          <section aria-label="Reading overview">
-            <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card md:grid-cols-5">
-              <StatCard
-                icon={<CircleDot className="size-3.5" />}
-                label="Unread"
-                value={stats.unread}
-                href={stats.unread > 0 ? "/reader?view=unread" : undefined}
-                onNav={(href) => router.push(href)}
-              />
-              <StatCard
+          <section
+            aria-label="阅读概览"
+            className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border pb-3"
+          >
+            <StatItem
+              icon={<CircleDot className="size-3.5" />}
+              label="未读"
+              value={stats.unread}
+              href="/reader?view=unread"
+              onNav={(href) => router.push(href)}
+            />
+            {stats.newToday > 0 && (
+              <StatItem
                 icon={<Sparkles className="size-3.5" />}
-                label="New today"
+                label="今日新增"
                 value={stats.newToday}
-                sublabel={stats.newToday > 0 ? "last 24 hours" : "all caught up"}
               />
-              <StatCard
+            )}
+            {stats.readThisWeek > 0 && (
+              <StatItem
                 icon={<BookOpen className="size-3.5" />}
-                label="Read this week"
+                label="本周已读"
                 value={stats.readThisWeek}
-                sublabel="last 7 days"
               />
-              <StatCard
+            )}
+            {stats.subscriptions > 0 && (
+              <StatItem
                 icon={<Rss className="size-3.5" />}
-                label="Feeds"
+                label="订阅源"
                 value={stats.subscriptions}
-                sublabel={
-                  stats.failingFeeds > 0 ? `${stats.failingFeeds} need attention` : "all healthy"
-                }
-                sublabelTone={stats.failingFeeds > 0 ? "warn" : undefined}
               />
-              <StatCard
+            )}
+            {stats.tags > 0 && (
+              <StatItem
                 icon={<Tag className="size-3.5" />}
-                label="Tags"
+                label="标签"
                 value={stats.tags}
-                href={stats.tags > 0 ? "/reader/tags" : undefined}
+                href="/reader/tags"
                 onNav={(href) => router.push(href)}
               />
-            </div>
+            )}
+            {stats.failingFeeds > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs text-destructive">
+                <AlertTriangle className="size-3.5" />
+                {stats.failingFeeds} 个订阅源需要关注
+              </span>
+            )}
           </section>
         )}
         {statsLoading && !stats && (
-          <div
-            role="status"
-            aria-label="Loading reading stats"
-            className="flex min-h-20 items-center justify-center rounded-lg border border-border bg-card"
-          >
+          <div role="status" aria-label="正在加载阅读统计" className="flex min-h-8 items-center">
             <div className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
           </div>
         )}
         {statsError && !stats && (
           <ResourceError
-            title="Reading stats unavailable"
+            title="阅读统计暂不可用"
             message={statsError}
-            retryLabel="Retry stats"
+            retryLabel="重试统计"
             onRetry={() => setStatsReloadKey((key) => key + 1)}
           />
         )}
+
+        <HotPreview />
 
         {/* Recommended articles */}
         {groupsLoading && groups.length === 0 && (
           <div
             role="status"
-            aria-label="Loading articles"
+            aria-label="正在加载文章"
             className="flex min-h-40 items-center justify-center"
           >
             <div className="size-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
@@ -451,9 +338,9 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
         )}
         {groupsError && (
           <ResourceError
-            title="Articles unavailable"
+            title="文章暂不可用"
             message={groupsError}
-            retryLabel="Retry articles"
+            retryLabel="重试加载"
             onRetry={() => setGroupsReloadKey((key) => key + 1)}
           />
         )}
@@ -463,29 +350,25 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
               <Rss className="size-7 text-muted-foreground/30" />
             </div>
             <div className="space-y-1 text-center">
-              <p className="text-sm font-medium">No articles yet</p>
-              <p className="text-xs text-muted-foreground">
-                Add your first RSS feed to get started
-              </p>
+              <p className="text-sm font-medium">还没有文章</p>
+              <p className="text-xs text-muted-foreground">添加第一个 RSS 订阅源，开始阅读</p>
             </div>
           </div>
         )}
         {recommended.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              Recommended
+              推荐阅读
             </h2>
             {recommended[0] && (
               <CardEnter>
-                <ArticleCard article={recommended[0]} size="hero" onSelect={onSelectArticle} />
+                <RecommendedArticle article={recommended[0]} onSelect={onSelectArticle} />
               </CardEnter>
             )}
             {recommended.length > 1 && (
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-2.5">
-                {recommended.slice(1).map((article, index) => (
-                  <CardEnter key={article.id} index={index}>
-                    <ArticleCard article={article} size="normal" onSelect={onSelectArticle} />
-                  </CardEnter>
+              <div className="divide-y divide-border/60">
+                {recommended.slice(1).map((article) => (
+                  <ArticleRow key={article.id} article={article} onSelect={onSelectArticle} />
                 ))}
               </div>
             )}

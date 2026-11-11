@@ -5,6 +5,7 @@ export interface Subscription {
   feedTitle: string | null;
   url: string;
   iconUrl: string | null;
+  siteUrl?: string | null;
   folderId: string | null;
   unreadCount?: number;
   lastFetchError?: string | null;

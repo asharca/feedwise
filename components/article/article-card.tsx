@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { zhCN } from "date-fns/locale";
 import { Star } from "lucide-react";
-import { cn, proxyImg } from "@/lib/utils";
+import { cn, htmlToText, proxyImg } from "@/lib/utils";
 
 export interface ArticleCardItem {
   id: string;
@@ -77,13 +78,18 @@ function FeedMeta({
     <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
       {feedIconUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={proxyImg(feedIconUrl, 96)} alt="" decoding="async" className="size-3 rounded-sm shrink-0" />
+        <img
+          src={proxyImg(feedIconUrl, 96)}
+          alt=""
+          decoding="async"
+          className="size-3 rounded-sm shrink-0"
+        />
       )}
-      <span className="truncate font-medium">{feedTitle ?? "Unknown"}</span>
+      <span className="truncate font-medium">{feedTitle ?? "未知来源"}</span>
       {relTime && (
         <>
           <span className="text-muted-foreground/40 shrink-0">·</span>
-          <span className="text-muted-foreground/60 shrink-0 whitespace-nowrap">{relTime}</span>
+          <span className="shrink-0 whitespace-nowrap">{relTime}</span>
         </>
       )}
     </div>
@@ -112,40 +118,33 @@ export function ArticleCard({
   const isRead = Boolean(article.isRead);
   // Fall back to the first inline HTTPS image in the RSS summary when the feed
   // doesn't provide a dedicated cover image (enclosure / media:content).
-  const effectiveImageUrl =
-    article.imageUrl || extractFirstImage(article.summary ?? null) || null;
+  const effectiveImageUrl = article.imageUrl || extractFirstImage(article.summary ?? null) || null;
   // Treat as text card if no URL found, or if the image failed to load.
   const hasImage = Boolean(effectiveImageUrl) && !imgFailed;
 
-  const date =
-    toDate(displayedAt) ??
-    toDate(article.publishedAt) ??
-    toDate(article.createdAt);
-  const relTime = date ? formatDistanceToNow(date, { addSuffix: true }) : null;
+  const date = toDate(displayedAt) ?? toDate(article.publishedAt) ?? toDate(article.createdAt);
+  const relTime = date ? formatDistanceToNow(date, { addSuffix: true, locale: zhCN }) : null;
 
   // Always compute excerpt — used by the text card layout (when !hasImage).
-  const excerpt = article.summary
-    ? article.summary
-        .replace(/<[^>]*>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 300)
-    : null;
+  const excerpt = article.summary ? htmlToText(article.summary).slice(0, 300) : null;
 
   return (
     <article
+      data-article-id={article.id}
       className={cn(
-        "group relative flex h-60 w-full flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors duration-200 ease-[var(--ease-out)] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30",
+        "group relative flex h-60 w-full scroll-mt-8 flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors duration-200 ease-[var(--ease-out)] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30",
         active
-          ? "border-primary ring-1 ring-primary/30"
+          ? "border-primary bg-primary/10 ring-1 ring-primary/30 before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-[3px] before:bg-primary"
           : "border-border hover:border-foreground/30",
         !active && isRead && "opacity-60",
       )}
     >
       <button
         type="button"
+        data-article-open
+        aria-current={active ? "true" : undefined}
         onClick={() => onSelect(article.id)}
-        aria-label={`Read ${article.title ?? "untitled article"}`}
+        aria-label={`阅读：${article.title ?? "无标题"}`}
         className="absolute inset-0 z-10 rounded-lg outline-none"
       />
 
@@ -164,7 +163,7 @@ export function ArticleCard({
             loading="lazy"
             decoding="async"
             onError={() => setImgFailed(true)}
-            className="w-full h-32 object-cover shrink-0"
+            className="w-full h-32 object-cover shrink-0 transform-gpu backface-hidden"
           />
           <div className="pointer-events-none flex flex-1 flex-col overflow-hidden p-3">
             <FeedMeta
@@ -175,13 +174,11 @@ export function ArticleCard({
             <h4
               className={cn(
                 "mt-1.5 line-clamp-2 text-sm leading-snug",
-                !isRead
-                  ? "font-semibold text-foreground"
-                  : "font-medium text-foreground/80",
+                !isRead ? "font-semibold text-foreground" : "font-medium text-foreground/80",
                 !active && "group-hover:text-primary transition-colors",
               )}
             >
-              <Highlight text={article.title ?? "(untitled)"} query={searchQuery} />
+              <Highlight text={article.title ?? "无标题"} query={searchQuery} />
             </h4>
           </div>
         </>
@@ -196,13 +193,11 @@ export function ArticleCard({
           <h4
             className={cn(
               "mt-2 line-clamp-4 text-sm leading-snug",
-              !isRead
-                ? "font-semibold text-foreground"
-                : "font-medium text-foreground/80",
+              !isRead ? "font-semibold text-foreground" : "font-medium text-foreground/80",
               !active && "group-hover:text-primary transition-colors",
             )}
           >
-            <Highlight text={article.title ?? "(untitled)"} query={searchQuery} />
+            <Highlight text={article.title ?? "无标题"} query={searchQuery} />
           </h4>
           {excerpt && (
             <p className="mt-2 line-clamp-5 text-xs leading-relaxed text-muted-foreground">
@@ -224,7 +219,7 @@ export function ArticleCard({
             e.stopPropagation();
             onStar(article.id, !article.isStarred);
           }}
-          aria-label={article.isStarred ? "Unstar article" : "Star article"}
+          aria-label={article.isStarred ? "取消收藏" : "收藏文章"}
         >
           <Star className={cn("size-4", article.isStarred && "fill-current")} />
         </button>
