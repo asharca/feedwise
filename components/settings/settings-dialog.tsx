@@ -19,7 +19,7 @@ export function SettingsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="!max-w-none w-[calc(100vw-1rem)] h-[calc(100dvh-1rem)] sm:w-[min(94vw,960px)] sm:h-auto sm:min-h-[420px] sm:max-h-[min(86dvh,680px)] overflow-hidden flex flex-col gap-0 p-0 rounded-lg"
+        className="!max-w-none w-[calc(100vw-1rem)] h-[calc(100dvh-1rem)] sm:w-[min(94vw,960px)] sm:h-[min(86dvh,680px)] overflow-hidden flex flex-col gap-0 p-0 rounded-lg"
       >
         <DialogHeader className="shrink-0 border-b border-border px-4 py-4 pr-12 sm:px-5">
           <DialogTitle>Settings</DialogTitle>

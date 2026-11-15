@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Pencil,
   Link,
@@ -22,7 +21,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { proxyImg } from "@/lib/utils";
+import { FeedIcon } from "./feed-icon";
 import type { Subscription, Folder } from "./types";
 
 export interface FeedItemActions {
@@ -40,53 +39,6 @@ export interface FeedItemProps {
   folders: Folder[];
   isActive: boolean;
   actions: FeedItemActions;
-}
-
-function FeedIcon({
-  url,
-  siteUrl,
-  feedUrl,
-  name,
-}: {
-  url: string | null;
-  siteUrl?: string | null;
-  feedUrl: string;
-  name: string;
-}) {
-  const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  let iconUrl = url;
-  if (!iconUrl) {
-    for (const candidate of [siteUrl, feedUrl]) {
-      if (!candidate) continue;
-      try {
-        const site = new URL(candidate);
-        if (!/^https?:$/.test(site.protocol)) continue;
-        iconUrl = `${site.origin}/favicon.ico`;
-        break;
-      } catch {
-        // A malformed site URL can still fall back to the feed's origin.
-      }
-    }
-  }
-  if (iconUrl && failedUrl !== iconUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={proxyImg(iconUrl, 96)}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        onError={() => setFailedUrl(iconUrl)}
-        className="size-4 rounded-sm shrink-0"
-      />
-    );
-  }
-  const letter = (name || "?")[0].toUpperCase();
-  return (
-    <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-muted text-xs font-medium text-muted-foreground">
-      {letter}
-    </span>
-  );
 }
 
 export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
