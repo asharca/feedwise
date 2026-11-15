@@ -11,6 +11,8 @@ Self-hosted RSS reader. Subscribe to feeds, read articles in a clean Reeder-styl
 - Keyboard shortcuts (j/k navigate, s star, m read, o open original)
 - OPML import/export
 - Dark/light theme
+- Sidebar feed icons use a light backing for dark-logo contrast; failed images (including transparent proxy placeholders) fall back to the site favicon, then the feed's initial. No third-party favicon service is used.
+- Settings keeps a viewport-bounded height across sections, with internal scrolling for longer forms.
 
 ## Quick Start
 
