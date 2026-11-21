@@ -41,7 +41,7 @@
 
 ## 快速开始
 
-需要 Node.js 20.18+、PostgreSQL 14+（推荐 16）、Redis、pnpm。
+使用 Node.js 26 LTS、PostgreSQL 14+（推荐 16）、Redis、pnpm。
 
 ```bash
 pnpm install
