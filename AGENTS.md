@@ -27,15 +27,27 @@ app/                      Next.js App Router
   globals.css             Global styles
 
 lib/                      Business logic (no Next.js imports)
+  articles/               Per-article enrichment (AI summary, tags, full text)
   auth/                   better-auth configuration
+  client-api/             Google Reader + Fever protocol handlers
   crypto/                 Encryption utilities
   db/                     Drizzle schema + queries
+  dedupe/                 SimHash near-duplicate detection
   digest/                 Digest pipeline (normalize, dedupe, cluster, organize)
   email/                  Email templates + sender
-  feeds/                  RSS feed parsing + fetching
+  events/                 Redis pub/sub events for SSE
+  feeds/                  Feed/HTML-source fetching, parsing, ingest, scheduling
   hooks/                  Shared React hooks
-  jobs/                   BullMQ workers + job definitions
-  oauth/                  OAuth provider integrations
+  hot/                    Hot-list providers (DailyHotApi / newsnow) + ingest
+  jobs/                   BullMQ workers, queues, job schedulers
+  mcp/                    MCP tool registry (stdio + HTTP)
+  net/                    safe-fetch: SSRF-safe outbound HTTP
+  notify/                 Notification channel adapters
+  oauth/                  OAuth 2.1 server for MCP
+  query/                  Client fetch + TanStack Query keys
+  rules/                  Rule evaluation + actions
+  search/                 Search cursor/highlight helpers
+  share/                  Re-published RSS output
   utils.ts                Shared utilities
 
 components/               Shared React components (shadcn/ui based)
@@ -49,14 +61,17 @@ docs/                     Design specs and architecture decisions
 
 | Module          | Depends on                                           | Used by                                                                         | Rule                                                                                                |
 | --------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `lib/db/`       | `drizzle-orm`, `pg`                                  | `lib/auth/`, `lib/feeds/`, `lib/email/`, `lib/jobs/`, `lib/digest/`, `app/api/` | Only database access layer. No business logic.                                                      |
+| `lib/db/`       | `drizzle-orm`, `pg`                                  | `lib/*`, `app/api/`                                                             | Only database access layer. No business logic.                                                      |
 | `lib/auth/`     | `lib/db/`, `better-auth`                             | `app/`, `app/api/`                                                              | Auth configuration only. No UI components.                                                          |
-| `lib/feeds/`    | `lib/db/`, `feedparser-promised`                     | `lib/jobs/`                                                                     | RSS fetching + parsing. No HTTP server logic.                                                       |
+| `lib/net/`      | `undici`, `ipaddr.js`                                | `lib/feeds/`, `lib/articles/`, `lib/notify/`, `app/api/image-proxy`             | Every server-side fetch of a user- or feed-controlled URL MUST go through `safeFetch`.              |
+| `lib/feeds/`    | `lib/db/`, `lib/net/`, `feedsmith`, `linkedom`       | `lib/jobs/`, `app/api/`                                                         | Fetching + parsing + ingest. No HTTP server logic.                                                  |
+| `lib/rules/`    | `lib/db/`, `lib/jobs/queues/`                        | `lib/feeds/`, `lib/hot/`, `app/api/`                                            | Runs after ingest commits; never throws into ingest.                                                |
+| `lib/notify/`   | `lib/db/`, `lib/net/`, `lib/crypto/`, `web-push`     | `lib/jobs/`, `app/api/`                                                         | One adapter per channel type; channel config stored encrypted.                                      |
 | `lib/email/`    | `lib/db/`, `nodemailer`                              | `lib/jobs/`                                                                     | Email sending + templates. No digest logic.                                                         |
 | `lib/digest/`   | `lib/db/`                                            | `lib/jobs/`, `lib/email/`, `app/api/`                                           | Content organization pipeline. LLM client utilities live here and may be reused by Web UI features. |
-| `lib/jobs/`     | `lib/db/`, `lib/feeds/`, `lib/email/`, `lib/digest/` | `package.json scripts`                                                          | Worker entry points. Orchestrates other modules.                                                    |
-| `app/api/`      | `lib/*`                                              | —                                                                               | API routes. Thin wrappers over lib modules.                                                         |
-| `app/(reader)/` | `components/`, `lib/hooks/`                          | —                                                                               | Reader UI. LLM features allowed when user has opted in and configured a key.                        |
+| `lib/jobs/`     | `lib/*`                                              | `package.json scripts`                                                          | Worker entry points + queues. Periodic work uses BullMQ job schedulers, never `setInterval`.        |
+| `app/api/`      | `lib/*`                                              | —                                                                               | API routes. Thin wrappers over lib modules. `{ success, data }` / `{ success: false, error }`.       |
+| `app/(reader)/` | `components/`, `lib/hooks/`, `lib/query/`            | —                                                                               | Reader UI. Data via TanStack Query + `apiFetch`. LLM features opt-in with the user's own key.       |
 
 ## Key Decisions
 
