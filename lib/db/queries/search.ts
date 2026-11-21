@@ -7,6 +7,7 @@ import {
   SNIPPET_END,
   type SnippetPart,
 } from "@/lib/search/parse-snippet";
+import { hasCjk, highlightSubstring } from "@/lib/search/highlight";
 
 const HEADLINE_OPTIONS_BODY = `StartSel=${SNIPPET_START}, StopSel=${SNIPPET_END}, MaxFragments=2, MaxWords=15, MinWords=5`;
 const HEADLINE_OPTIONS_TITLE = `StartSel=${SNIPPET_START}, StopSel=${SNIPPET_END}, MaxFragments=1, MaxWords=20, MinWords=5`;
@@ -42,13 +43,10 @@ export async function searchArticles(
   const { q, feedId, folderId, tagId, unreadOnly, starredOnly, since } = opts;
   const limit = Math.min(opts.limit ?? 5, 20);
 
-  const tsv = sql`to_tsvector('simple',
-    coalesce(${articles.title}, '') || ' ' ||
-    coalesce(${articles.contentText}, '') || ' ' ||
-    coalesce(${articles.summary}, '') || ' ' ||
-    coalesce(${articles.aiSummary}, '')
-  )`;
-  const tsq = sql`websearch_to_tsquery('simple', ${q})`;
+  const tsq = sql`feedwise_search_query(${q})`;
+  const headlineQuery = sql`websearch_to_tsquery('simple', ${q})`;
+  const cjk = hasCjk(q);
+  const body = sql`coalesce(${articles.contentText}, ${articles.summary}, ${articles.aiSummary}, '')`;
 
   const rows = await db
     .select({
@@ -57,8 +55,12 @@ export async function searchArticles(
       feedTitle: feeds.title,
       feedIconUrl: feeds.iconUrl,
       title: articles.title,
-      rawTitle: sql<string>`ts_headline('simple', coalesce(${articles.title}, ''), ${tsq}, ${HEADLINE_OPTIONS_TITLE})`,
-      rawSnippet: sql<string>`ts_headline('simple', coalesce(${articles.contentText}, ${articles.summary}, ${articles.aiSummary}, ''), ${tsq}, ${HEADLINE_OPTIONS_BODY})`,
+      rawTitle: cjk
+        ? articles.title
+        : sql<string>`ts_headline('simple', coalesce(${articles.title}, ''), ${headlineQuery}, ${HEADLINE_OPTIONS_TITLE})`,
+      rawSnippet: cjk
+        ? sql<string>`concat_ws(' ', ${articles.aiSummary}, ${articles.summary}, left(${articles.contentText}, 20000))`
+        : sql<string>`ts_headline('simple', ${body}, ${headlineQuery}, ${HEADLINE_OPTIONS_BODY})`,
       publishedAt: articles.publishedAt,
       isRead: sql<boolean>`coalesce(${userArticles.isRead}, false)`,
       isStarred: sql<boolean>`coalesce(${userArticles.isStarred}, false)`,
@@ -85,14 +87,13 @@ export async function searchArticles(
           : undefined,
         unreadOnly ? or(isNull(userArticles.isRead), eq(userArticles.isRead, false)) : undefined,
         starredOnly ? eq(userArticles.isStarred, true) : undefined,
-        since
-          ? sql`coalesce(${articles.publishedAt}, ${articles.createdAt}) >= ${since}`
-          : undefined,
-        sql`(${tsv} @@ ${tsq} OR ${articles.title} ILIKE ${"%" + q + "%"})`,
+        since ? sql`${articles.sortAt} >= ${since.toISOString()}` : undefined,
+        sql`${userArticles.isHidden} is not true`,
+        sql`${articles.searchTsv} @@ ${tsq}`,
       ),
     )
     .orderBy(
-      sql`ts_rank_cd(${tsv}, ${tsq}) DESC NULLS LAST, coalesce(${articles.publishedAt}, ${articles.createdAt}) DESC`,
+      sql`ts_rank_cd(${articles.searchTsv}, ${tsq}) desc, ${articles.sortAt} desc, ${articles.id} desc`,
     )
     .limit(limit);
 
@@ -102,8 +103,8 @@ export async function searchArticles(
     feedTitle: r.feedTitle,
     feedIconUrl: r.feedIconUrl,
     title: r.title,
-    titleParts: parseSnippet(r.rawTitle),
-    snippetParts: parseSnippet(r.rawSnippet),
+    titleParts: cjk ? highlightSubstring(r.rawTitle ?? "", q) : parseSnippet(r.rawTitle),
+    snippetParts: cjk ? highlightSubstring(r.rawSnippet, q) : parseSnippet(r.rawSnippet),
     isRead: r.isRead,
     isStarred: r.isStarred,
     publishedAt: r.publishedAt,
@@ -130,6 +131,7 @@ export async function searchFeedsByName(userId: string, q: string, limit = 5): P
           on ua.article_id = a.id and ua.user_id = ${userId}
         where a.feed_id = ${feeds.id}
           and (ua.is_read is null or ua.is_read = false)
+          and ua.is_hidden is not true
       )`,
     })
     .from(subscriptions)
@@ -137,6 +139,7 @@ export async function searchFeedsByName(userId: string, q: string, limit = 5): P
     .where(
       and(
         eq(subscriptions.userId, userId),
+        sql`feedwise_search_query(${q}) is not null`,
         or(
           ilike(feeds.title, like),
           ilike(subscriptions.customTitle, like),
@@ -166,10 +169,18 @@ export async function searchTagsByName(userId: string, q: string, limit = 5): Pr
       articleCount: sql<number>`(
         select count(*)::int from ${articleTags} at
         where at.tag_id = ${tags.id}
+          and not exists (select 1 from ${userArticles} ua where ua.article_id = at.article_id
+            and ua.user_id = ${userId} and ua.is_hidden)
       )`,
     })
     .from(tags)
-    .where(and(eq(tags.userId, userId), ilike(tags.name, "%" + q + "%")))
+    .where(
+      and(
+        eq(tags.userId, userId),
+        sql`feedwise_search_query(${q}) is not null`,
+        ilike(tags.name, "%" + q + "%"),
+      ),
+    )
     .orderBy(tags.name)
     .limit(Math.min(limit, 20));
 }

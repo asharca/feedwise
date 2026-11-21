@@ -28,12 +28,10 @@ function LoginForm() {
       if (res.error) {
         setError(res.error.message ?? "Login failed");
       } else {
+        // Same-origin paths only: "//host" and "/\host" are protocol-relative escapes.
         const redirect = searchParams.get("redirect");
-        if (redirect && redirect.startsWith("http")) {
-          window.location.href = redirect;
-        } else {
-          router.push(redirect ?? "/reader");
-        }
+        const safeRedirect = redirect && /^\/(?![/\\])/.test(redirect) ? redirect : "/reader";
+        router.push(safeRedirect);
       }
     } finally {
       setLoading(false);

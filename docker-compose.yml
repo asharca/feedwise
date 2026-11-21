@@ -29,8 +29,7 @@ services:
   dailyhot-api:
     image: imsyy/dailyhot-api:latest
     restart: unless-stopped
-    ports:
-      - "6688:6688"
+    # Internal only: the app and worker reach it over the compose network.
 
   feedwise-migrate:
     build:
@@ -62,6 +61,11 @@ services:
       - DATABASE_URL=postgresql://feedwise:${FEEDWISE_DB_PASSWORD}@feedwise-db:5432/feedwise
       - REDIS_URL=redis://feedwise-redis:6379
       - HOT_API_URL=${HOT_API_URL:-http://dailyhot-api:6688}
+      - HOT_API_PROVIDER=${HOT_API_PROVIDER:-dailyhot}
+      - RSSHUB_BASE_URL=${RSSHUB_BASE_URL:-https://rsshub.app}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-}
       - BETTER_AUTH_SECRET=${FEEDWISE_AUTH_SECRET}
       - BETTER_AUTH_URL=https://feedwise.${ROOT_DOMAIN}
       - NEXT_PUBLIC_APP_URL=https://feedwise.${ROOT_DOMAIN}
@@ -84,6 +88,10 @@ services:
       - DATABASE_URL=postgresql://feedwise:${FEEDWISE_DB_PASSWORD}@feedwise-db:5432/feedwise
       - REDIS_URL=redis://feedwise-redis:6379
       - HOT_API_URL=${HOT_API_URL:-http://dailyhot-api:6688}
+      - HOT_API_PROVIDER=${HOT_API_PROVIDER:-dailyhot}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-}
       - BETTER_AUTH_SECRET=${FEEDWISE_AUTH_SECRET}
       - BETTER_AUTH_URL=https://feedwise.${ROOT_DOMAIN}
       - NEXT_PUBLIC_APP_URL=https://feedwise.${ROOT_DOMAIN}

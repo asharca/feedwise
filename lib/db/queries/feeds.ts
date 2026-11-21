@@ -1,6 +1,8 @@
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { feeds, subscriptions, folders, articles, userArticles } from "@/lib/db/schema";
+import type { ContentView, HtmlSourceConfig } from "@/lib/db/schema-types";
+import { htmlSourceUrl } from "@/lib/feeds/source-config";
 
 export async function getSubscriptions(userId: string) {
   return db
@@ -19,12 +21,20 @@ export async function getSubscriptions(userId: string) {
       errorCode: feeds.errorCode,
       consecutiveFailures: feeds.consecutiveFailures,
       fetchIntervalMinutes: feeds.fetchIntervalMinutes,
+      sourceType: feeds.sourceType,
+      sourceConfig: feeds.sourceConfig,
+      view: sql<ContentView>`coalesce(${subscriptions.view}, ${feeds.defaultView}, 'article')`,
+      viewOverride: subscriptions.view,
+      defaultView: sql<ContentView>`coalesce(${feeds.defaultView}, 'article')`,
+      fetchFullText: subscriptions.fetchFullText,
+      nextFetchAt: feeds.nextFetchAt,
       unreadCount: sql<number>`(
         select count(*)::int from ${articles} a
         left join ${userArticles} ua
           on ua.article_id = a.id and ua.user_id = ${userId}
         where a.feed_id = ${feeds.id}
           and (ua.is_read is null or ua.is_read = false)
+          and ua.is_hidden is not true
       )`,
     })
     .from(subscriptions)
@@ -65,11 +75,12 @@ export async function subscribeFeed(
   userId: string,
   feedUrl: string,
   folderId?: string,
+  sourceConfig?: HtmlSourceConfig,
 ): Promise<{ feedId: string; subscriptionId: string }> {
   // Upsert the global feed record
   const [feed] = await db
     .insert(feeds)
-    .values({ url: feedUrl })
+    .values({ url: feedUrl, sourceType: sourceConfig ? "html" : "rss", sourceConfig })
     .onConflictDoUpdate({ target: feeds.url, set: { url: feedUrl } })
     .returning({ id: feeds.id });
 
@@ -92,7 +103,12 @@ export async function unsubscribeFeed(userId: string, subscriptionId: string) {
 export async function updateSubscription(
   userId: string,
   subscriptionId: string,
-  data: { customTitle?: string; folderId?: string | null },
+  data: {
+    customTitle?: string;
+    folderId?: string | null;
+    view?: ContentView | null;
+    fetchFullText?: boolean;
+  },
 ) {
   const [updated] = await db
     .update(subscriptions)
@@ -116,7 +132,10 @@ export async function updateFeedInterval(
 
   await db
     .update(feeds)
-    .set({ fetchIntervalMinutes: intervalMinutes })
+    .set({
+      fetchIntervalMinutes: intervalMinutes,
+      nextFetchAt: new Date(Date.now() + intervalMinutes * 60_000),
+    })
     .where(eq(feeds.id, sub.feedId));
 
   return { feedId: sub.feedId };
@@ -250,16 +269,21 @@ export async function updateFeedUrl(
 ): Promise<{ feedId: string; url: string } | null> {
   // Get feedId for this subscription (verify ownership)
   const [sub] = await db
-    .select({ feedId: subscriptions.feedId })
+    .select({ feedId: subscriptions.feedId, config: feeds.sourceConfig })
     .from(subscriptions)
+    .innerJoin(feeds, eq(feeds.id, subscriptions.feedId))
     .where(and(eq(subscriptions.id, subscriptionId), eq(subscriptions.userId, userId)));
 
   if (!sub) return null;
+  const url = sub.config ? htmlSourceUrl(newUrl, sub.config) : newUrl;
 
   await db
     .update(feeds)
     .set({
-      url: newUrl,
+      url,
+      etag: null,
+      lastModified: null,
+      nextFetchAt: null,
       lastFetchedAt: null,
       lastFetchError: null,
       errorCode: null,
@@ -267,7 +291,7 @@ export async function updateFeedUrl(
     })
     .where(eq(feeds.id, sub.feedId));
 
-  return { feedId: sub.feedId, url: newUrl };
+  return { feedId: sub.feedId, url };
 }
 
 export async function getSubscriberUserIds(feedId: string): Promise<string[]> {
@@ -276,4 +300,34 @@ export async function getSubscriberUserIds(feedId: string): Promise<string[]> {
     .from(subscriptions)
     .where(eq(subscriptions.feedId, feedId));
   return rows.map((r) => r.userId);
+}
+
+export async function getFeedSubscribers(feedId: string) {
+  return db
+    .select({ userId: subscriptions.userId, fetchFullText: subscriptions.fetchFullText })
+    .from(subscriptions)
+    .where(eq(subscriptions.feedId, feedId));
+}
+
+/** Shared authorization check for article operations; never expose the bigint in JSON. */
+export async function getSubscribedArticle(userId: string, articleId: string) {
+  const [row] = await db
+    .select({
+      id: articles.id,
+      feedId: articles.feedId,
+      url: articles.url,
+      sortAt: articles.sortAt,
+      simhash: articles.simhash,
+    })
+    .from(articles)
+    .innerJoin(
+      subscriptions,
+      and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
+    )
+    .leftJoin(
+      userArticles,
+      and(eq(userArticles.articleId, articles.id), eq(userArticles.userId, userId)),
+    )
+    .where(and(eq(articles.id, articleId), sql`${userArticles.isHidden} is not true`));
+  return row ?? null;
 }
