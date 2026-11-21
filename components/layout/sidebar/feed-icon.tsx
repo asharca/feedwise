@@ -39,6 +39,8 @@ export function FeedIcon({
   }
   if (origin) candidates.push(`${origin}/favicon.ico`);
   const iconUrl = candidates.find((candidate) => !failedUrls.includes(candidate));
+  const markFailed = (failedUrl: string) =>
+    setFailedUrls((failed) => (failed.includes(failedUrl) ? failed : [...failed, failedUrl]));
 
   if (!iconUrl) {
     return (
@@ -61,12 +63,17 @@ export function FeedIcon({
         alt=""
         loading="lazy"
         decoding="async"
-        onError={() => setFailedUrls((failed) => [...failed, iconUrl])}
+        onError={() => markFailed(iconUrl)}
         onLoad={(event) => {
           // The image proxy returns a successful 1×1 transparent GIF on upstream failure.
           if (event.currentTarget.naturalWidth <= 1 || event.currentTarget.naturalHeight <= 1) {
-            setFailedUrls((failed) => [...failed, iconUrl]);
+            markFailed(iconUrl);
           }
+        }}
+        // A server-rendered <img> can finish (or fail) before hydration attaches
+        // onLoad/onError, so re-check its settled state once on mount.
+        ref={(img) => {
+          if (img?.complete && img.naturalWidth <= 1) markFailed(iconUrl);
         }}
         className="size-4 object-contain"
       />

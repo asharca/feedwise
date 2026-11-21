@@ -18,10 +18,7 @@ export const POST = withAuth(async (req, session) => {
   const outlines = Array.from<Element>(doc.querySelectorAll("outline[xmlUrl]"));
 
   if (outlines.length === 0) {
-    return NextResponse.json(
-      { success: false, error: "No feeds found in OPML" },
-      { status: 400 },
-    );
+    return NextResponse.json({ success: false, error: "No feeds found in OPML" }, { status: 400 });
   }
 
   const results: { url: string; ok: boolean }[] = [];

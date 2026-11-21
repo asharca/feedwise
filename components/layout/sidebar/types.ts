@@ -1,3 +1,5 @@
+import type { ContentView, FeedSourceType } from "@/lib/db/schema-types";
+
 export interface Subscription {
   id: string;
   feedId: string;
@@ -7,11 +9,19 @@ export interface Subscription {
   iconUrl: string | null;
   siteUrl?: string | null;
   folderId: string | null;
+  position?: number | null;
   unreadCount?: number;
   lastFetchError?: string | null;
   errorCode?: string | null;
   consecutiveFailures?: number | null;
   lastFetchedAt?: string | Date | null;
+  fetchIntervalMinutes?: number | null;
+  sourceType?: FeedSourceType;
+  view?: ContentView;
+  viewOverride?: ContentView | null;
+  defaultView?: ContentView;
+  fetchFullText?: boolean;
+  nextFetchAt?: string | Date | null;
 }
 
 export interface Folder {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { CronExpressionParser } from "cron-parser";
 import { cn } from "@/lib/utils";
-import { describeCron, formatTimeList } from "@/lib/cron/describe";
+import { describeCron } from "@/lib/cron/describe";
 
 interface CronBuilderProps {
   value: string | null;
@@ -14,23 +14,23 @@ interface CronBuilderProps {
 type CronPreset = "daily" | "weekly" | "monthly" | "custom";
 
 const WEEKDAYS = [
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-  { value: 0, label: "Sun" },
+  { value: 1, label: "周一" },
+  { value: 2, label: "周二" },
+  { value: 3, label: "周三" },
+  { value: 4, label: "周四" },
+  { value: 5, label: "周五" },
+  { value: 6, label: "周六" },
+  { value: 0, label: "周日" },
 ];
 
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
 function validateCron(expr: string): string | null {
   try {
-    CronExpressionParser.parse(expr.trim());
+    CronExpressionParser.parse(expr);
     return null;
   } catch {
-    return "Invalid cron expression";
+    return "Cron 表达式格式无效";
   }
 }
 
@@ -43,39 +43,30 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
   const [monthDay, setMonthDay] = useState(1);
   const [customDraft, setCustomDraft] = useState(value || "");
   const [customError, setCustomError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debounceRef = useRef<number | undefined>(undefined);
 
   const onChangeRef = useRef(onChange);
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
-  // Track current mode without making it a dep of the parse effect
   const modeRef = useRef(mode);
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
 
-  // Track the cron string we last emitted, so the round-trip through the
-  // parent (onChange → value) doesn't re-trigger the parse effect and
-  // create a setState feedback loop.
   const lastEmittedRef = useRef<string | null>(null);
 
-  // Parse value on load / external change — but never override user's custom mode
   useEffect(() => {
     if (!value) return;
-
-    // Our own echo — parent re-emitted what we just sent. Skip to break the loop.
     if (value === lastEmittedRef.current) return;
 
-    // User is in custom mode: just keep the draft in sync, don't switch modes
     if (modeRef.current === "custom") {
       setCustomDraft(value);
       return;
     }
 
     const parts = value.trim().split(/\s+/);
-    // Only parse well-formed, simple expressions for preset modes
     if (parts.length !== 5) {
       setMode("custom");
       setCustomDraft(value);
@@ -83,31 +74,29 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
     }
 
     const [m, h, d, mo, wd] = parts;
-    // Require plain integers for hour/minute so "8,18" doesn't match "daily"
     if (!/^\d+$/.test(m) || !/^\d+$/.test(h)) {
       setMode("custom");
       setCustomDraft(value);
       return;
     }
 
-    setHour(parseInt(h) || 8);
-    setMinute(parseInt(m) || 0);
+    setHour(parseInt(h, 10) || 8);
+    setMinute(parseInt(m, 10) || 0);
 
     if (d === "*" && mo === "*" && wd === "*") {
       setMode("daily");
     } else if (d === "*" && mo === "*" && /^\d$/.test(wd)) {
       setMode("weekly");
-      setWeekday(parseInt(wd));
+      setWeekday(parseInt(wd, 10));
     } else if (/^\d+$/.test(d) && mo === "*" && wd === "*") {
       setMode("monthly");
-      setMonthDay(parseInt(d));
+      setMonthDay(parseInt(d, 10));
     } else {
       setMode("custom");
       setCustomDraft(value);
     }
   }, [value]);
 
-  // Build and emit cron for preset modes
   useEffect(() => {
     if (mode === "custom") return;
 
@@ -135,7 +124,7 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
 
   useEffect(() => {
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      window.clearTimeout(debounceRef.current);
     };
   }, []);
 
@@ -144,8 +133,8 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
     setCustomDraft(newValue);
     setCustomError(null);
 
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
+    window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
       const error = validateCron(newValue);
       if (error) {
         setCustomError(error);
@@ -168,16 +157,15 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
   );
 
   const presets: { key: CronPreset; label: string }[] = [
-    { key: "daily", label: "Daily" },
-    { key: "weekly", label: "Weekly" },
-    { key: "monthly", label: "Monthly" },
-    { key: "custom", label: "Custom" },
+    { key: "daily", label: "每天" },
+    { key: "weekly", label: "每周" },
+    { key: "monthly", label: "每月" },
+    { key: "custom", label: "自定义" },
   ];
 
   return (
     <div className={cn("space-y-3", disabled && "opacity-60")} aria-disabled={disabled}>
-      {/* Mode tabs */}
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Schedule frequency">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="发送频率">
         {presets.map((p) => (
           <button
             key={p.key}
@@ -194,12 +182,11 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
         ))}
       </div>
 
-      {/* Time picker — only for preset modes */}
       {mode !== "custom" && (
         <div className="flex items-center gap-3">
           <div>
             <label htmlFor={`${fieldId}-hour`} className="text-xs text-muted-foreground block mb-1">
-              Hour
+              小时
             </label>
             <select
               id={`${fieldId}-hour`}
@@ -217,8 +204,11 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
           </div>
           <span className="text-muted-foreground pt-5">:</span>
           <div>
-            <label htmlFor={`${fieldId}-minute`} className="text-xs text-muted-foreground block mb-1">
-              Minute
+            <label
+              htmlFor={`${fieldId}-minute`}
+              className="text-xs text-muted-foreground block mb-1"
+            >
+              分钟
             </label>
             <select
               id={`${fieldId}-minute`}
@@ -237,7 +227,6 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
         </div>
       )}
 
-      {/* Weekly selector */}
       {mode === "weekly" && (
         <div className="flex gap-1.5 flex-wrap">
           {WEEKDAYS.map((wd) => (
@@ -259,11 +248,10 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
         </div>
       )}
 
-      {/* Monthly selector */}
       {mode === "monthly" && (
         <div>
           <label htmlFor={`${fieldId}-day`} className="text-xs text-muted-foreground block mb-1">
-            Day
+            每月日期
           </label>
           <select
             id={`${fieldId}-day`}
@@ -274,18 +262,20 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
           >
             {MONTH_DAYS.map((d) => (
               <option key={d} value={d}>
-                {d}
+                {d} 日
               </option>
             ))}
           </select>
         </div>
       )}
 
-      {/* Custom cron input */}
       {mode === "custom" && (
         <div>
-          <label htmlFor={`${fieldId}-expression`} className="text-xs text-muted-foreground block mb-1">
-            Cron expression
+          <label
+            htmlFor={`${fieldId}-expression`}
+            className="text-xs text-muted-foreground block mb-1"
+          >
+            Cron 表达式
           </label>
           <input
             id={`${fieldId}-expression`}
@@ -301,17 +291,18 @@ export default function CronBuilder({ value, onChange, disabled }: CronBuilderPr
             spellCheck={false}
           />
           {customError ? (
-            <p className="mt-1 text-xs text-destructive" role="alert">{customError}</p>
+            <p className="mt-1 text-xs text-destructive" role="alert">
+              {customError}
+            </p>
           ) : (
             <p className="mt-1 text-xs text-muted-foreground">
-              Format: min hour day month weekday — e.g.{" "}
-              <span className="font-mono">0 8,18 * * *</span> (twice daily)
+              格式：分 时 日 月 星期，例如 <span className="font-mono">0 8,18 * * *</span>
+              （每日两次）
             </p>
           )}
         </div>
       )}
 
-      {/* Live description */}
       {value && !customError && (
         <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
           <span className="font-mono text-xs text-foreground/70">{value}</span>

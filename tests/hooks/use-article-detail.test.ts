@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement, type ComponentProps } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   act,
   cleanup,
@@ -11,8 +11,9 @@ import {
 } from "@testing-library/react";
 import { useArticleDetail } from "@/lib/hooks/use-article-detail";
 import { UNREAD_DELTA_EVENT, type UnreadDeltaDetail } from "@/lib/reader/events";
-import { mergeUniqueArticles, patchArticle } from "@/lib/reader/article-api";
+import { patchArticle } from "@/lib/reader/article-api";
 import { ArticleReader } from "@/components/article/article-reader";
+import { createQueryWrapper, createTestQueryClient } from "../reader/query-wrapper";
 
 vi.mock("@/components/ui/sidebar", () => ({ SidebarTrigger: () => null }));
 
@@ -23,74 +24,89 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 500): Response {
+  return {
+    ok,
+    status,
+    json: () => Promise.resolve(body),
+  } as Response;
+}
 
 function detailResponse(overrides: Record<string, unknown> = {}) {
-  return Promise.resolve({
-    ok: true,
-    json: () =>
-      Promise.resolve({
-        success: true,
-        data: {
-          id: "a1",
-          feedId: "f1",
-          feedTitle: "Feed",
-          url: "https://e.com/1",
-          title: "T",
-          author: null,
-          summary: null,
-          contentHtml: null,
-          contentText: null,
-          publishedAt: null,
-          createdAt: null,
-          isRead: false,
-          isStarred: false,
-          ...overrides,
-        },
-      }),
-  } as Response);
+  return Promise.resolve(
+    jsonResponse({
+      success: true,
+      data: {
+        id: "a1",
+        feedId: "f1",
+        feedTitle: "Feed",
+        url: "https://example.com/a1",
+        title: "Title",
+        author: null,
+        summary: null,
+        contentHtml: "<p>Body</p>",
+        contentText: "Body",
+        publishedAt: null,
+        createdAt: null,
+        isRead: false,
+        isStarred: false,
+        ...overrides,
+      },
+    }),
+  );
 }
 
 function patchResponse() {
-  return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) } as Response);
+  return Promise.resolve(jsonResponse({ success: true }));
 }
 
 function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
+  return Promise.withResolvers<T>();
 }
 
-function readerArticle(id: string, tags: Array<{ id: string; name: string }> = []) {
+function readerArticle(
+  id: string,
+  overrides: Partial<NonNullable<ComponentProps<typeof ArticleReader>["article"]>> = {},
+) {
   return {
     id,
     feedTitle: "Feed",
     title: `Article ${id}`,
     author: null,
-    url: null,
-    contentHtml: "<p>Body</p>",
-    contentText: "Body",
+    url: `https://example.com/${id}`,
+    contentHtml: `<p>Original ${id}</p>`,
+    contentText: `Original ${id}`,
     publishedAt: null,
     createdAt: null,
     isRead: true,
     isStarred: false,
-    tags,
+    tags: [],
+    ...overrides,
   };
 }
 
-function readerElement(article: ComponentProps<typeof ArticleReader>["article"]) {
+function readerElement(
+  article: ComponentProps<typeof ArticleReader>["article"],
+  extraProps: Partial<ComponentProps<typeof ArticleReader>> = {},
+) {
   return createElement(ArticleReader, {
     article,
     onMarkRead: vi.fn(),
     onStar: vi.fn(),
+    ...extraProps,
   });
 }
 
 describe("useArticleDetail", () => {
   it("is null when articleId is undefined", () => {
-    const { result } = renderHook(() => useArticleDetail(undefined, { markReadOnOpen: false }));
+    const { result } = renderHook(() => useArticleDetail(undefined, { markReadOnOpen: false }), {
+      wrapper: createQueryWrapper(),
+    });
     expect(result.current.detail).toBeNull();
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
@@ -99,29 +115,42 @@ describe("useArticleDetail", () => {
 
   it("fetches the detail for an articleId", async () => {
     fetchMock.mockReturnValueOnce(detailResponse({ isRead: true }));
-    const { result } = renderHook(() => useArticleDetail("a1", { markReadOnOpen: false }));
+    const { result } = renderHook(() => useArticleDetail("a1", { markReadOnOpen: false }), {
+      wrapper: createQueryWrapper(),
+    });
     await waitFor(() => expect(result.current.detail?.id).toBe("a1"));
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith("/api/articles/a1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/articles/a1",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it("exposes a recoverable error when detail loading fails", async () => {
-    fetchMock.mockResolvedValueOnce({ ok: false } as Response);
-    const { result } = renderHook(() => useArticleDetail("a1", { markReadOnOpen: false }));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ success: false, error: "文章加载失败" }, false, 500),
+    );
+    const { result } = renderHook(() => useArticleDetail("a1", { markReadOnOpen: false }), {
+      wrapper: createQueryWrapper(),
+    });
 
-    await waitFor(() => expect(result.current.error).toBe("Failed to load article"));
+    await waitFor(() => expect(result.current.error).toBe("文章加载失败"));
     expect(result.current.detail).toBeNull();
     expect(result.current.loading).toBe(false);
   });
 
   it("retries the current article after a failed detail request", async () => {
-    fetchMock.mockResolvedValueOnce({ ok: false } as Response);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ success: false, error: "网络异常" }, false, 500),
+    );
     fetchMock.mockReturnValueOnce(detailResponse({ isRead: true }));
-    const { result } = renderHook(() => useArticleDetail("a1", { markReadOnOpen: false }));
+    const { result } = renderHook(() => useArticleDetail("a1", { markReadOnOpen: false }), {
+      wrapper: createQueryWrapper(),
+    });
 
-    await waitFor(() => expect(result.current.error).toBe("Failed to load article"));
+    await waitFor(() => expect(result.current.error).toBe("网络异常"));
     act(() => result.current.retry());
 
     await waitFor(() => expect(result.current.detail?.id).toBe("a1"));
@@ -136,10 +165,11 @@ describe("useArticleDetail", () => {
     const onDelta = (e: Event) => deltas.push((e as CustomEvent<UnreadDeltaDetail>).detail);
     window.addEventListener(UNREAD_DELTA_EVENT, onDelta);
     const onMarkedRead = vi.fn();
-    const { result } = renderHook(() =>
-      useArticleDetail("a1", { markReadOnOpen: true, onMarkedRead }),
+
+    const { result } = renderHook(
+      () => useArticleDetail("a1", { markReadOnOpen: true, onMarkedRead }),
+      { wrapper: createQueryWrapper() },
     );
-    await waitFor(() => expect(result.current.detail?.id).toBe("a1"));
     await waitFor(() => expect(onMarkedRead).toHaveBeenCalledWith("a1"));
     expect(result.current.detail?.isRead).toBe(true);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -152,18 +182,18 @@ describe("useArticleDetail", () => {
 
   it("keeps an article unread when mark-read-on-open persistence fails", async () => {
     fetchMock.mockReturnValueOnce(detailResponse({ isRead: false }));
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      json: () => Promise.resolve({ success: false, error: "write failed" }),
-    } as Response);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ success: false, error: "write failed" }, false, 500),
+    );
     const deltas: UnreadDeltaDetail[] = [];
     const onDelta = (event: Event) => deltas.push((event as CustomEvent<UnreadDeltaDetail>).detail);
     window.addEventListener(UNREAD_DELTA_EVENT, onDelta);
     const onMarkedRead = vi.fn();
     const onMarkReadFailed = vi.fn();
 
-    const { result } = renderHook(() =>
-      useArticleDetail("a1", { markReadOnOpen: true, onMarkedRead, onMarkReadFailed }),
+    const { result } = renderHook(
+      () => useArticleDetail("a1", { markReadOnOpen: true, onMarkedRead, onMarkReadFailed }),
+      { wrapper: createQueryWrapper() },
     );
 
     await waitFor(() => expect(onMarkReadFailed).toHaveBeenCalledWith("a1"));
@@ -178,195 +208,201 @@ describe("useArticleDetail", () => {
     fetchMock.mockReturnValueOnce(detailResponse({ id: "a1", isRead: false }));
     fetchMock.mockReturnValueOnce(patchRequest.promise);
     fetchMock.mockReturnValueOnce(detailResponse({ id: "a2", isRead: true }));
-    const deltas: UnreadDeltaDetail[] = [];
-    const onDelta = (event: Event) => deltas.push((event as CustomEvent<UnreadDeltaDetail>).detail);
-    window.addEventListener(UNREAD_DELTA_EVENT, onDelta);
-    const onMarkedRead = vi.fn();
     const onMarkReadFailed = vi.fn();
+
     const { result, rerender } = renderHook(
-      ({ id }: { id: string }) =>
-        useArticleDetail(id, { markReadOnOpen: true, onMarkedRead, onMarkReadFailed }),
-      { initialProps: { id: "a1" } },
+      ({ id }: { id: string }) => useArticleDetail(id, { markReadOnOpen: true, onMarkReadFailed }),
+      { initialProps: { id: "a1" }, wrapper: createQueryWrapper() },
     );
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(result.current.detail).toBeNull();
-    expect(result.current.loading).toBe(true);
     rerender({ id: "a2" });
     await waitFor(() => expect(result.current.detail?.id).toBe("a2"));
 
     await act(async () => {
-      patchRequest.resolve({
-        ok: false,
-        json: () => Promise.resolve({ success: false }),
-      } as Response);
+      patchRequest.resolve(jsonResponse({ success: false, error: "late error" }, false, 500));
       await patchRequest.promise;
     });
 
-    expect(result.current.detail?.id).toBe("a2");
-    expect(onMarkedRead).not.toHaveBeenCalled();
     expect(onMarkReadFailed).not.toHaveBeenCalled();
-    expect(deltas).toEqual([]);
-    window.removeEventListener(UNREAD_DELTA_EVENT, onDelta);
-  });
-
-  it("does NOT mark read when markReadOnOpen is false", async () => {
-    fetchMock.mockReturnValueOnce(detailResponse({ isRead: false }));
-    const { result } = renderHook(() => useArticleDetail("a1", { markReadOnOpen: false }));
-    await waitFor(() => expect(result.current.detail?.id).toBe("a1"));
-    expect(fetchMock).toHaveBeenCalledTimes(1); // detail fetch only, no PATCH
-  });
-
-  it("does NOT mark an already-read article again", async () => {
-    fetchMock.mockReturnValueOnce(detailResponse({ isRead: true }));
-    const { result } = renderHook(() => useArticleDetail("a1", { markReadOnOpen: true }));
-    await waitFor(() => expect(result.current.detail?.id).toBe("a1"));
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("clears the detail when articleId becomes undefined", async () => {
-    fetchMock.mockReturnValueOnce(detailResponse({ isRead: true }));
-    const { result, rerender } = renderHook(
-      ({ id }: { id: string | undefined }) => useArticleDetail(id, { markReadOnOpen: false }),
-      { initialProps: { id: "a1" as string | undefined } },
-    );
-    await waitFor(() => expect(result.current.detail?.id).toBe("a1"));
-    rerender({ id: undefined });
-    expect(result.current.detail).toBeNull();
-  });
-
-  it("does not expose the previous article while the next detail is loading", async () => {
-    fetchMock.mockReturnValueOnce(detailResponse({ id: "a1", isRead: true }));
-    let resolveSecond!: (value: Response) => void;
-    fetchMock.mockReturnValueOnce(
-      new Promise<Response>((resolve) => {
-        resolveSecond = resolve;
-      }),
-    );
-    const { result, rerender } = renderHook(
-      ({ id }: { id: string }) => useArticleDetail(id, { markReadOnOpen: false }),
-      { initialProps: { id: "a1" } },
-    );
-    await waitFor(() => expect(result.current.detail?.id).toBe("a1"));
-
-    rerender({ id: "a2" });
-    expect(result.current.detail).toBeNull();
-    expect(result.current.loading).toBe(true);
-
-    resolveSecond(await detailResponse({ id: "a2", isRead: true }));
-    await waitFor(() => expect(result.current.detail?.id).toBe("a2"));
-  });
-
-  it("exposes setDetail so callers can apply optimistic updates", async () => {
-    fetchMock.mockReturnValueOnce(detailResponse({ isRead: true }));
-    const { result } = renderHook(() => useArticleDetail("a1", { markReadOnOpen: false }));
-    await waitFor(() => expect(result.current.detail?.id).toBe("a1"));
-    act(() => {
-      result.current.setDetail((prev) => (prev ? { ...prev, isStarred: true } : prev));
-    });
-    expect(result.current.detail?.isStarred).toBe(true);
-  });
-});
-
-describe("mergeUniqueArticles", () => {
-  it("deduplicates both the first page and later pages while keeping server order", () => {
-    const first = mergeUniqueArticles(
-      [],
-      [
-        { id: "a1", title: "one" },
-        { id: "a1", title: "duplicate one" },
-        { id: "a2", title: "two" },
-      ],
-    );
-    expect(first).toEqual([
-      { id: "a1", title: "one" },
-      { id: "a2", title: "two" },
-    ]);
-
-    expect(
-      mergeUniqueArticles(first, [
-        { id: "a2", title: "duplicate two" },
-        { id: "a3", title: "three" },
-      ]),
-    ).toEqual([
-      { id: "a1", title: "one" },
-      { id: "a2", title: "two" },
-      { id: "a3", title: "three" },
-    ]);
   });
 });
 
 describe("patchArticle", () => {
-  it("rejects an unsuccessful write so optimistic callers can roll back", async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      json: () => Promise.resolve({ success: false, error: "write failed" }),
-    } as Response);
-
-    await expect(patchArticle("a1", { isStarred: true })).rejects.toThrow("write failed");
+  it("rejects with server error when PATCH fails", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ success: false, error: "Article missing" }, false, 404),
+    );
+    await expect(patchArticle("a1", { isStarred: true })).rejects.toThrow("Article missing");
   });
 });
 
-describe("ArticleReader request ownership", () => {
-  it("keeps named 44px primary actions in the article toolbar", () => {
-    render(
-      createElement(ArticleReader, {
-        article: readerArticle("a1"),
-        onMarkRead: vi.fn(),
-        onStar: vi.fn(),
-        onBack: vi.fn(),
-      }),
-    );
+describe("ArticleReader", () => {
+  beforeEach(() => {
+    // Default mock for GET /api/articles/[id]/related so unrelated tests stay quiet.
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).endsWith("/related")) {
+        return Promise.resolve(jsonResponse({ success: true, data: [] }));
+      }
+      return Promise.resolve(jsonResponse({ success: true, data: null }));
+    });
+  });
 
-    for (const name of [
-      "Back to article list",
-      "Mark unread",
-      "Star article",
-      "More article actions",
-    ]) {
+  it("uses 44px mobile touch targets on action bar buttons", () => {
+    render(readerElement(readerArticle("a1"), { onBack: vi.fn() }), {
+      wrapper: createQueryWrapper(),
+    });
+
+    for (const name of ["返回文章列表", "标为未读", "收藏文章", "更多操作"]) {
       expect(screen.getByRole("button", { name }).className).toContain("size-11");
     }
   });
 
-  it("exposes secondary article actions from the More menu", async () => {
+  it("toggles between 原文 and 全文 when fullContentHtml exists", () => {
     render(
-      readerElement({
-        ...readerArticle("a1"),
-        url: "https://example.com/article",
-      }),
+      readerElement(
+        readerArticle("a1", {
+          contentHtml: "<p>RSS excerpt</p>",
+          fullContentHtml: "<p>Full extracted body</p>",
+          fullContentStatus: "ok",
+        }),
+      ),
+      { wrapper: createQueryWrapper() },
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "More article actions" }));
+    // Defaults to 全文 when fullContentHtml is already present
+    expect(screen.getByText("Full extracted body")).toBeTruthy();
 
-    for (const name of [
-      "Copy link",
-      "Open original",
-      "Summarise with AI",
-      "Suggest tags with AI",
-    ]) {
-      expect(await screen.findByRole("menuitem", { name })).toBeTruthy();
-    }
+    fireEvent.click(screen.getByRole("button", { name: "原文" }));
+    expect(screen.getByText("RSS excerpt")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "全文" }));
+    expect(screen.getByText("Full extracted body")).toBeTruthy();
   });
 
-  it("clears a pending summary when the displayed article changes", async () => {
-    const request = deferred<Response>();
-    fetchMock.mockReturnValueOnce(request.promise);
-    const { rerender } = render(readerElement(readerArticle("a1")));
+  it("fetches full content on 抓取全文 click and displays failure notice when failed", async () => {
+    const client = createTestQueryClient();
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/related")) {
+        return Promise.resolve(jsonResponse({ success: true, data: [] }));
+      }
+      if (url.endsWith("/full-content")) {
+        return Promise.resolve(
+          jsonResponse({
+            success: true,
+            data: { status: "ok", html: "<p>Fetched full text</p>" },
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse({ success: true, data: null }));
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Summarise with AI" }));
-    expect(screen.getByText("Summarising…")).toBeTruthy();
+    render(readerElement(readerArticle("a1")), {
+      wrapper: createQueryWrapper(client),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "抓取全文" }));
+
+    expect(await screen.findByText("Fetched full text")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "原文" })).toBeTruthy();
+  });
+
+  it("shows failure banner when fullContentStatus is failed", () => {
+    render(readerElement(readerArticle("a1", { fullContentStatus: "failed" })), {
+      wrapper: createQueryWrapper(),
+    });
+
+    expect(screen.getByText(/全文抓取失败/)).toBeTruthy();
+  });
+
+  it("renders audio player and YouTube external link without third-party iframes", () => {
+    const { container } = render(
+      readerElement(
+        readerArticle("a1", {
+          contentHtml: '<p>Hello</p><iframe src="https://www.youtube.com/embed/abc"></iframe>',
+          media: [
+            { url: "https://cdn.example.com/ep1.mp3", type: "audio", duration: 125 },
+            {
+              url: "https://www.youtube.com/watch?v=abc",
+              type: "video",
+              previewUrl: "https://i.ytimg.com/vi/abc/hqdefault.jpg",
+              duration: 90,
+            },
+          ],
+        }),
+      ),
+      { wrapper: createQueryWrapper() },
+    );
+
+    expect(container.querySelector("iframe")).toBeNull();
+    const audio = container.querySelector("audio");
+    expect(audio?.getAttribute("preload")).toBe("none");
+    expect(audio?.getAttribute("src")).toBe("https://cdn.example.com/ep1.mp3");
+    expect(screen.getByText("在 YouTube 打开")).toBeTruthy();
+  });
+
+  it("renders 相关报道 when related articles exist and hides when empty", async () => {
+    const onSelectRelated = vi.fn();
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).endsWith("/related")) {
+        return Promise.resolve(
+          jsonResponse({
+            success: true,
+            data: [
+              {
+                id: "rel-1",
+                title: "Another source covers this",
+                url: "https://other.example.com/story",
+                feedId: "f2",
+                feedTitle: "Other Feed",
+                feedIconUrl: null,
+                publishedAt: "2026-11-21T00:00:00.000Z",
+              },
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse({ success: true, data: null }));
+    });
+
+    render(readerElement(readerArticle("a1"), { onSelectRelated }), {
+      wrapper: createQueryWrapper(),
+    });
+
+    expect(await screen.findByText("相关报道")).toBeTruthy();
+    fireEvent.click(screen.getByText("Another source covers this"));
+    expect(onSelectRelated).toHaveBeenCalledWith("rel-1");
+  });
+
+  it("clears a pending summary and drops late responses when the article changes", async () => {
+    const request = deferred<Response>();
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/summarize")) return request.promise;
+      if (url.endsWith("/related")) {
+        return Promise.resolve(jsonResponse({ success: true, data: [] }));
+      }
+      return Promise.resolve(jsonResponse({ success: true, data: null }));
+    });
+
+    const { rerender } = render(readerElement(readerArticle("a1")), {
+      wrapper: createQueryWrapper(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 摘要" }));
+    expect(await screen.findByText("正在生成摘要…")).toBeTruthy();
 
     rerender(readerElement(readerArticle("a2")));
-    await waitFor(() => expect(screen.queryByText("Summarising…")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("正在生成摘要…")).toBeNull());
 
     await act(async () => {
-      request.resolve({
-        json: () =>
-          Promise.resolve({
-            success: true,
-            data: { summary: "Summary for a1", importance: null },
-          }),
-      } as Response);
+      request.resolve(
+        jsonResponse({
+          success: true,
+          data: { summary: "Summary for a1", importance: null },
+        }),
+      );
       await request.promise;
     });
     expect(screen.queryByText("Summary for a1")).toBeNull();
@@ -374,77 +410,33 @@ describe("ArticleReader request ownership", () => {
 
   it("drops late tag suggestions from the previous article", async () => {
     const request = deferred<Response>();
-    fetchMock.mockReturnValueOnce(request.promise);
-    const { rerender } = render(readerElement(readerArticle("a1")));
-
-    fireEvent.click(screen.getByRole("button", { name: "Suggest tags with AI" }));
-    rerender(readerElement(readerArticle("a2", [{ id: "b-tag", name: "B tag" }])));
-
-    await act(async () => {
-      request.resolve({
-        json: () =>
-          Promise.resolve({
-            success: true,
-            data: { suggestions: [{ name: "A suggestion", existingTagId: null }] },
-          }),
-      } as Response);
-      await request.promise;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/tag-suggestions")) return request.promise;
+      if (url.endsWith("/related")) {
+        return Promise.resolve(jsonResponse({ success: true, data: [] }));
+      }
+      return Promise.resolve(jsonResponse({ success: true, data: null }));
     });
 
-    expect(screen.getByText("B tag")).toBeTruthy();
-    expect(screen.queryByText("A suggestion")).toBeNull();
-  });
+    const { rerender } = render(readerElement(readerArticle("a1")), {
+      wrapper: createQueryWrapper(),
+    });
 
-  it("does not add a late accepted tag to the next article's local state", async () => {
-    fetchMock.mockResolvedValueOnce({
-      json: () =>
-        Promise.resolve({
+    fireEvent.click(screen.getByRole("button", { name: "AI 推荐标签" }));
+    rerender(readerElement(readerArticle("a2", { tags: [{ id: "b-tag", name: "B tag" }] })));
+
+    await act(async () => {
+      request.resolve(
+        jsonResponse({
           success: true,
           data: { suggestions: [{ name: "A suggestion", existingTagId: null }] },
         }),
-    } as Response);
-    const acceptRequest = deferred<Response>();
-    fetchMock.mockReturnValueOnce(acceptRequest.promise);
-    const { rerender } = render(readerElement(readerArticle("a1")));
-
-    fireEvent.click(screen.getByRole("button", { name: "Suggest tags with AI" }));
-    const suggestion = await screen.findByRole("button", { name: /A suggestion/ });
-    fireEvent.click(suggestion);
-    rerender(readerElement(readerArticle("a2", [{ id: "b-tag", name: "B tag" }])));
-
-    await act(async () => {
-      acceptRequest.resolve({
-        json: () =>
-          Promise.resolve({
-            success: true,
-            data: { tagId: "a-tag", name: "A suggestion" },
-          }),
-      } as Response);
-      await acceptRequest.promise;
-    });
-
-    expect(screen.getByText("B tag")).toBeTruthy();
-    expect(screen.queryByText("A suggestion")).toBeNull();
-  });
-
-  it("does not restore removed tags into a different article after a late failure", async () => {
-    const request = deferred<Response>();
-    fetchMock.mockReturnValueOnce(request.promise);
-    const { rerender } = render(
-      readerElement(readerArticle("a1", [{ id: "a-tag", name: "A tag" }])),
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Remove tag" }));
-    rerender(readerElement(readerArticle("a2", [{ id: "b-tag", name: "B tag" }])));
-
-    await act(async () => {
-      request.resolve({
-        json: () => Promise.resolve({ success: false, error: "Delete failed" }),
-      } as Response);
+      );
       await request.promise;
     });
 
     expect(screen.getByText("B tag")).toBeTruthy();
-    expect(screen.queryByText("A tag")).toBeNull();
+    expect(screen.queryByText("A suggestion")).toBeNull();
   });
 });

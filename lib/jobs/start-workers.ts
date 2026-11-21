@@ -21,7 +21,6 @@ const tasks = new Map<string, { every: number; run: () => Promise<unknown> }>([
 ]);
 
 const workers: Worker[] = [];
-    });
 
 async function start() {
   const queue = getMaintenanceQueue();

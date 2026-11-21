@@ -17,10 +17,12 @@ const OPTIONS = [
 describe("FilterDropdown", () => {
   it("supports arrow, Home, End, and Space selection from the keyboard", async () => {
     const onSelect = vi.fn();
+    const onOpenChange = vi.fn();
     render(
       createElement(FilterDropdown, {
         label: "Feed",
-        loadOptions: vi.fn().mockResolvedValue(OPTIONS),
+        options: OPTIONS,
+        onOpenChange,
         onSelect,
       }),
     );
@@ -28,6 +30,7 @@ describe("FilterDropdown", () => {
     const trigger = screen.getByRole("button", { name: "Feed" });
     trigger.focus();
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    expect(onOpenChange).toHaveBeenCalledWith(true);
 
     const alpha = await screen.findByRole("option", { name: "Alpha" });
     const beta = screen.getByRole("option", { name: "Beta" });
@@ -45,6 +48,7 @@ describe("FilterDropdown", () => {
 
     fireEvent.keyDown(gamma, { key: " " });
     expect(onSelect).toHaveBeenCalledWith("gamma");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
     await waitFor(() => expect(document.activeElement).toBe(trigger));
     expect(screen.queryByRole("listbox")).toBeNull();
   });
@@ -53,7 +57,7 @@ describe("FilterDropdown", () => {
     render(
       createElement(FilterDropdown, {
         label: "Tag",
-        loadOptions: vi.fn().mockResolvedValue(OPTIONS),
+        options: OPTIONS,
         onSelect: vi.fn(),
       }),
     );

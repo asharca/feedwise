@@ -1,23 +1,41 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { CircleAlert, Inbox, RefreshCw, Search as SearchIcon, X } from "lucide-react";
+import type { ArticleMedia, ContentView } from "@/lib/db/schema-types";
+import { computeGridColumns } from "@/lib/reader/media";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CardEnter } from "@/components/motion/card-enter";
-import { ArticleCard } from "./article-card";
-import { ArticleRow } from "./article-row";
-import { ArticleViewToggle, useArticleSelection, useArticleView } from "./article-list-controls";
+import { ArticleItemRenderer } from "./article-item-renderer";
+import {
+  ArticleViewToggle,
+  ContentViewSwitcher,
+  useArticleSelection,
+  useArticleView,
+  useContainerWidth,
+} from "./article-list-controls";
+import {
+  buildDateGroupedVirtualRows,
+  estimateVirtualRowSize,
+  FALLBACK_VIEWPORT_RECT,
+  observeScrollRect,
+} from "./virtual-rows";
 
 export interface DatedArticleItem {
   id: string;
   feedId: string;
   feedTitle: string | null;
   feedIconUrl: string | null;
+  url?: string | null;
   title: string | null;
+  author?: string | null;
   summary?: string | null;
   imageUrl?: string | null;
+  media?: ArticleMedia[] | null;
+  view?: ContentView;
   isRead?: boolean;
   isStarred?: boolean;
   publishedAt?: Date | string | null;
@@ -37,10 +55,16 @@ interface Props {
   onSearchChange: (value: string) => void;
   searchPlaceholder?: string;
 
+  /** Optional content-view filter switcher (全部 / 文章 / 社交 / 图片 / 视频 / 音频). */
+  contentView?: ContentView;
+  onContentViewChange?: (view: ContentView | undefined) => void;
+
   articles: DatedArticleItem[];
   dateField: DateField;
   activeId?: string;
   onSelect: (id: string) => void;
+  onStar?: (id: string, starred: boolean) => void;
+  onMarkRead?: (id: string, read: boolean) => void;
 
   /** Compact constrains an open reader's side pane to rows. Grid allows the
    * persisted list/card preference; the default preference is a compact list. */
@@ -90,10 +114,8 @@ function dayLabel(d: Date, now: Date): string {
 }
 
 /**
- * Shared pane that renders a searchable, date-grouped article list.
- * Used by the reading-history page and by every list view in the reader
- * (per-feed, folder, unread, starred, tags). Search is controlled — the
- * parent decides whether typing triggers a client filter or a server fetch.
+ * Shared virtualized pane that renders a searchable, date-grouped article list.
+ * Supports list & responsive N-column card grids plus per-item content views.
  */
 export function DatedArticleListPane({
   title,
@@ -102,10 +124,14 @@ export function DatedArticleListPane({
   search,
   onSearchChange,
   searchPlaceholder = "筛选文章…",
+  contentView,
+  onContentViewChange,
   articles,
   dateField,
   activeId,
   onSelect,
+  onStar,
+  onMarkRead,
   loading,
   error,
   onRetry,
@@ -122,38 +148,103 @@ export function DatedArticleListPane({
     const groups: { key: string; label: string; rows: DatedArticleItem[] }[] = [];
     for (const item of articles) {
       const d = pickDate(item, dateField);
-      if (!d) continue;
-      const key = dayKey(d);
+      const key = d && !Number.isNaN(d.getTime()) ? dayKey(d) : "undated";
+      const label = d && !Number.isNaN(d.getTime()) ? dayLabel(d, now) : "更早";
       const last = groups[groups.length - 1];
       if (last && last.key === key) {
         last.rows.push(item);
       } else {
-        groups.push({ key, label: dayLabel(d, now), rows: [item] });
+        groups.push({ key, label, rows: [item] });
       }
     }
     return groups;
   }, [articles, dateField]);
 
-  // The infinite-scroll observer needs the pane's own scroll container (not
-  // the viewport) as `root`, so the sentinel actually fires while the list
-  // scrolls inside the pane.
   const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
+  const containerWidth = useContainerWidth(scrollRoot);
   const [view, setView] = useArticleView();
-  const effectiveLayout = layout === "compact" || view === "list" ? "compact" : "grid";
-  const selectedId = useArticleSelection(articles, activeId, scrollRoot, effectiveLayout);
+
+  // Video and picture views always use a responsive grid in both list and card modes
+  // (unless constrained to a narrow side pane when an article is open).
+  const isMediaGridView = contentView === "video" || contentView === "picture";
+  const effectiveLayout =
+    layout === "compact" ? "compact" : isMediaGridView || view === "cards" ? "grid" : "compact";
+
+  const minCardWidth = contentView === "video" ? 280 : contentView === "picture" ? 220 : 240;
+  const gridColumns =
+    effectiveLayout === "grid"
+      ? computeGridColumns(Math.max(0, containerWidth - 32), minCardWidth, 12)
+      : 1;
+  const { rows: virtualRows, articleRowIndex } = useMemo(
+    () => buildDateGroupedVirtualRows(grouped, gridColumns),
+    [grouped, gridColumns],
+  );
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const virtualizer = useVirtualizer({
+    count: virtualRows.length,
+    getScrollElement: () => scrollRoot,
+    observeElementRect: observeScrollRect,
+    estimateSize: (index) => estimateVirtualRowSize(virtualRows[index]),
+    getItemKey: (index) => virtualRows[index]?.key ?? index,
+    overscan: 6,
+    initialRect: FALLBACK_VIEWPORT_RECT,
+  });
+
+  // Re-measure when layout or column count changes.
+  useEffect(() => {
+    virtualizer.measure();
+  }, [effectiveLayout, gridColumns, virtualizer]);
+
+  const scrollToArticle = useCallback(
+    (id: string) => {
+      const rowIndex = articleRowIndex.get(id);
+      if (rowIndex !== undefined) {
+        virtualizer.scrollToIndex(rowIndex, { align: "auto" });
+      }
+    },
+    [articleRowIndex, virtualizer],
+  );
+
+  const selectedId = useArticleSelection(articles, activeId, scrollRoot, effectiveLayout, {
+    onSelect,
+    onStar,
+    onMarkRead,
+    onScrollToArticle: scrollToArticle,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const lastVirtualIndex = virtualItems[virtualItems.length - 1]?.index ?? -1;
+
+  // Trigger next-page cursor fetch when scrolling near the end of virtualized rows.
+  const loadMoreTriggeredForCountRef = useRef(-1);
+  useEffect(() => {
+    if (!hasMore || loadingMore || !onLoadMore || virtualRows.length === 0) return;
+    if (lastVirtualIndex >= virtualRows.length - 5) {
+      if (loadMoreTriggeredForCountRef.current === virtualRows.length) return;
+      loadMoreTriggeredForCountRef.current = virtualRows.length;
+      onLoadMore();
+    }
+  }, [hasMore, loadingMore, onLoadMore, lastVirtualIndex, virtualRows.length]);
+
+  useEffect(() => {
+    if (!loadingMore) {
+      loadMoreTriggeredForCountRef.current = -1;
+    }
+  }, [loadingMore, articles.length]);
 
   return (
-    <div className={cn("flex flex-col h-full bg-background", className)}>
-      <div className="px-3 h-11 flex items-center gap-2 shrink-0 border-b border-border">
+    <div className={cn("flex h-full flex-col bg-background", className)}>
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
         <SidebarTrigger className="md:hidden" />
         {Icon && <Icon className="size-4" />}
-        <h2 className="text-sm font-semibold tracking-tight truncate">{title}</h2>
+        <h2 className="truncate text-sm font-semibold tracking-tight">{title}</h2>
         {headerActions && <div className="ml-auto flex items-center gap-1">{headerActions}</div>}
       </div>
 
-      <div className="px-3 pt-3 pb-2 shrink-0">
+      <div className="shrink-0 space-y-2 px-3 pb-2 pt-3">
         <div className="relative">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/70 pointer-events-none" />
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70" />
           <input
             type="text"
             value={search}
@@ -173,10 +264,15 @@ export function DatedArticleListPane({
             </button>
           )}
         </div>
-        {layout !== "compact" && (
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground">j / k 切换文章 · 回车阅读</span>
-            <ArticleViewToggle view={view} onChange={setView} />
+
+        {(onContentViewChange || layout !== "compact") && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {onContentViewChange ? (
+              <ContentViewSwitcher value={contentView} onChange={onContentViewChange} />
+            ) : (
+              <span className="text-xs text-muted-foreground">j / k 切换 · 回车阅读</span>
+            )}
+            {layout !== "compact" && <ArticleViewToggle view={view} onChange={setView} />}
           </div>
         )}
       </div>
@@ -184,7 +280,7 @@ export function DatedArticleListPane({
       <div ref={setScrollRoot} className="flex-1 overflow-y-auto scrollbar-thin">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-16" role="status">
-            <div className="size-5 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
+            <div className="size-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
             <span className="sr-only">正在加载文章</span>
           </div>
         ) : error ? (
@@ -207,107 +303,91 @@ export function DatedArticleListPane({
             )}
           </div>
         ) : articles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-4 text-muted-foreground gap-2 text-center">
+          <div className="flex flex-col items-center justify-center gap-2 px-4 py-20 text-center text-muted-foreground">
             <Inbox className="size-10 text-muted-foreground/30" />
             <p className="text-sm font-medium">{emptyTitle ?? "暂无文章"}</p>
-            {emptyHint && <p className="text-xs text-muted-foreground/70 max-w-xs">{emptyHint}</p>}
+            {emptyHint && <p className="max-w-xs text-xs text-muted-foreground/70">{emptyHint}</p>}
           </div>
         ) : (
           <div className={cn("pb-8", effectiveLayout === "grid" ? "px-4" : "px-2")}>
-            {grouped.map((g) => (
-              <section key={g.key} className="mt-4 first:mt-2">
-                <h3
-                  className={cn(
-                    "sticky top-0 z-10 bg-background pb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground",
-                    effectiveLayout === "grid" ? "px-1" : "px-2",
-                  )}
-                >
-                  {g.label}
-                </h3>
-                {effectiveLayout === "grid" ? (
-                  <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
-                    {g.rows.map((item, i) => (
-                      <CardEnter key={item.id} index={i}>
-                        <ArticleCard
-                          article={item}
-                          active={selectedId === item.id}
+            <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+              {virtualItems.map((virtualItem) => {
+                const row = virtualRows[virtualItem.index];
+                if (!row) return null;
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    ref={virtualizer.measureElement}
+                    className="absolute left-0 top-0 w-full"
+                    style={{ transform: `translateY(${virtualItem.start}px)` }}
+                  >
+                    {row.kind === "header" ? (
+                      <h3
+                        className={cn(
+                          "pb-1.5 pt-3 text-xs font-medium uppercase tracking-wider text-muted-foreground",
+                          effectiveLayout === "grid" ? "px-1" : "px-2",
+                        )}
+                      >
+                        {row.label}
+                      </h3>
+                    ) : row.kind === "grid-row" ? (
+                      <div
+                        className="grid gap-3 pb-3"
+                        style={{
+                          gridTemplateColumns: `repeat(${row.columns}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {row.items.map(({ article, index }) => (
+                          <CardEnter key={article.id} index={index}>
+                            <ArticleItemRenderer
+                              article={article}
+                              mode="card"
+                              active={selectedId === article.id}
+                              onSelect={onSelect}
+                              onStar={onStar}
+                              displayedAt={pickDate(article, dateField)}
+                              searchQuery={search}
+                            />
+                          </CardEnter>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="pb-1">
+                        <ArticleItemRenderer
+                          article={row.article}
+                          mode="row"
+                          active={selectedId === row.article.id}
                           onSelect={onSelect}
-                          displayedAt={pickDate(item, dateField)}
+                          onStar={onStar}
+                          displayedAt={pickDate(row.article, dateField)}
                           searchQuery={search}
                         />
-                      </CardEnter>
-                    ))}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <ul className="space-y-0.5">
-                    {g.rows.map((item) => (
-                      <li key={item.id}>
-                        <ArticleRow
-                          article={item}
-                          displayedAt={pickDate(item, dateField)}
-                          active={selectedId === item.id}
-                          onSelect={onSelect}
-                          searchQuery={search}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            ))}
-            <InfiniteScrollSentinel
-              hasMore={hasMore}
-              loadingMore={loadingMore}
-              onLoadMore={onLoadMore}
-              root={scrollRoot}
-            />
+                );
+              })}
+            </div>
+
+            {hasMore && (
+              <div className="flex justify-center py-4" aria-hidden={!loadingMore}>
+                {loadingMore ? (
+                  <div className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+                ) : onLoadMore ? (
+                  <button
+                    type="button"
+                    onClick={onLoadMore}
+                    className="rounded-md px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    加载更多
+                  </button>
+                ) : null}
+              </div>
+            )}
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-/**
- * Invisible sentinel below the list. Fires onLoadMore via IntersectionObserver
- * when scrolled near the end (rootMargin pre-triggers so paging feels seamless).
- * Internal — kept colocated so the pane stays self-contained.
- */
-function InfiniteScrollSentinel({
-  hasMore,
-  loadingMore,
-  onLoadMore,
-  root,
-}: {
-  hasMore?: boolean;
-  loadingMore?: boolean;
-  onLoadMore?: () => void;
-  root?: HTMLElement | null;
-}) {
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!hasMore || !onLoadMore) return;
-    const target = sentinelRef.current;
-    if (!target) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting && hasMore && !loadingMore) onLoadMore();
-        }
-      },
-      { root: root ?? null, rootMargin: "400px 0px" },
-    );
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, onLoadMore, root]);
-
-  if (!hasMore) return null;
-  return (
-    <div ref={sentinelRef} className="flex justify-center py-4" aria-hidden="true">
-      {loadingMore && (
-        <div className="size-4 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
-      )}
     </div>
   );
 }

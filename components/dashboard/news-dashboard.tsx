@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
@@ -18,6 +18,8 @@ import { ArticleRow, ArticleThumbnail, articleImageUrl } from "@/components/arti
 import { ChartsPanel } from "@/components/dashboard/charts-panel";
 import { CardEnter } from "@/components/motion/card-enter";
 import { HotPreview } from "./hot-preview";
+import { apiFetch } from "@/lib/query/api";
+import { queryKeys } from "@/lib/query/keys";
 import { htmlToText } from "@/lib/utils";
 
 interface Article {
@@ -172,69 +174,31 @@ function ResourceError({
 
 export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
   const router = useRouter();
-  const [groups, setGroups] = useState<ArticleGroup[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [groupsLoading, setGroupsLoading] = useState(true);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [groupsError, setGroupsError] = useState<string | null>(null);
-  const [statsError, setStatsError] = useState<string | null>(null);
-  const [groupsReloadKey, setGroupsReloadKey] = useState(0);
-  const [statsReloadKey, setStatsReloadKey] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
+  const groupsQuery = useQuery({
+    queryKey: queryKeys.articles.grouped(),
+    queryFn: ({ signal }) => apiFetch<ArticleGroup[]>("/api/articles/grouped", { signal }),
+  });
 
-    async function loadGroups() {
-      setGroupsLoading(true);
-      setGroupsError(null);
-      try {
-        const groupedRes = await fetch("/api/articles/grouped");
-        const groupedData = await groupedRes.json();
-        if (!groupedRes.ok || !groupedData.success) throw new Error("无法加载文章，请稍后重试");
-        if (cancelled) return;
-        setGroups(groupedData.data);
-      } catch (error) {
-        if (!cancelled) {
-          setGroupsError(error instanceof Error ? error.message : "无法加载文章，请稍后重试");
-        }
-      } finally {
-        if (!cancelled) setGroupsLoading(false);
-      }
-    }
+  const statsQuery = useQuery({
+    queryKey: queryKeys.dashboard.stats({}),
+    queryFn: ({ signal }) => apiFetch<Stats>("/api/dashboard/stats", { signal }),
+  });
 
-    loadGroups();
-    return () => {
-      cancelled = true;
-    };
-  }, [groupsReloadKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadStats() {
-      setStatsLoading(true);
-      setStatsError(null);
-      try {
-        const statsRes = await fetch("/api/dashboard/stats");
-        const statsData = await statsRes.json();
-        if (!statsRes.ok || !statsData.success) throw new Error("无法加载阅读统计，请稍后重试");
-        if (cancelled) return;
-        setStats(statsData.data);
-      } catch (error) {
-        if (!cancelled) {
-          setStatsError(error instanceof Error ? error.message : "无法加载阅读统计，请稍后重试");
-        }
-      } finally {
-        if (!cancelled) setStatsLoading(false);
-      }
-    }
-
-    loadStats();
-    return () => {
-      cancelled = true;
-    };
-  }, [statsReloadKey]);
-
+  const groups = groupsQuery.data ?? [];
+  const stats = statsQuery.data ?? null;
+  const groupsLoading = groupsQuery.isFetching;
+  const statsLoading = statsQuery.isFetching;
+  const groupsError = groupsQuery.error
+    ? groupsQuery.error instanceof Error
+      ? groupsQuery.error.message
+      : "无法加载文章，请稍后重试"
+    : null;
+  const statsError = statsQuery.error
+    ? statsQuery.error instanceof Error
+      ? statsQuery.error.message
+      : "无法加载阅读统计，请稍后重试"
+    : null;
   // Recommended: top of the chronological list, biased by importance so high-
   // importance articles surface even if they aren't the freshest.
   const importanceRank = (i: Article["importance"] | undefined | null) =>
@@ -320,7 +284,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
             title="阅读统计暂不可用"
             message={statsError}
             retryLabel="重试统计"
-            onRetry={() => setStatsReloadKey((key) => key + 1)}
+            onRetry={() => void statsQuery.refetch()}
           />
         )}
 
@@ -341,7 +305,7 @@ export function NewsDashboard({ onSelectArticle }: NewsDashboardProps) {
             title="文章暂不可用"
             message={groupsError}
             retryLabel="重试加载"
-            onRetry={() => setGroupsReloadKey((key) => key + 1)}
+            onRetry={() => void groupsQuery.refetch()}
           />
         )}
         {!groupsLoading && !groupsError && groups.length === 0 && (

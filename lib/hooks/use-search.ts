@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/query/api";
+import { queryKeys } from "@/lib/query/keys";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import type { SnippetPart } from "@/lib/search/parse-snippet";
 
 export interface ArticleHitDTO {
@@ -48,11 +51,26 @@ export interface SearchFilters {
 
 const DEBOUNCE_MS = 250;
 
-function sinceToIso(s: SearchFilters["since"]): string | undefined {
+function sinceToIso(s: SearchFilters["since"], now = Date.now()): string | undefined {
   if (!s) return undefined;
-  const now = Date.now();
   const days = s === "today" ? 1 : s === "7d" ? 7 : 30;
   return new Date(now - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+export function buildSearchParams(
+  trimmedQuery: string,
+  filters: SearchFilters,
+  now = Date.now(),
+): URLSearchParams {
+  const p = new URLSearchParams({ q: trimmedQuery });
+  if (filters.feedId) p.set("feedId", filters.feedId);
+  if (filters.folderId) p.set("folderId", filters.folderId);
+  if (filters.tagId) p.set("tag", filters.tagId);
+  if (filters.unread) p.set("unread", "true");
+  if (filters.starred) p.set("starred", "true");
+  const since = sinceToIso(filters.since, now);
+  if (since) p.set("since", since);
+  return p;
 }
 
 export function useSearch(
@@ -60,63 +78,30 @@ export function useSearch(
   filters: SearchFilters,
   enabled: boolean,
 ): { data: SearchData | null; loading: boolean } {
-  const [data, setData] = useState<SearchData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trimmed = query.trim();
+  const debouncedQuery = useDebouncedValue(trimmed, DEBOUNCE_MS);
+  const isActive = enabled && trimmed.length > 0;
 
-  // Stable JSON of filters for the effect deps (object identity changes every render).
-  const filtersKey = JSON.stringify(filters);
+  const searchQuery = useQuery({
+    queryKey: queryKeys.search.query({
+      q: debouncedQuery,
+      feedId: filters.feedId ?? null,
+      folderId: filters.folderId ?? null,
+      tagId: filters.tagId ?? null,
+      unread: filters.unread,
+      starred: filters.starred,
+      since: filters.since ?? null,
+    }),
+    queryFn: ({ signal }) => {
+      const params = buildSearchParams(debouncedQuery, filters);
+      return apiFetch<SearchData>(`/api/search?${params.toString()}`, { signal });
+    },
+    enabled: isActive && debouncedQuery.length > 0,
+    retry: false,
+  });
 
-  useEffect(() => {
-    const trimmed = query.trim();
-    if (!enabled || trimmed.length === 0) {
-      abortRef.current?.abort();
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      setData(null);
-      setLoading(false);
-      return;
-    }
-
-    const run = () => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      setLoading(true);
-
-      const p = new URLSearchParams({ q: trimmed });
-      if (filters.feedId) p.set("feedId", filters.feedId);
-      if (filters.folderId) p.set("folderId", filters.folderId);
-      if (filters.tagId) p.set("tag", filters.tagId);
-      if (filters.unread) p.set("unread", "true");
-      if (filters.starred) p.set("starred", "true");
-      const since = sinceToIso(filters.since);
-      if (since) p.set("since", since);
-
-      fetch("/api/search?" + p, { signal: controller.signal })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((body) => {
-          if (controller.signal.aborted) return;
-          if (body?.success) setData(body.data as SearchData);
-        })
-        .catch((err: unknown) => {
-          if ((err as Error)?.name !== "AbortError") {
-            // Soft-fail; no toast spam during keystrokes
-          }
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setLoading(false);
-        });
-    };
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(run, DEBOUNCE_MS);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      abortRef.current?.abort();
-    };
-  }, [query, filtersKey, enabled]);
-
-  return { data, loading };
+  return {
+    data: isActive ? (searchQuery.data ?? null) : null,
+    loading: isActive && (trimmed !== debouncedQuery || searchQuery.isFetching),
+  };
 }

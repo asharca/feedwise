@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/query/api";
+import { queryKeys } from "@/lib/query/keys";
 import { FilterDropdown, type DropdownOption } from "./filter-dropdown";
 import { cn } from "@/lib/utils";
 import type { SearchFilters } from "@/lib/hooks/use-search";
@@ -12,37 +15,20 @@ interface Props {
   onClearAll: () => void;
 }
 
-async function loadFeeds(): Promise<DropdownOption[]> {
-  const res = await fetch("/api/feeds");
-  if (!res.ok) return [];
-  const body = await res.json();
-  if (!body?.success) return [];
-  type Sub = { feedId: string; title: string | null; feedTitle: string | null };
-  return (body.data as Sub[])
-    .map((s) => ({ id: s.feedId, label: s.title ?? s.feedTitle ?? "(untitled)" }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+interface SubOption {
+  feedId: string;
+  title: string | null;
+  feedTitle: string | null;
 }
 
-async function loadFolders(): Promise<DropdownOption[]> {
-  const res = await fetch("/api/folders");
-  if (!res.ok) return [];
-  const body = await res.json();
-  if (!body?.success) return [];
-  type Folder = { id: string; name: string };
-  return (body.data as Folder[])
-    .map((f) => ({ id: f.id, label: f.name }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+interface FolderOption {
+  id: string;
+  name: string;
 }
 
-async function loadTags(): Promise<DropdownOption[]> {
-  const res = await fetch("/api/tags");
-  if (!res.ok) return [];
-  const body = await res.json();
-  if (!body?.success) return [];
-  type Tag = { id: string; name: string };
-  return (body.data as Tag[])
-    .map((t) => ({ id: t.id, label: "#" + t.name }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+interface TagOption {
+  id: string;
+  name: string;
 }
 
 const SINCE_OPTIONS: DropdownOption[] = [
@@ -52,7 +38,51 @@ const SINCE_OPTIONS: DropdownOption[] = [
 ];
 
 export function SearchFilterBar({ filters, onSetFilter, onToggleFilter, onClearAll }: Props) {
-  const loadSince = useCallback(async () => SINCE_OPTIONS, []);
+  const [feedsEnabled, setFeedsEnabled] = useState(false);
+  const [foldersEnabled, setFoldersEnabled] = useState(false);
+  const [tagsEnabled, setTagsEnabled] = useState(false);
+
+  const feedsQuery = useQuery({
+    queryKey: queryKeys.feeds.list(),
+    queryFn: ({ signal }) => apiFetch<SubOption[]>("/api/feeds", { signal }),
+    enabled: feedsEnabled || Boolean(filters.feedId),
+  });
+
+  const foldersQuery = useQuery({
+    queryKey: queryKeys.folders.all,
+    queryFn: ({ signal }) => apiFetch<FolderOption[]>("/api/folders", { signal }),
+    enabled: foldersEnabled || Boolean(filters.folderId),
+  });
+
+  const tagsQuery = useQuery({
+    queryKey: queryKeys.tags.all,
+    queryFn: ({ signal }) => apiFetch<TagOption[]>("/api/tags", { signal }),
+    enabled: tagsEnabled || Boolean(filters.tagId),
+  });
+
+  const feedOptions = useMemo<DropdownOption[]>(
+    () =>
+      (feedsQuery.data ?? [])
+        .map((s) => ({ id: s.feedId, label: s.title || s.feedTitle || "(untitled)" }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [feedsQuery.data],
+  );
+
+  const folderOptions = useMemo<DropdownOption[]>(
+    () =>
+      (foldersQuery.data ?? [])
+        .map((f) => ({ id: f.id, label: f.name }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [foldersQuery.data],
+  );
+
+  const tagOptions = useMemo<DropdownOption[]>(
+    () =>
+      (tagsQuery.data ?? [])
+        .map((t) => ({ id: t.id, label: "#" + t.name }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [tagsQuery.data],
+  );
 
   const anyActive =
     !!filters.feedId ||
@@ -67,26 +97,38 @@ export function SearchFilterBar({ filters, onSetFilter, onToggleFilter, onClearA
       <FilterDropdown
         label="Feed"
         activeId={filters.feedId}
-        loadOptions={loadFeeds}
+        options={feedOptions}
+        loading={feedsQuery.isLoading}
+        onOpenChange={(open) => {
+          if (open) setFeedsEnabled(true);
+        }}
         onSelect={(v) => onSetFilter("feedId", v)}
       />
       <FilterDropdown
         label="Folder"
         activeId={filters.folderId}
-        loadOptions={loadFolders}
+        options={folderOptions}
+        loading={foldersQuery.isLoading}
+        onOpenChange={(open) => {
+          if (open) setFoldersEnabled(true);
+        }}
         onSelect={(v) => onSetFilter("folderId", v)}
       />
       <FilterDropdown
         label="Tag"
         activeId={filters.tagId}
-        loadOptions={loadTags}
+        options={tagOptions}
+        loading={tagsQuery.isLoading}
+        onOpenChange={(open) => {
+          if (open) setTagsEnabled(true);
+        }}
         onSelect={(v) => onSetFilter("tagId", v)}
       />
       <FilterDropdown
         label="Date"
         align="end"
         activeId={filters.since}
-        loadOptions={loadSince}
+        options={SINCE_OPTIONS}
         onSelect={(v) => onSetFilter("since", v)}
       />
       <button
@@ -95,8 +137,8 @@ export function SearchFilterBar({ filters, onSetFilter, onToggleFilter, onClearA
         className={cn(
           "inline-flex h-11 items-center rounded-full border px-3 text-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-10",
           filters.unread
-            ? "bg-primary/10 border-primary/30 text-primary"
-            : "bg-muted border-transparent hover:border-border text-muted-foreground",
+            ? "border-primary/30 bg-primary/10 text-primary"
+            : "border-transparent bg-muted text-muted-foreground hover:border-border",
         )}
       >
         Unread
@@ -107,8 +149,8 @@ export function SearchFilterBar({ filters, onSetFilter, onToggleFilter, onClearA
         className={cn(
           "inline-flex h-11 items-center rounded-full border px-3 text-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-10",
           filters.starred
-            ? "bg-primary/10 border-primary/30 text-primary"
-            : "bg-muted border-transparent hover:border-border text-muted-foreground",
+            ? "border-primary/30 bg-primary/10 text-primary"
+            : "border-transparent bg-muted text-muted-foreground hover:border-border",
         )}
       >
         Starred

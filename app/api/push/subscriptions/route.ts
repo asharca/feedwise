@@ -1,3 +1,9 @@
+import { ECDH } from "node:crypto";
+import { z } from "zod";
+import { withAuth } from "@/lib/api/with-auth";
+import { removeSubscription, saveSubscription } from "@/lib/db/queries/push";
+import { endpoint } from "@/lib/notify/adapter";
+
 const address = z.object({
   endpoint: endpoint.refine((v) => /^https:\/\//i.test(v), "浏览器推送地址必须使用 HTTPS"),
 });
@@ -20,5 +26,17 @@ const input = address.extend({
     }, "无效的 P-256 公钥"),
   }),
 });
+
+export const POST = withAuth(async (req, { user }) => {
+  const { endpoint, keys } = input.parse(await req.json().catch(() => null));
+  const row = await saveSubscription(user.id, endpoint, keys, req.headers.get("user-agent"));
   if (!row)
     return Response.json({ success: false, error: "此推送订阅已绑定其他账户" }, { status: 409 });
+  return Response.json({ success: true, data: row });
+});
+
+export const DELETE = withAuth(async (req, { user }) => {
+  const { endpoint } = address.parse(await req.json().catch(() => null));
+  await removeSubscription(user.id, endpoint);
+  return Response.json({ success: true, data: { ok: true } });
+});

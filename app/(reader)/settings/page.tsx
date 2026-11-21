@@ -16,11 +16,11 @@ export default function SettingsPage() {
             size="icon"
             className="size-8 rounded-md"
             onClick={() => router.push("/reader")}
-            aria-label="Back to reader"
+            aria-label="返回阅读器"
           >
             <ArrowLeft className="size-4" />
           </Button>
-          <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+          <h1 className="text-xl font-semibold tracking-tight">设置</h1>
         </div>
         <SettingsContent variant="page" />
       </div>

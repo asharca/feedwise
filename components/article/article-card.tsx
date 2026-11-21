@@ -4,15 +4,20 @@ import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { Star } from "lucide-react";
+import type { ArticleMedia, ContentView } from "@/lib/db/schema-types";
 import { cn, htmlToText, proxyImg } from "@/lib/utils";
 
 export interface ArticleCardItem {
   id: string;
   feedTitle: string | null;
   feedIconUrl: string | null;
+  url?: string | null;
   title: string | null;
+  author?: string | null;
   summary?: string | null;
   imageUrl?: string | null;
+  media?: ArticleMedia[] | null;
+  view?: ContentView;
   publishedAt?: Date | string | null;
   createdAt?: Date | string | null;
   isRead?: boolean;

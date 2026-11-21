@@ -1,15 +1,19 @@
 "use client";
 
 import {
-  Pencil,
-  Link,
-  Trash2,
-  MoreHorizontal,
-  FolderOpen,
   AlertTriangle,
   CheckCheck,
+  Film,
+  FolderOpen,
+  Headphones,
+  Image as ImageIcon,
+  MessageSquare,
+  MoreHorizontal,
   RefreshCw,
+  SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
+import type { ContentView } from "@/lib/db/schema-types";
 import { SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
@@ -21,15 +25,22 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { CONTENT_VIEW_LABELS, getEffectiveView } from "./content-view-meta";
 import { FeedIcon } from "./feed-icon";
-import type { Subscription, Folder } from "./types";
+import type { Folder, Subscription } from "./types";
+
+const VIEW_ICON_MAP: Partial<Record<ContentView, typeof ImageIcon>> = {
+  social: MessageSquare,
+  picture: ImageIcon,
+  video: Film,
+  audio: Headphones,
+};
 
 export interface FeedItemActions {
   onNavigate: (sub: Subscription) => void;
   onMarkAllRead: (sub: Subscription) => void;
   onRefresh: (sub: Subscription) => void;
-  onRename: (sub: Subscription) => void;
-  onEditUrl: (sub: Subscription) => void;
+  onOpenSettings: (sub: Subscription) => void;
   onMoveToFolder: (sub: Subscription, folderId: string | null) => void;
   onDelete: (sub: Subscription) => void;
 }
@@ -42,7 +53,10 @@ export interface FeedItemProps {
 }
 
 export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
-  const name = sub.title ?? sub.feedTitle ?? sub.url;
+  const name = sub.title || sub.feedTitle || sub.url;
+  const effectiveView = getEffectiveView(sub);
+  const ViewIcon = effectiveView !== "article" ? VIEW_ICON_MAP[effectiveView] : undefined;
+
   return (
     <SidebarMenuItem key={sub.id}>
       <SidebarMenuButton
@@ -51,15 +65,24 @@ export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
         className="group h-8 rounded-md transition-colors duration-150"
       >
         <FeedIcon url={sub.iconUrl} siteUrl={sub.siteUrl} feedUrl={sub.url} name={name} />
-        <span className="truncate flex-1 text-sm">{name}</span>
+        <span className="flex-1 truncate text-sm">{name}</span>
+        {ViewIcon && (
+          <span
+            title={`显示方式：${CONTENT_VIEW_LABELS[effectiveView]}`}
+            aria-label={`显示方式：${CONTENT_VIEW_LABELS[effectiveView]}`}
+            className="inline-flex shrink-0 items-center text-muted-foreground/70"
+          >
+            <ViewIcon className="size-3" aria-hidden="true" />
+          </span>
+        )}
         {sub.lastFetchError && (
           <span
             title={
               (sub.consecutiveFailures ?? 0) > 1
-                ? `${sub.lastFetchError} (${sub.consecutiveFailures} failures in a row)`
+                ? `${sub.lastFetchError}（连续失败 ${sub.consecutiveFailures} 次）`
                 : sub.lastFetchError
             }
-            className="shrink-0 inline-flex items-center gap-0.5"
+            className="inline-flex shrink-0 items-center gap-0.5"
           >
             <AlertTriangle className="size-3 text-destructive/70" />
             {(sub.consecutiveFailures ?? 0) >= 3 && (
@@ -78,8 +101,8 @@ export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
       <DropdownMenu>
         <DropdownMenuTrigger
           render={<SidebarMenuAction showOnHover />}
-          aria-label={`Actions for ${name}`}
-          title={`Actions for ${name}`}
+          aria-label={`${name} 操作`}
+          title={`${name} 操作`}
         >
           <MoreHorizontal className="size-3.5" />
         </DropdownMenuTrigger>
@@ -93,7 +116,7 @@ export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
                 }}
               >
                 <CheckCheck className="size-4" />
-                Mark all read
+                全部标为已读
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
@@ -105,30 +128,21 @@ export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
             }}
           >
             <RefreshCw className="size-4" />
-            {sub.lastFetchError ? "Retry now" : "Refresh now"}
+            {sub.lastFetchError ? "立即重试" : "立即刷新"}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => {
               e.stopPropagation();
-              actions.onRename(sub);
+              actions.onOpenSettings(sub);
             }}
           >
-            <Pencil className="size-4" />
-            Rename
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.stopPropagation();
-              actions.onEditUrl(sub);
-            }}
-          >
-            <Link className="size-4" />
-            Edit URL
+            <SlidersHorizontal className="size-4" />
+            订阅设置
           </DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <FolderOpen className="size-4" />
-              Move to folder
+              移动到文件夹
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuItem
@@ -136,8 +150,9 @@ export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
                   e.stopPropagation();
                   actions.onMoveToFolder(sub, null);
                 }}
+                disabled={sub.folderId === null}
               >
-                No folder
+                未分类
               </DropdownMenuItem>
               {folders.length > 0 && <DropdownMenuSeparator />}
               {folders.map((f) => (
@@ -154,6 +169,7 @@ export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
               ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive"
             onClick={(e) => {
@@ -162,7 +178,7 @@ export function FeedItem({ sub, folders, isActive, actions }: FeedItemProps) {
             }}
           >
             <Trash2 className="size-4" />
-            Unsubscribe
+            取消订阅
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
