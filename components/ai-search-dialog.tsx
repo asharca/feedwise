@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { apiFetch } from "@/lib/query/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 
 interface CitedArticle {
   id: string;
@@ -13,6 +15,11 @@ interface CitedArticle {
   feedTitle: string;
   url: string | null;
   summary: string;
+}
+
+interface AiSearchResponse {
+  answer: string;
+  articles: CitedArticle[];
 }
 
 interface AiSearchDialogProps {
@@ -23,39 +30,23 @@ interface AiSearchDialogProps {
 export function AiSearchDialog({ open, onOpenChange }: AiSearchDialogProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [answer, setAnswer] = useState<string | null>(null);
-  const [cited, setCited] = useState<CitedArticle[]>([]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  const searchMutation = useMutation({
+    mutationFn: (q: string) =>
+      apiFetch<AiSearchResponse>("/api/search/ai", {
+        method: "POST",
+        json: { query: q },
+      }),
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "AI 问答失败");
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const q = query.trim();
     if (q.length < 2) return;
-    setLoading(true);
-    setAnswer(null);
-    setCited([]);
-    try {
-      const res = await fetch("/api/search/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: q }),
-      });
-      const data = (await res.json()) as {
-        success: boolean;
-        error?: string;
-        data?: { answer: string; articles: CitedArticle[] };
-      };
-      if (!data.success || !data.data) {
-        toast.error(data.error ?? "AI search failed");
-        return;
-      }
-      setAnswer(data.data.answer);
-      setCited(data.data.articles ?? []);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "AI search failed");
-    } finally {
-      setLoading(false);
-    }
+    searchMutation.mutate(q);
   }
 
   function handleSelectArticle(id: string) {
@@ -63,23 +54,26 @@ export function AiSearchDialog({ open, onOpenChange }: AiSearchDialogProps) {
     router.push(`/reader?articleId=${id}`);
   }
 
+  const answer = searchMutation.data?.answer ?? null;
+  const cited = searchMutation.data?.articles ?? [];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-lg max-w-2xl w-[90vw] max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="flex max-h-[85vh] w-[90vw] max-w-2xl flex-col overflow-hidden rounded-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" />
-            Ask your feed
+            AI 订阅问答
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <textarea
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Ask about recent articles, e.g. &quot;What's new with AI agents?&quot;"
+            placeholder="询问近期订阅内容，例如：「最近 AI Agent 有哪些新进展？」"
             rows={2}
             autoFocus
-            className="w-full text-sm bg-muted rounded-md px-3 py-2 outline-none resize-none"
+            className="w-full resize-none rounded-md bg-muted px-3 py-2 text-sm outline-none"
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
@@ -92,39 +86,39 @@ export function AiSearchDialog({ open, onOpenChange }: AiSearchDialogProps) {
               type="submit"
               size="sm"
               className="rounded-md"
-              disabled={loading || query.trim().length < 2}
+              disabled={searchMutation.isPending || query.trim().length < 2}
             >
-              {loading ? "Thinking…" : "Ask"}
+              {searchMutation.isPending ? "思考中…" : "提问"}
             </Button>
-            <span className="text-[11px] text-muted-foreground self-center">⌘+Enter to submit</span>
+            <span className="self-center text-[11px] text-muted-foreground">⌘+Enter 提交</span>
           </div>
         </form>
 
         {(answer || cited.length > 0) && (
-          <div className="flex-1 overflow-y-auto scrollbar-thin space-y-4 mt-2">
+          <div className="mt-2 flex-1 space-y-4 overflow-y-auto scrollbar-thin">
             {answer && (
               <div className="rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{answer}</p>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">{answer}</p>
               </div>
             )}
             {cited.length > 0 && (
               <div className="space-y-2">
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-                  Cited articles
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  引用文章
                 </p>
                 {cited.map((a) => (
                   <button
                     key={a.id}
                     type="button"
                     onClick={() => handleSelectArticle(a.id)}
-                    className="w-full text-left rounded-md border border-border px-3 py-2 hover:border-primary/40 transition-colors"
+                    className="w-full rounded-md border border-border px-3 py-2 text-left transition-colors hover:border-primary/40"
                   >
                     <div className="text-xs text-muted-foreground">{a.feedTitle}</div>
-                    <div className="text-sm font-medium leading-snug mt-0.5 line-clamp-2">
+                    <div className="mt-0.5 line-clamp-2 text-sm font-medium leading-snug">
                       {a.title}
                     </div>
                     {a.summary && (
-                      <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                         {a.summary}
                       </div>
                     )}

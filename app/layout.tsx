@@ -4,6 +4,8 @@ import { GeistMono } from "geist/font/mono";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { DevUserSwitcher } from "@/components/dev/dev-user-switcher";
+import { QueryProvider } from "@/components/providers/query-provider";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,9 +27,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          {children}
-          <Toaster position="bottom-right" />
-          {process.env.NODE_ENV !== "production" && <DevUserSwitcher />}
+          <QueryProvider>
+            {children}
+            <ServiceWorkerRegister />
+            <Toaster position="bottom-right" />
+            {process.env.NODE_ENV !== "production" && <DevUserSwitcher />}
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,82 +1,89 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/query/api";
+import { queryKeys } from "@/lib/query/keys";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Folder } from "./types";
 
 export interface CreateFolderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (folder: Folder) => void;
 }
 
-export function CreateFolderDialog({ open, onOpenChange, onCreated }: CreateFolderDialogProps) {
-  const [folderCreateName, setFolderCreateName] = useState("");
-  const [folderCreateSaving, setFolderCreateSaving] = useState(false);
-  const [folderCreateError, setFolderCreateError] = useState("");
+export function CreateFolderDialog({ open, onOpenChange }: CreateFolderDialogProps) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [validationError, setValidationError] = useState("");
 
-  // The old sidebar cleared the error before opening the dialog; reproduce
-  // that so a validation message from a previous attempt never shows stale.
+  const createMutation = useMutation({
+    mutationFn: (folderName: string) =>
+      apiFetch<Folder>("/api/folders", {
+        method: "POST",
+        json: { name: folderName },
+      }),
+    onSuccess: (created) => {
+      queryClient.setQueryData<Folder[]>(queryKeys.folders.all, (prev) =>
+        prev ? [...prev, created] : [created],
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders.all });
+      setName("");
+      onOpenChange(false);
+    },
+  });
+
   useEffect(() => {
-    if (open) setFolderCreateError("");
+    if (open) {
+      setValidationError("");
+      createMutation.reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset when dialog opens
   }, [open]);
 
-  async function handleFolderCreate(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const name = folderCreateName.trim();
-    if (!name) {
-      setFolderCreateError("Name is required");
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setValidationError("请输入文件夹名称");
       return;
     }
-    setFolderCreateSaving(true);
-    setFolderCreateError("");
-    try {
-      const res = await fetch(`/api/folders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const data = (await res.json()) as {
-        success: boolean;
-        error?: string;
-        data?: { id: string; name: string; position?: number | null };
-      };
-      if (!data.success || !data.data) throw new Error(data.error ?? "Failed to create");
-      onCreated({ id: data.data.id, name: data.data.name });
-      setFolderCreateName("");
-      onOpenChange(false);
-    } catch (err) {
-      setFolderCreateError(err instanceof Error ? err.message : "Failed to create");
-    } finally {
-      setFolderCreateSaving(false);
-    }
+    setValidationError("");
+    createMutation.mutate(trimmed);
   }
+
+  const errorMessage =
+    validationError || (createMutation.error instanceof Error ? createMutation.error.message : "");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-lg">
         <DialogHeader>
-          <DialogTitle>New Folder</DialogTitle>
+          <DialogTitle>新建文件夹</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleFolderCreate} className="space-y-3 pt-2">
+        <form onSubmit={handleSubmit} className="space-y-3 pt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="folder-create-input">Name</Label>
+            <Label htmlFor="folder-create-input">名称</Label>
             <Input
               id="folder-create-input"
-              value={folderCreateName}
-              onChange={(e) => setFolderCreateName(e.target.value)}
-              placeholder="e.g. Tech, News, Friends"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例如：科技、新闻、博客"
               autoFocus
               className="rounded-md"
             />
           </div>
-          {folderCreateError && <p className="text-destructive text-sm">{folderCreateError}</p>}
+          {errorMessage && (
+            <p role="alert" className="text-sm text-destructive">
+              {errorMessage}
+            </p>
+          )}
           <div className="flex gap-2">
-            <Button type="submit" disabled={folderCreateSaving} className="flex-1 rounded-md">
-              {folderCreateSaving ? "Creating…" : "Create"}
+            <Button type="submit" disabled={createMutation.isPending} className="flex-1 rounded-md">
+              {createMutation.isPending ? "创建中…" : "创建"}
             </Button>
             <Button
               type="button"
@@ -84,7 +91,7 @@ export function CreateFolderDialog({ open, onOpenChange, onCreated }: CreateFold
               className="rounded-md"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              取消
             </Button>
           </div>
         </form>
@@ -97,74 +104,77 @@ export interface RenameFolderDialogProps {
   open: boolean;
   target: Folder | null;
   onOpenChange: (open: boolean) => void;
-  onRenamed: (folderId: string, name: string) => void;
 }
 
-export function RenameFolderDialog({
-  open,
-  target,
-  onOpenChange,
-  onRenamed,
-}: RenameFolderDialogProps) {
-  const [folderRenameName, setFolderRenameName] = useState("");
-  const [folderRenameSaving, setFolderRenameSaving] = useState(false);
-  const [folderRenameError, setFolderRenameError] = useState("");
+export function RenameFolderDialog({ open, target, onOpenChange }: RenameFolderDialogProps) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [validationError, setValidationError] = useState("");
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, nextName }: { id: string; nextName: string }) =>
+      apiFetch<unknown>(`/api/folders/${id}`, {
+        method: "PATCH",
+        json: { name: nextName },
+      }),
+    onSuccess: (_data, { id, nextName }) => {
+      queryClient.setQueryData<Folder[]>(queryKeys.folders.all, (prev) =>
+        prev?.map((f) => (f.id === id ? { ...f, name: nextName } : f)),
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders.all });
+      onOpenChange(false);
+    },
+  });
 
   useEffect(() => {
     if (open) {
-      setFolderRenameName(target?.name ?? "");
-      setFolderRenameError("");
+      setName(target?.name ?? "");
+      setValidationError("");
+      renameMutation.reset();
     }
-  }, [open, target]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset when dialog opens
+  }, [open, target?.id]);
 
-  async function handleFolderRename(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!target) return;
-    const name = folderRenameName.trim();
-    if (!name) {
-      setFolderRenameError("Name is required");
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setValidationError("请输入文件夹名称");
       return;
     }
-    setFolderRenameSaving(true);
-    setFolderRenameError("");
-    try {
-      const res = await fetch(`/api/folders/${target.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const data = (await res.json()) as { success: boolean; error?: string };
-      if (!data.success) throw new Error(data.error ?? "Failed to rename");
-      onRenamed(target.id, name);
-      onOpenChange(false);
-    } catch (err) {
-      setFolderRenameError(err instanceof Error ? err.message : "Failed to rename");
-    } finally {
-      setFolderRenameSaving(false);
-    }
+    setValidationError("");
+    renameMutation.mutate({ id: target.id, nextName: trimmed });
   }
+
+  const errorMessage =
+    validationError || (renameMutation.error instanceof Error ? renameMutation.error.message : "");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-lg">
         <DialogHeader>
-          <DialogTitle>Rename Folder</DialogTitle>
+          <DialogTitle>重命名文件夹</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleFolderRename} className="space-y-3 pt-2">
+        <form onSubmit={handleSubmit} className="space-y-3 pt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="folder-rename-input">Name</Label>
+            <Label htmlFor="folder-rename-input">名称</Label>
             <Input
               id="folder-rename-input"
-              value={folderRenameName}
-              onChange={(e) => setFolderRenameName(e.target.value)}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               autoFocus
               className="rounded-md"
             />
           </div>
-          {folderRenameError && <p className="text-destructive text-sm">{folderRenameError}</p>}
+          {errorMessage && (
+            <p role="alert" className="text-sm text-destructive">
+              {errorMessage}
+            </p>
+          )}
           <div className="flex gap-2">
-            <Button type="submit" disabled={folderRenameSaving} className="flex-1 rounded-md">
-              {folderRenameSaving ? "Saving…" : "Save"}
+            <Button type="submit" disabled={renameMutation.isPending} className="flex-1 rounded-md">
+              {renameMutation.isPending ? "保存中…" : "保存"}
             </Button>
             <Button
               type="button"
@@ -172,7 +182,7 @@ export function RenameFolderDialog({
               className="rounded-md"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              取消
             </Button>
           </div>
         </form>

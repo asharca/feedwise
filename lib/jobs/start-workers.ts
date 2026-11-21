@@ -1,108 +1,86 @@
 import { ensureEncryptionConfigured } from "@/lib/crypto/startup-check";
 ensureEncryptionConfigured();
 
+import { Worker } from "bullmq";
+import { startFullTextWorker } from "@/lib/jobs/workers/fulltext-worker";
+import { startNotifyWorker } from "@/lib/jobs/workers/notify-worker";
 import { startFeedWorker } from "./workers/feed-worker";
 import { scheduleFeedRefreshes } from "./scheduler";
 import { processDailyDigests } from "./workers/digest-worker";
 import { runAutoTagging, runAutoSummarizing } from "./workers/enrichment-worker";
 import { scheduleHotRefreshes, startHotWorker } from "./workers/hot-worker";
-import { getHotFetchQueue } from "./queue";
+import { closeJobQueues, getConnection, getMaintenanceQueue } from "./queue";
 
-const worker = startFeedWorker();
-const hotWorker = startHotWorker();
-let hotSchedulerTask: Promise<void> | null = null;
+const minute = 60_000;
+const tasks = new Map<string, { every: number; run: () => Promise<unknown> }>([
+  ["feed-schedule", { every: minute, run: scheduleFeedRefreshes }],
+  ["hot-schedule", { every: 5 * minute, run: scheduleHotRefreshes }],
+  ["digest", { every: minute, run: processDailyDigests }],
+  ["auto-tag", { every: 5 * minute, run: runAutoTagging }],
+  ["auto-summary", { every: 5 * minute, run: runAutoSummarizing }],
+]);
 
-function runHotScheduler() {
-  if (hotSchedulerTask) return hotSchedulerTask;
-  hotSchedulerTask = scheduleHotRefreshes()
-    .then((count) => {
-      if (count > 0) console.log(`[hot-scheduler] Enqueued ${count} source(s)`);
-    })
-    .catch((error) => {
-      console.error("[hot-scheduler] Failed:", error);
-    })
-    .finally(() => {
-      hotSchedulerTask = null;
-    });
-  return hotSchedulerTask;
+const workers: Worker[] = [];
+
+async function start() {
+  const queue = getMaintenanceQueue();
+  // A slow tick must not overlap the next one on another replica.
+  await queue.setGlobalConcurrency(1);
+  for (const [name, { every }] of tasks) {
+    await queue.upsertJobScheduler(
+      name,
+      { every },
+      {
+        name,
+        opts: { removeOnComplete: true, removeOnFail: 100 },
+      },
+    );
+  }
+
+  const maintenance = new Worker(
+    queue.name,
+    async (job) => {
+      const task = tasks.get(job.name);
+      if (!task) throw new Error(`Unknown maintenance job: ${job.name}`);
+      await task.run();
+    },
+    { connection: getConnection() },
+  );
+  maintenance.on("failed", (job, err) => console.error(`[maintenance] ${job?.name} failed:`, err));
+  workers.push(maintenance);
+  for (const create of [startFeedWorker, startHotWorker, startFullTextWorker, startNotifyWorker]) {
+    workers.push(create());
+  }
+  console.log("[workers] Feed, hot, full text, notify and maintenance workers started");
 }
 
-// Run scheduler every 15 minutes
-const INTERVAL_MS = 15 * 60 * 1000;
-const AUTO_TAG_INTERVAL_MS = 5 * 60 * 1000;
-const AUTO_SUMMARY_INTERVAL_MS = 5 * 60 * 1000;
-
-async function runScheduler() {
+const startup = start();
+let closing = false;
+async function shutdown() {
+  if (closing) return;
+  closing = true;
+  let status = 0;
   try {
-    const count = await scheduleFeedRefreshes();
-    if (count > 0) {
-      console.log(`[scheduler] Enqueued ${count} feed(s) for refresh`);
+    await startup;
+  } catch (err) {
+    console.error("[workers] Startup failed:", err);
+    status = 1;
+  }
+  for (const result of await Promise.allSettled(workers.map((worker) => worker.close()))) {
+    if (result.status === "rejected") {
+      console.error("[workers] Failed to drain worker:", result.reason);
+      status = 1;
     }
-  } catch (err) {
-    console.error("[scheduler] Failed:", err);
   }
-}
-
-async function runDigestWorker() {
   try {
-    await processDailyDigests();
+    await closeJobQueues();
   } catch (err) {
-    console.error("[digest] Failed:", err);
+    console.error("[workers] Failed to close queues:", err);
+    status = 1;
   }
+  process.exit(status);
 }
 
-async function runAutoTagWorker() {
-  try {
-    const { users, tagged } = await runAutoTagging();
-    if (tagged > 0) {
-      console.log(`[auto-tag] ${tagged} tag(s) applied across ${users} user(s)`);
-    }
-  } catch (err) {
-    console.error("[auto-tag] Failed:", err);
-  }
-}
-
-async function runAutoSummaryWorker() {
-  try {
-    const { users, summarized } = await runAutoSummarizing();
-    if (summarized > 0) {
-      console.log(`[auto-summary] ${summarized} article(s) summarised across ${users} user(s)`);
-    }
-  } catch (err) {
-    console.error("[auto-summary] Failed:", err);
-  }
-}
-
-runScheduler();
-runDigestWorker();
-runAutoTagWorker();
-runAutoSummaryWorker();
-runHotScheduler();
-const schedulerTimer = setInterval(runScheduler, INTERVAL_MS);
-const digestTimer = setInterval(runDigestWorker, 60 * 1000); // Check every minute
-const autoTagTimer = setInterval(runAutoTagWorker, AUTO_TAG_INTERVAL_MS);
-const autoSummaryTimer = setInterval(runAutoSummaryWorker, AUTO_SUMMARY_INTERVAL_MS);
-const hotSchedulerTimer = setInterval(runHotScheduler, 5 * 60 * 1000);
-
-console.log(
-  "[workers] Feed worker + scheduler (15m), hot worker + scheduler (5m), digest worker (1m), auto-tag worker (5m), auto-summary worker (5m) started",
-);
-
-// Graceful shutdown
-async function shutdown(signal: string) {
-  console.log(`[workers] ${signal} received, shutting down...`);
-  clearInterval(schedulerTimer);
-  clearInterval(digestTimer);
-  clearInterval(autoTagTimer);
-  clearInterval(autoSummaryTimer);
-  clearInterval(hotSchedulerTimer);
-  await hotSchedulerTask;
-  await hotWorker.close();
-  await getHotFetchQueue().close();
-  await worker.close();
-  console.log("[workers] Shutdown complete");
-  process.exit(0);
-}
-
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+void startup.catch(shutdown);
+process.once("SIGTERM", shutdown);
+process.once("SIGINT", shutdown);

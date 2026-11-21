@@ -1,71 +1,43 @@
-// app/api/sse/route.ts
-import IORedis from "ioredis";
-import { requireSession } from "@/lib/auth/session";
+import { withAuth } from "@/lib/api/with-auth";
+import { subscribeUserEvents } from "@/lib/events/subscriber";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
-const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
-export async function GET(req: Request) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  const userId = session.user.id;
-  const channel = `feedwise:events:${userId}`;
-
-  const sub = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
-
-  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  let cleaned = false;
-
-  function cleanup() {
-    if (cleaned) return;
-    cleaned = true;
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
-    sub.unsubscribe(channel).then(() => sub.disconnect()).catch(() => sub.disconnect());
-  }
-
-  const stream = new ReadableStream({
+export const GET = withAuth(async (req, session) => {
+  const encoder = new TextEncoder();
+  let cleanup = () => {};
+  const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      function enqueue(chunk: string) {
-        try {
-          controller.enqueue(new TextEncoder().encode(chunk));
-        } catch {
-          // controller already closed
-        }
-      }
-
-      sub.subscribe(channel, (err) => {
-        if (err) {
-          console.error("[sse] subscribe error:", err);
-          controller.close();
-          cleanup();
-        }
-      });
-
-      sub.on("message", (_ch: string, message: string) => {
-        enqueue(`data: ${message}\n\n`);
-      });
-
-      sub.on("error", (err) => {
-        console.error("[sse] Redis error:", err);
-        controller.close();
+      const abort = () => {
         cleanup();
-      });
-
-      heartbeatTimer = setInterval(() => {
-        enqueue(`: heartbeat\n\n`);
+        controller.close();
+      };
+      if (req.signal.aborted) {
+        controller.close();
+        return;
+      }
+      const unsubscribe = subscribeUserEvents(
+        session.user.id,
+        (message) => controller.enqueue(encoder.encode(`data: ${message}\n\n`)),
+        (error) => {
+          cleanup();
+          controller.error(error);
+        },
+      );
+      const heartbeat = setInterval(() => {
+        controller.enqueue(encoder.encode(": heartbeat\n\n"));
       }, HEARTBEAT_INTERVAL_MS);
+      cleanup = () => {
+        req.signal.removeEventListener("abort", abort);
+        clearInterval(heartbeat);
+        unsubscribe();
+      };
+      req.signal.addEventListener("abort", abort, { once: true });
     },
     cancel() {
       cleanup();
     },
   });
-
-  req.signal.addEventListener("abort", cleanup);
 
   return new Response(stream, {
     headers: {
@@ -74,4 +46,4 @@ export async function GET(req: Request) {
       Connection: "keep-alive",
     },
   });
-}
+});

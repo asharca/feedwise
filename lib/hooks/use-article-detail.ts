@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useState, useTransition } from "react";
+"use client";
+
+import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query/keys";
 import { dispatchUnreadDelta } from "@/lib/reader/events";
 import { fetchArticleDetail, patchArticle } from "@/lib/reader/article-api";
-import type { ReaderArticleDetail } from "@/lib/reader/types";
+import { updateArticleInPages } from "@/lib/reader/article-cache";
+import type { ArticleListItem, CursorPage, ReaderArticleDetail } from "@/lib/reader/types";
 
 export interface UseArticleDetailOptions {
   /** Mark the article read (server PATCH + unread-delta event) when it opens unread. */
@@ -21,103 +26,108 @@ export interface UseArticleDetailResult {
   retry: () => void;
 }
 
-interface DetailRequestState {
-  articleId: string | undefined;
-  detail: ReaderArticleDetail | null;
-  loading: boolean;
-  error: string | null;
+function isArticlePages(value: unknown): value is InfiniteData<CursorPage<ArticleListItem>> {
+  if (!value || typeof value !== "object" || !("pages" in value) || !Array.isArray(value.pages)) {
+    return false;
+  }
+  if (value.pages.length === 0) return true;
+  const first: unknown = value.pages[0];
+  return Boolean(
+    first && typeof first === "object" && "items" in first && Array.isArray(first.items),
+  );
 }
 
 /**
- * URL-driven article detail: fetches whenever `articleId` changes, clears
- * when it goes away, and (optionally) marks the article read on open. The
- * state update is wrapped in a transition so the heavy reader mount can't
- * block an in-flight slide-in animation.
+ * URL-driven article detail backed by TanStack Query (`queryKeys.article.detail(id)`).
+ * Optionally marks an unread article as read once on open and syncs list + feed caches.
  */
 export function useArticleDetail(
   articleId: string | undefined,
   { markReadOnOpen, onMarkedRead, onMarkReadFailed }: UseArticleDetailOptions,
 ): UseArticleDetailResult {
-  const [request, setRequest] = useState<DetailRequestState>({
-    articleId: undefined,
-    detail: null,
-    loading: false,
-    error: null,
-  });
-  const [retryCount, setRetryCount] = useState(0);
-  const [, startTransition] = useTransition();
+  const queryClient = useQueryClient();
+  const currentIdRef = useRef<string | undefined>(articleId);
+  currentIdRef.current = articleId;
 
-  const retry = useCallback(() => {
-    setRetryCount((count) => count + 1);
-  }, []);
+  const callbacksRef = useRef({ onMarkedRead, onMarkReadFailed });
+  callbacksRef.current = { onMarkedRead, onMarkReadFailed };
+
+  const attemptedMarkReadRef = useRef<Set<string>>(new Set());
+
+  const query = useQuery({
+    queryKey: articleId ? queryKeys.article.detail(articleId) : ["article", "__idle__"],
+    queryFn: ({ signal }) => fetchArticleDetail(articleId!, signal),
+    enabled: Boolean(articleId),
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: ({ id }: { id: string; feedId: string }) => patchArticle(id, { isRead: true }),
+    onSuccess: (_data, { id, feedId }) => {
+      queryClient.setQueryData<ReaderArticleDetail>(queryKeys.article.detail(id), (prev) =>
+        prev ? { ...prev, isRead: true } : prev,
+      );
+      const cachedLists = queryClient.getQueriesData({ queryKey: queryKeys.articles.all });
+      for (const [key, data] of cachedLists) {
+        if (!isArticlePages(data)) continue;
+        const updated = updateArticleInPages(data, id, { isRead: true });
+        if (updated !== data) queryClient.setQueryData(key, updated);
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.feeds.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      if (feedId) dispatchUnreadDelta(feedId, -1);
+      if (currentIdRef.current === id) {
+        callbacksRef.current.onMarkedRead?.(id);
+      }
+    },
+    onError: (_err, { id }) => {
+      if (currentIdRef.current === id) {
+        callbacksRef.current.onMarkReadFailed?.(id);
+      }
+    },
+  });
+
+  const { mutate: triggerMarkRead } = markReadMutation;
+
+  useEffect(() => {
+    if (!articleId) return;
+    const data = query.data;
+    if (!markReadOnOpen || !data || data.id !== articleId || data.isRead) return;
+    if (attemptedMarkReadRef.current.has(articleId)) return;
+    attemptedMarkReadRef.current.add(articleId);
+    triggerMarkRead({ id: articleId, feedId: data.feedId });
+  }, [articleId, markReadOnOpen, query.data, triggerMarkRead]);
+
+  // Allow re-attempting if the user navigates away and opens the article again later.
+  useEffect(() => {
+    return () => {
+      if (articleId) attemptedMarkReadRef.current.delete(articleId);
+    };
+  }, [articleId]);
 
   const setDetail = useCallback<Dispatch<SetStateAction<ReaderArticleDetail | null>>>(
     (value) => {
-      setRequest((previous) => {
-        const current = previous.articleId === articleId ? previous.detail : null;
-        const detail = typeof value === "function" ? value(current) : value;
-        return { articleId, detail, loading: false, error: null };
-      });
+      if (!articleId) return;
+      queryClient.setQueryData<ReaderArticleDetail | undefined>(
+        queryKeys.article.detail(articleId),
+        (previous) => {
+          const next = typeof value === "function" ? value(previous ?? null) : value;
+          return next ?? undefined;
+        },
+      );
     },
-    [articleId],
+    [articleId, queryClient],
   );
 
-  useEffect(() => {
-    if (!articleId) {
-      setRequest({ articleId: undefined, detail: null, loading: false, error: null });
-      return;
-    }
-    let cancelled = false;
-    setRequest({ articleId, detail: null, loading: true, error: null });
-    (async () => {
-      const data = await fetchArticleDetail(articleId);
-      if (cancelled) return;
-      if (!data) {
-        setRequest({
-          articleId,
-          detail: null,
-          loading: false,
-          error: "Failed to load article",
-        });
-        return;
-      }
+  const retry = useCallback(() => {
+    if (!articleId) return;
+    void query.refetch();
+  }, [articleId, query]);
 
-      const shouldMarkRead = markReadOnOpen && !data.isRead;
-      let visibleDetail = data;
-      if (shouldMarkRead) {
-        try {
-          await patchArticle(articleId, { isRead: true });
-          visibleDetail = { ...data, isRead: true };
-          if (data.feedId) dispatchUnreadDelta(data.feedId, -1);
-          onMarkedRead?.(articleId);
-        } catch {
-          if (!cancelled) onMarkReadFailed?.(articleId);
-        }
-      }
-      if (cancelled) return;
-      startTransition(() => {
-        setRequest({
-          articleId,
-          detail: visibleDetail,
-          loading: false,
-          error: null,
-        });
-      });
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // Option callbacks intentionally excluded: the fetch runs only
-    // when the article changes or the user explicitly retries it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articleId, retryCount]);
-
-  const isCurrentRequest = request.articleId === articleId;
   return {
-    detail: isCurrentRequest ? request.detail : null,
+    detail: articleId ? (query.data ?? null) : null,
     setDetail,
-    loading: articleId ? (isCurrentRequest ? request.loading : true) : false,
-    error: isCurrentRequest ? request.error : null,
+    loading: Boolean(articleId) && query.isPending,
+    error: articleId && query.error ? query.error.message || "文章加载失败" : null,
     retry,
   };
 }

@@ -1,26 +1,33 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef, useCallback, useTransition } from "react";
-import { useSSE } from "@/lib/hooks/use-sse";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArticleReader } from "@/components/article/article-reader";
+import { BookOpen, CheckCheck, CircleAlert, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+import type { ContentView } from "@/lib/db/schema-types";
 import { ArticleDrawer } from "@/components/article/article-drawer";
+import { useReaderShortcuts } from "@/components/article/article-list-controls";
+import { ArticleReader } from "@/components/article/article-reader";
 import { DatedArticleListPane } from "@/components/article/dated-article-list-pane";
 import { ListReaderShell } from "@/components/article/list-reader-shell";
 import { ReaderSkeleton } from "@/components/article/reader-skeleton";
 import { NewsDashboard } from "@/components/dashboard/news-dashboard";
-import { SearchResultsPage } from "./_search-view/search-results-page";
-import type { Article } from "./_search-view/types";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { CheckCheck, BookOpen, CircleAlert, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useArticleDetail } from "@/lib/hooks/use-article-detail";
 import { useAutoSummarize } from "@/lib/hooks/use-auto-summarize";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
-import { useArticleDetail } from "@/lib/hooks/use-article-detail";
-import { dispatchUnreadDelta, dispatchMarkAllRead } from "@/lib/reader/events";
-import { mergeUniqueArticles, patchArticle } from "@/lib/reader/article-api";
+import { flattenArticlePages, parseContentView } from "@/lib/reader/article-cache";
+import type { ArticleListFilter } from "@/lib/reader/types";
+import {
+  useArticlesInfinite,
+  useArticleToggleMutation,
+  useMarkAllReadMutation,
+  useTagsQuery,
+} from "@/lib/reader/use-articles";
+import { cn } from "@/lib/utils";
+import { SearchResultsPage } from "./_search-view/search-results-page";
+import type { Article } from "./_search-view/types";
 
 function ReaderContent() {
   const router = useRouter();
@@ -28,201 +35,98 @@ function ReaderContent() {
   const feedId = searchParams.get("feedId") ?? undefined;
   const folderId = searchParams.get("folderId") ?? undefined;
   const tagId = searchParams.get("tag") ?? undefined;
-  const view = searchParams.get("view") ?? "all";
+  const rawView = searchParams.get("view");
+  const navView = rawView === "unread" || rawView === "starred" ? rawView : "all";
+  const contentView =
+    parseContentView(searchParams.get("contentView")) ?? parseContentView(rawView);
   const search = searchParams.get("search") ?? undefined;
   const since = searchParams.get("since") ?? undefined;
   const articleId = searchParams.get("articleId") ?? undefined;
 
-  const [articleList, setArticleList] = useState<Article[]>([]);
-  const [isPending, startTransition] = useTransition();
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  // Tracks the in-flight pagination request so we can abort it when filters
-  // change. Without this, a "load more" fetch from feed X can resolve AFTER
-  // the user switches to feed Y and append X's next page onto Y's list —
-  // showing a couple of stale articles mixed in with the new ones.
-  const loadMoreAbortRef = useRef<AbortController | null>(null);
-  // True when the open article was launched via an in-app click (openArticle
-  // pushed a history entry). Lets "Collapse" pop that entry to keep history
-  // clean, while still collapsing deterministically on deep links / refresh.
+  // True when the open article was launched via an in-app click so "Back" can pop
+  // that history entry while still collapsing cleanly on deep links / refreshes.
   const openedInAppRef = useRef(false);
-  // Reader-level LLM preferences. `null` = not loaded yet (don't auto-trigger).
   const autoSummarize = useAutoSummarize();
-  const [tagNameById, setTagNameById] = useState<Record<string, string>>({});
-  // Per-view local search. Hits /api/articles?search=… scoped to the current
-  // feed/folder/tag/view. Distinct from the URL `?search=` global palette
-  // search, which triggers a different UI (SearchResultsPage).
+
+  // Per-view local search scoped to the current feed/folder/tag/view.
   const [paneSearch, setPaneSearch] = useState("");
   const debouncedPaneSearch = useDebouncedValue(paneSearch.trim(), 250);
   const effectivePaneSearch = paneSearch.trim() === "" ? "" : debouncedPaneSearch;
-  const [reloadKey, setReloadKey] = useState(0);
-  const [listError, setListError] = useState<string | null>(null);
-  const [markingAllRead, setMarkingAllRead] = useState(false);
-  const articleMutationVersionRef = useRef(new Map<string, number>());
-  const PAGE_SIZE = 50;
+
+  useEffect(() => {
+    setPaneSearch("");
+  }, [feedId, folderId, tagId, navView, contentView]);
+
+  const hasSearchParam = searchParams.has("search");
+  const showDashboard =
+    navView === "all" && !contentView && !feedId && !folderId && !tagId && !hasSearchParam;
+  const inSearchMode = hasSearchParam;
+
+  const listFilter = useMemo<ArticleListFilter>(() => {
+    const effectiveSearch = search || effectivePaneSearch;
+    return {
+      feedId,
+      folderId,
+      tagId,
+      unread: navView === "unread" ? true : undefined,
+      starred: navView === "starred" ? true : undefined,
+      since,
+      search: effectiveSearch || undefined,
+      view: contentView,
+    };
+  }, [feedId, folderId, tagId, navView, since, search, effectivePaneSearch, contentView]);
+
+  const listEnabled = !showDashboard && (!inSearchMode || Boolean(search?.trim()));
+  const articlesQuery = useArticlesInfinite(listFilter, listEnabled);
+  const articleList = useMemo<Article[]>(
+    () => (listEnabled ? flattenArticlePages(articlesQuery.data) : []),
+    [articlesQuery.data, listEnabled],
+  );
+
+  const tagsQuery = useTagsQuery();
+  const tagNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const tag of tagsQuery.data ?? []) map[tag.id] = tag.name;
+    return map;
+  }, [tagsQuery.data]);
 
   const {
     detail: activeArticle,
-    setDetail: setActiveArticle,
     loading: articleLoading,
     error: articleError,
     retry: retryArticle,
   } = useArticleDetail(articleId, {
     markReadOnOpen: true,
-    onMarkedRead: (id) => {
-      setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: true } : a)));
-    },
-    onMarkReadFailed: (id) => {
-      setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: false } : a)));
-      toast.error("Could not mark article as read");
+    onMarkReadFailed: () => {
+      toast.error("自动标记已读失败");
     },
   });
 
-  useSSE((event) => {
-    if (event.type !== "articles.new") return;
-    // Reload if we're viewing all feeds, or this specific feed
-    if (!feedId || feedId === event.feedId) {
-      setReloadKey((k) => k + 1);
-    }
-  });
+  const toggleMutation = useArticleToggleMutation();
+  const markAllReadMutation = useMarkAllReadMutation();
 
-  // Clear pane search when the user switches scope — a query like "react"
-  // makes sense within one feed but isn't carried across feed boundaries.
-  // effectivePaneSearch guard makes the clear instantaneous (no debounce wait).
-  useEffect(() => {
-    setPaneSearch("");
-  }, [feedId, folderId, tagId, view]);
-
-  useEffect(() => {
-    function loadTags() {
-      fetch("/api/tags")
-        .then((r) => r.json())
-        .then((data) => {
-          if (!data?.success) return;
-          const map: Record<string, string> = {};
-          for (const t of data.data ?? []) map[t.id] = t.name;
-          setTagNameById(map);
-        })
-        .catch(() => {});
-    }
-    loadTags();
-    window.addEventListener("tags-changed", loadTags);
-    return () => window.removeEventListener("tags-changed", loadTags);
-  }, []);
-
-  // Dashboard is the home view. A specific article opened from dashboard is
-  // shown as an overlay drawer on top of the dashboard instead of switching
-  // to the 2-pane layout — that keeps the magazine context intact while
-  // reading and makes the back behavior a trivial drawer dismiss.
-  // `searchParams.has("search")` (vs Boolean(search)) catches the empty-input
-  // case too — the sidebar's Search nav item lands users at `?search=` so the
-  // search page renders with an empty query waiting for input.
-  const hasSearchParam = searchParams.has("search");
-  const showDashboard = view === "all" && !feedId && !folderId && !tagId && !hasSearchParam;
-  const inSearchMode = hasSearchParam;
-
-  const fetchArticles = useCallback(
-    async (pageOffset: number, signal?: AbortSignal) => {
-      const params = new URLSearchParams();
-      if (feedId) params.set("feedId", feedId);
-      if (folderId) params.set("folderId", folderId);
-      if (tagId) params.set("tag", tagId);
-      if (view === "unread") params.set("unread", "true");
-      if (view === "starred") params.set("starred", "true");
-      // The URL-driven global search and the pane's per-view filter both map
-      // to the API's `search` param. Only one is active at a time (the global
-      // path renders SearchResultsPage, the pane is mounted only otherwise).
-      const effectiveSearch = search || effectivePaneSearch;
-      if (effectiveSearch) params.set("search", effectiveSearch);
-      if (since) params.set("since", since);
-      params.set("limit", String(PAGE_SIZE));
-      params.set("offset", String(pageOffset));
-      const res = await fetch(`/api/articles?${params}`, { signal });
-      const data = (await res.json().catch(() => null)) as {
-        success?: boolean;
-        data?: Article[];
-        error?: string;
-      } | null;
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error ?? "Failed to load articles");
+  const openArticle = useCallback(
+    (id: string, opts?: { feedId?: string }) => {
+      const p = new URLSearchParams(searchParams.toString());
+      if (opts?.feedId) {
+        p.set("feedId", opts.feedId);
+        p.set("view", "all");
+        p.delete("folderId");
+        p.delete("tag");
       }
-      return data.data ?? [];
+      const switching = searchParams.has("articleId");
+      p.set("articleId", id);
+      if (switching) {
+        router.replace(`/reader?${p.toString()}`);
+      } else {
+        openedInAppRef.current = true;
+        router.push(`/reader?${p.toString()}`);
+      }
     },
-    [feedId, folderId, tagId, view, search, since, effectivePaneSearch, PAGE_SIZE],
+    [router, searchParams],
   );
 
-  // Reset and reload the LIST when filters change. The currently-open article
-  // is driven separately by the articleId URL param, so we don't touch it here.
-  //
-  // The AbortController + cleanup is load-bearing: without it, a slower fetch
-  // from feed X can resolve AFTER the user has already switched to feed Y and
-  // overwrite Y's list with X's (whole or partial, depending on whether the
-  // pagination "load more" race also fires). Cancelling on filter change keeps
-  // only the latest request's result.
-  useEffect(() => {
-    // Cancel any in-flight pagination from the previous filter — its result
-    // would otherwise be appended onto the new list.
-    loadMoreAbortRef.current?.abort();
-    loadMoreAbortRef.current = null;
-    setLoadingMore(false);
-    if (showDashboard) return;
-    if (inSearchMode && !search?.trim()) {
-      setArticleList([]);
-      setOffset(0);
-      setHasMore(false);
-      setListError(null);
-      return;
-    }
-
-    const controller = new AbortController();
-    setOffset(0);
-    setHasMore(false);
-    setListError(null);
-    startTransition(async () => {
-      try {
-        const data = await fetchArticles(0, controller.signal);
-        if (controller.signal.aborted) return;
-        setArticleList(mergeUniqueArticles([], data));
-        setHasMore(data.length === PAGE_SIZE);
-      } catch (err) {
-        if ((err as Error)?.name === "AbortError") return;
-        setArticleList([]);
-        setListError("Check your connection and try again.");
-      }
-    });
-    return () => controller.abort();
-  }, [fetchArticles, showDashboard, inSearchMode, search, PAGE_SIZE, reloadKey]);
-
-  function openArticle(id: string, opts?: { feedId?: string }) {
-    const p = new URLSearchParams(searchParams.toString());
-    if (opts?.feedId) {
-      p.set("feedId", opts.feedId);
-      p.set("view", "all");
-      // dashboard-launched article: drop any unrelated filters
-      p.delete("folderId");
-      p.delete("tag");
-    }
-    // Switching to another article while one is already open replaces the URL
-    // instead of pushing — otherwise every article read stacks a history entry
-    // and "Collapse"/back would step through prior articles instead of going
-    // straight to the list. Opening the first article pushes one entry so the
-    // back gesture (and Collapse) returns to the list.
-    const switching = searchParams.has("articleId");
-    p.set("articleId", id);
-    if (switching) {
-      router.replace(`/reader?${p.toString()}`);
-    } else {
-      openedInAppRef.current = true;
-      router.push(`/reader?${p.toString()}`);
-    }
-  }
-
-  // Collapse the reader pane back to the list view (drops articleId from the
-  // URL). When the article was opened in-app we pop that pushed entry to keep
-  // history clean; on a deep link / refresh there's nothing to pop, so strip
-  // articleId explicitly so collapsing still lands on the list.
-  function closeArticle() {
+  const closeArticle = useCallback(() => {
     if (openedInAppRef.current) {
       openedInAppRef.current = false;
       router.back();
@@ -230,143 +134,79 @@ function ReaderContent() {
     }
     const p = new URLSearchParams(searchParams.toString());
     p.delete("articleId");
-    router.replace(`/reader?${p.toString()}`);
-  }
+    const qs = p.toString();
+    router.replace(qs ? `/reader?${qs}` : "/reader");
+  }, [router, searchParams]);
 
-  async function handleLoadMore() {
-    if (loadingMore || !hasMore) return;
-    const nextOffset = offset + PAGE_SIZE;
-    loadMoreAbortRef.current?.abort();
-    const controller = new AbortController();
-    loadMoreAbortRef.current = controller;
-    setLoadingMore(true);
-    try {
-      const data = await fetchArticles(nextOffset, controller.signal);
-      if (controller.signal.aborted) return;
-      setArticleList((prev) => mergeUniqueArticles(prev, data));
-      setOffset(nextOffset);
-      setHasMore(data.length === PAGE_SIZE);
-    } catch (err) {
-      if ((err as Error)?.name === "AbortError") return;
-      setHasMore(false);
-      toast.error("Could not load more articles");
-    } finally {
-      if (loadMoreAbortRef.current === controller) {
-        loadMoreAbortRef.current = null;
-        setLoadingMore(false);
+  const handleContentViewChange = useCallback(
+    (next: ContentView | undefined) => {
+      const p = new URLSearchParams(searchParams.toString());
+      if (next) {
+        p.set("contentView", next);
+      } else {
+        p.delete("contentView");
       }
-    }
-  }
-
-  function handleSelect(id: string) {
-    // Just update the URL — the articleId useEffect handles fetching and
-    // marking-as-read uniformly for clicks AND refreshes.
-    openArticle(id);
-  }
-
-  function handleDashboardSelect(id: string) {
-    // Stay in dashboard mode — the article opens as a drawer overlay.
-    openArticle(id);
-  }
-
-  async function handleStar(id: string, starred: boolean) {
-    const previous =
-      articleList.find((article) => article.id === id)?.isStarred ??
-      (activeArticle?.id === id ? activeArticle.isStarred : !starred);
-    const mutationKey = `${id}:starred`;
-    const version = (articleMutationVersionRef.current.get(mutationKey) ?? 0) + 1;
-    articleMutationVersionRef.current.set(mutationKey, version);
-    setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isStarred: starred } : a)));
-    if (activeArticle?.id === id) {
-      setActiveArticle((prev) => (prev ? { ...prev, isStarred: starred } : prev));
-    }
-    try {
-      await patchArticle(id, { isStarred: starred });
-    } catch {
-      if (articleMutationVersionRef.current.get(mutationKey) !== version) return;
-      setArticleList((prev) =>
-        prev.map((article) => (article.id === id ? { ...article, isStarred: previous } : article)),
-      );
-      setActiveArticle((current) =>
-        current?.id === id ? { ...current, isStarred: previous } : current,
-      );
-      toast.error("Could not update star");
-    }
-  }
-
-  async function handleMarkRead(id: string, read: boolean) {
-    const listArticle = articleList.find((a) => a.id === id);
-    const detailArticle = activeArticle?.id === id ? activeArticle : undefined;
-    const sourceArticle = listArticle ?? detailArticle;
-    const wasRead = sourceArticle?.isRead ?? false;
-    const mutationKey = `${id}:read`;
-    const version = (articleMutationVersionRef.current.get(mutationKey) ?? 0) + 1;
-    articleMutationVersionRef.current.set(mutationKey, version);
-    setArticleList((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: read } : a)));
-    if (activeArticle?.id === id) {
-      setActiveArticle((prev) => (prev ? { ...prev, isRead: read } : prev));
-    }
-    if (sourceArticle && wasRead !== read) {
-      dispatchUnreadDelta(sourceArticle.feedId, read ? -1 : 1);
-    }
-    try {
-      await patchArticle(id, { isRead: read });
-    } catch {
-      if (articleMutationVersionRef.current.get(mutationKey) !== version) return;
-      setArticleList((prev) =>
-        prev.map((article) => (article.id === id ? { ...article, isRead: wasRead } : article)),
-      );
-      setActiveArticle((current) =>
-        current?.id === id ? { ...current, isRead: wasRead } : current,
-      );
-      if (sourceArticle && wasRead !== read) {
-        dispatchUnreadDelta(sourceArticle.feedId, read ? 1 : -1);
+      if (parseContentView(p.get("view"))) {
+        p.delete("view");
       }
-      toast.error("Could not update read status");
-    }
-  }
+      p.delete("articleId");
+      const qs = p.toString();
+      router.replace(qs ? `/reader?${qs}` : "/reader");
+    },
+    [router, searchParams],
+  );
 
-  async function handleMarkAllRead() {
-    if (tagId || view === "starred" || markingAllRead) return;
-    const params = new URLSearchParams();
-    if (feedId) params.set("feedId", feedId);
-    if (folderId) params.set("folderId", folderId);
-    setMarkingAllRead(true);
-    try {
-      const response = await fetch(`/api/articles/mark-all-read?${params}`, { method: "POST" });
-      const body = (await response.json().catch(() => null)) as {
-        success?: boolean;
-        error?: string;
-      } | null;
-      if (!response.ok || !body?.success) {
-        throw new Error(body?.error ?? "Failed to mark articles as read");
-      }
-      setArticleList((prev) => prev.map((a) => ({ ...a, isRead: true })));
-      dispatchMarkAllRead(feedId, folderId);
-      toast.success("Marked all as read");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to mark articles as read");
-    } finally {
-      setMarkingAllRead(false);
+  const handleLoadMore = useCallback(() => {
+    if (articlesQuery.hasNextPage && !articlesQuery.isFetchingNextPage) {
+      void articlesQuery.fetchNextPage();
     }
-  }
+  }, [articlesQuery]);
+
+  const handleStar = useCallback(
+    (id: string, starred: boolean) => {
+      const feedForArticle =
+        articleList.find((a) => a.id === id)?.feedId ??
+        (activeArticle?.id === id ? activeArticle.feedId : undefined);
+      toggleMutation.mutate({ id, patch: { isStarred: starred }, feedId: feedForArticle });
+    },
+    [activeArticle, articleList, toggleMutation],
+  );
+
+  const handleMarkRead = useCallback(
+    (id: string, read: boolean) => {
+      const feedForArticle =
+        articleList.find((a) => a.id === id)?.feedId ??
+        (activeArticle?.id === id ? activeArticle.feedId : undefined);
+      toggleMutation.mutate({ id, patch: { isRead: read }, feedId: feedForArticle });
+    },
+    [activeArticle, articleList, toggleMutation],
+  );
+
+  const handleMarkAllRead = useCallback(() => {
+    if (tagId || navView === "starred" || markAllReadMutation.isPending) return;
+    markAllReadMutation.mutate({ feedId, folderId });
+  }, [feedId, folderId, markAllReadMutation, navView, tagId]);
 
   const hasActive = Boolean(articleId);
   const detailReady = activeArticle?.id === articleId;
+
+  useReaderShortcuts({
+    article: detailReady && activeArticle ? activeArticle : null,
+    onStar: handleStar,
+    onMarkRead: handleMarkRead,
+    onClose: closeArticle,
+  });
 
   function renderActiveReader(contextLabel: string) {
     if (!articleId) return null;
     if (detailReady && activeArticle) {
       return (
         <ArticleReader
-          article={{
-            ...activeArticle,
-            publishedAt: activeArticle.publishedAt ? new Date(activeArticle.publishedAt) : null,
-            createdAt: activeArticle.createdAt ? new Date(activeArticle.createdAt) : null,
-          }}
+          article={activeArticle}
           onMarkRead={handleMarkRead}
           onStar={handleStar}
           onBack={closeArticle}
+          onSelectRelated={openArticle}
           contextLabel={contextLabel}
           autoSummarize={autoSummarize ?? false}
         />
@@ -381,38 +221,35 @@ function ReaderContent() {
     return <ReaderSkeleton />;
   }
 
-  // Search results view. Shares the same two-pane container as the default
-  // reader so clicking an article slides the reader in on the right, with
-  // the search results staying mounted on the left.
   if (inSearchMode) {
     return (
       <div className="flex h-full">
         <div className={cn("shrink-0", hasActive ? "hidden xl:block" : "w-full xl:w-auto")}>
           <SearchResultsPage
             search={search!}
-            activeArticle={detailReady ? (activeArticle as Article | null) : null}
-            onSelect={handleSelect}
+            activeArticle={detailReady ? activeArticle : null}
+            onSelect={openArticle}
             onStar={handleStar}
             articleList={articleList}
-            hasMore={hasMore}
-            loadingMore={loadingMore}
+            hasMore={Boolean(articlesQuery.hasNextPage)}
+            loadingMore={articlesQuery.isFetchingNextPage}
             onLoadMore={handleLoadMore}
           />
         </div>
         <div
           className={cn(
-            "flex-1 min-w-0 overflow-hidden border-l border-border",
+            "min-w-0 flex-1 overflow-hidden border-l border-border",
             !hasActive && "hidden xl:block",
           )}
         >
           {hasActive ? (
             renderActiveReader(`"${search}"`)
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
-              <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+              <div className="flex size-14 items-center justify-center rounded-lg bg-muted">
                 <BookOpen className="size-6 text-muted-foreground/40" />
               </div>
-              <p className="text-sm">Select an article to read</p>
+              <p className="text-sm">选择一篇文章开始阅读</p>
             </div>
           )}
         </div>
@@ -420,54 +257,57 @@ function ReaderContent() {
     );
   }
 
-  // Dashboard. If an article is open on top of dashboard (articleId in URL),
-  // it renders as a slide-in drawer overlay rather than swapping the layout.
   if (showDashboard) {
     return (
       <>
-        <div className="flex flex-col h-full">
-          <div className="md:hidden px-4 h-12 flex items-center gap-2 shrink-0 border-b border-border/50">
+        <div className="flex h-full flex-col">
+          <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/50 px-4 md:hidden">
             <SidebarTrigger />
           </div>
-          <div className="flex-1 min-h-0">
-            <NewsDashboard onSelectArticle={handleDashboardSelect} />
+          <div className="min-h-0 flex-1">
+            <NewsDashboard onSelectArticle={openArticle} />
           </div>
         </div>
         <ArticleDrawer open={hasActive} onClose={closeArticle}>
-          {renderActiveReader("Today's News")}
+          {renderActiveReader("今日资讯")}
         </ArticleDrawer>
       </>
     );
   }
 
-  // Article list view
   const viewTitle = tagId
-    ? `#${tagNameById[tagId] ?? "tag"}`
+    ? `#${tagNameById[tagId] ?? "标签"}`
     : feedId && articleList.length > 0
-      ? (articleList[0].feedTitle ?? "Feed")
+      ? (articleList[0].feedTitle ?? "订阅源")
       : folderId
-        ? "Category"
-        : view === "unread"
-          ? "Unread"
-          : view === "starred"
-            ? "Starred"
-            : "Home";
+        ? "分类"
+        : navView === "unread"
+          ? "未读"
+          : navView === "starred"
+            ? "收藏"
+            : "全部文章";
+
+  const listError = articlesQuery.error
+    ? articlesQuery.error instanceof Error
+      ? articlesQuery.error.message
+      : "请检查网络连接后重试。"
+    : null;
 
   const headerActions = (
     <>
-      {isPending && (
-        <div className="size-3 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
+      {articlesQuery.isFetching && !articlesQuery.isPending && (
+        <div className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
       )}
-      {!tagId && view !== "starred" && articleList.some((a) => !a.isRead) && (
+      {!tagId && navView !== "starred" && articleList.some((a) => !a.isRead) && (
         <button
           type="button"
           onClick={handleMarkAllRead}
-          disabled={markingAllRead}
-          title="Mark all read"
-          aria-label="Mark all read"
+          disabled={markAllReadMutation.isPending}
+          title="全部标为已读"
+          aria-label="全部标为已读"
           className="inline-flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50 md:size-7"
         >
-          {markingAllRead ? (
+          {markAllReadMutation.isPending ? (
             <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
             <CheckCheck className="size-3.5" />
@@ -477,10 +317,6 @@ function ReaderContent() {
     </>
   );
 
-  // Drive the layout from the URL (articleId), not the loaded detail —
-  // otherwise the slide-in animation waits for the article fetch to resolve,
-  // which the user perceives as click lag. The reader slot renders a
-  // skeleton until the fetch lands.
   return (
     <ListReaderShell
       hasActive={hasActive}
@@ -490,23 +326,25 @@ function ReaderContent() {
           headerActions={headerActions}
           search={paneSearch}
           onSearchChange={setPaneSearch}
-          searchPlaceholder="Filter this view…"
+          searchPlaceholder="在当前视图中筛选…"
+          contentView={contentView}
+          onContentViewChange={handleContentViewChange}
           articles={articleList}
           dateField="publishedAt"
           activeId={articleId}
-          onSelect={handleSelect}
+          onSelect={openArticle}
+          onStar={handleStar}
+          onMarkRead={handleMarkRead}
           layout={hasActive ? "compact" : "grid"}
-          loading={isPending && articleList.length === 0}
+          loading={articlesQuery.isPending}
           error={listError}
-          onRetry={() => setReloadKey((key) => key + 1)}
-          hasMore={hasMore}
-          loadingMore={loadingMore}
+          onRetry={() => void articlesQuery.refetch()}
+          hasMore={Boolean(articlesQuery.hasNextPage)}
+          loadingMore={articlesQuery.isFetchingNextPage}
           onLoadMore={handleLoadMore}
-          emptyTitle={effectivePaneSearch ? "No matches" : "No articles"}
+          emptyTitle={effectivePaneSearch ? "未找到匹配文章" : "暂无文章"}
           emptyHint={
-            effectivePaneSearch
-              ? "Try a different search."
-              : "Articles from this view will show up here."
+            effectivePaneSearch ? "试试更换筛选关键词。" : "当前视图下的新文章会显示在这里。"
           }
         />
       }
@@ -533,16 +371,16 @@ function ArticleDetailError({
         <CircleAlert className="size-6 text-destructive" />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium">Could not open this article</p>
+        <p className="text-sm font-medium">无法打开这篇文章</p>
         <p className="text-xs text-muted-foreground">{error}</p>
       </div>
       <div className="flex items-center gap-2">
         <Button type="button" size="sm" onClick={onRetry}>
           <RefreshCw className="size-4" />
-          Retry
+          重试
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onBack}>
-          Back to list
+          返回列表
         </Button>
       </div>
     </div>

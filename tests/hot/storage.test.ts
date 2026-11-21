@@ -29,7 +29,15 @@ beforeEach(() => {
         returning: async () => (table === hotSnapshots ? [{ id: "snapshot" }] : []),
         onConflictDoUpdate: ({ set }: { set: Record<string, unknown> }) => {
           h.conflicts.push({ table, set });
-          return { returning: async () => [{ id: "item", itemKey: "https://example.com" }] };
+          return {
+            returning: async () =>
+              Array.isArray(values)
+                ? values.map((row) => ({
+                    itemKey: row.itemKey,
+                    id: row.itemKey === "https://example.com" ? "item" : row.id,
+                  }))
+                : [],
+          };
         },
       };
     },
@@ -54,8 +62,27 @@ const item = {
 };
 
 describe("hot transactional storage", () => {
+  it("only returns rule subjects for rows that actually inserted", async () => {
+    const fresh = { ...item, itemKey: "https://new.test/", url: "https://new.test/", rank: 1 };
+    const result = await saveHotSnapshot("zhihu", [fresh, item], now);
+    expect(result).toEqual({
+      itemCount: 2,
+      newItems: [
+        {
+          id: expect.any(String),
+          sourceKey: "zhihu",
+          url: fresh.url,
+          title: fresh.title,
+          desc: null,
+        },
+      ],
+    });
+    expect(result.newItems[0].id).not.toBe("item");
+  });
+
   it("stores snapshot, items and ranks atomically and resets source failures", async () => {
-    expect(await saveHotSnapshot("zhihu", [item], now)).toEqual({ itemCount: 1 });
+    // The mock returns an existing id, not the newly proposed UUID.
+    expect(await saveHotSnapshot("zhihu", [item], now)).toEqual({ itemCount: 1, newItems: [] });
     expect(h.transaction).toHaveBeenCalledTimes(1);
     expect(h.values).toEqual([
       { table: hotSources, values: { key: "zhihu" } },
@@ -97,7 +124,7 @@ describe("hot transactional storage", () => {
   });
 
   it("records empty snapshots without inserting invalid empty value lists", async () => {
-    expect(await saveHotSnapshot("zhihu", [], now)).toEqual({ itemCount: 0 });
+    expect(await saveHotSnapshot("zhihu", [], now)).toEqual({ itemCount: 0, newItems: [] });
     expect(h.values.map((entry) => entry.table)).toEqual([hotSources, hotSnapshots]);
     expect(h.updates[0].set).toMatchObject({ lastError: null, consecutiveFailures: 0 });
   });

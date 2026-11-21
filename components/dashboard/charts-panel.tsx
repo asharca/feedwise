@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowDown,
@@ -10,6 +11,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Segmented } from "@/components/ui/segmented";
+import { apiFetch } from "@/lib/query/api";
+import { queryKeys } from "@/lib/query/keys";
 import { cn } from "@/lib/utils";
 
 interface Timeline {
@@ -51,19 +54,33 @@ export function ChartsPanel() {
   const [customFrom, setCustomFrom] = useState(daysAgoIso(7));
   const [customTo, setCustomTo] = useState(todayIso());
 
-  // Decoupled current (rendered) vs requested (in-flight) data, so we can show
-  // the previous result while the new one loads — eliminates the spinner flash.
-  const [data, setData] = useState<Timeline | null>(null);
-  const [refreshing, setRefreshing] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
+  const timelineParams = useMemo(
+    () =>
+      range === "custom" && customFrom && customTo
+        ? { from: customFrom, to: customTo }
+        : { days: range },
+    [range, customFrom, customTo],
+  );
 
-  const queryUrl = useMemo(() => {
-    if (range === "custom" && customFrom && customTo) {
-      return `/api/dashboard/timeline?from=${customFrom}&to=${customTo}`;
-    }
-    return `/api/dashboard/timeline?days=${range}`;
-  }, [range, customFrom, customTo]);
+  const queryUrl =
+    "from" in timelineParams
+      ? `/api/dashboard/timeline?from=${timelineParams.from}&to=${timelineParams.to}`
+      : `/api/dashboard/timeline?days=${timelineParams.days}`;
+
+  // Keep the previous range visible while the next one loads to avoid a spinner flash.
+  const timelineQuery = useQuery({
+    queryKey: queryKeys.dashboard.timeline(timelineParams),
+    queryFn: ({ signal }) => apiFetch<Timeline>(queryUrl, { signal }),
+    placeholderData: keepPreviousData,
+  });
+
+  const data = timelineQuery.data ?? null;
+  const refreshing = timelineQuery.isFetching;
+  const error = timelineQuery.error
+    ? timelineQuery.error instanceof Error
+      ? timelineQuery.error.message
+      : "Could not load activity"
+    : null;
 
   const hasActivity = Boolean(
     data &&
@@ -71,35 +88,6 @@ export function ChartsPanel() {
       data.readsPerDay.some((value) => value > 0) ||
       data.tagActivity.length > 0),
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    setRefreshing(true);
-    setError(null);
-    fetch(queryUrl)
-      .then(async (response) => {
-        const payload = await response.json();
-        if (!response.ok || !payload?.success) {
-          throw new Error("Could not load activity");
-        }
-        return payload;
-      })
-      .then((d) => {
-        if (cancelled) return;
-        setData(d.data as Timeline);
-      })
-      .catch((requestError: unknown) => {
-        if (cancelled) return;
-        setError(requestError instanceof Error ? requestError.message : "Could not load activity");
-      })
-      .finally(() => {
-        if (!cancelled) setRefreshing(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [queryUrl, retryKey]);
-
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -156,7 +144,7 @@ export function ChartsPanel() {
           <button
             type="button"
             aria-label="Retry activity"
-            onClick={() => setRetryKey((key) => key + 1)}
+            onClick={() => void timelineQuery.refetch()}
             className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <RefreshCw className="size-3.5" />

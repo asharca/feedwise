@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   search: string;
-  activeArticle: Article | null;
+  activeArticle: { id: string } | null;
   onSelect: (id: string) => void;
   onStar: (id: string, starred: boolean) => void;
   articleList: Article[];

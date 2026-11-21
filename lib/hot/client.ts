@@ -1,21 +1,13 @@
-import { z } from "zod";
+import { dailyhot, type ProviderEntry } from "./providers/dailyhot";
+import { newsnow } from "./providers/newsnow";
 import { canonicalizeUrl } from "@/lib/digest/normalize-url";
 import type { NormalizedHotItem } from "./types";
 
-const UpstreamSchema = z.object({
-  code: z.literal(200),
-  data: z.array(
-    z.object({
-      // Upstream IDs can exceed Number.MAX_SAFE_INTEGER: deliberately ignored.
-      title: z.string().trim().min(1),
-      url: z.string().nullish(),
-      mobileUrl: z.string().nullish(),
-      cover: z.string().nullish(),
-      desc: z.string().nullish(),
-      hot: z.number().finite().nullish(),
-    }),
-  ),
-});
+function selectProvider(name = "dailyhot") {
+  if (name === "dailyhot") return dailyhot;
+  if (name === "newsnow") return newsnow;
+  throw new Error(`未知的 HOT_API_PROVIDER：${name}`);
+}
 
 function webUrl(input: string | null | undefined): string | null {
   if (!input?.trim()) return null;
@@ -30,10 +22,13 @@ function webUrl(input: string | null | undefined): string | null {
 }
 
 export function normalizeHotResponse(input: unknown): NormalizedHotItem[] {
-  const parsed = UpstreamSchema.parse(input);
+  return normalizeEntries(dailyhot.entries(input));
+}
+
+function normalizeEntries(entries: ProviderEntry[]): NormalizedHotItem[] {
   const seen = new Set<string>();
   const items: NormalizedHotItem[] = [];
-  parsed.data.forEach((entry, index) => {
+  entries.forEach((entry, index) => {
     const url = webUrl(entry.url) ?? webUrl(entry.mobileUrl) ?? "";
     const itemKey = url || entry.title.normalize("NFKC").replace(/\s+/g, " ").trim();
     if (seen.has(itemKey)) return;
@@ -54,6 +49,7 @@ export function normalizeHotResponse(input: unknown): NormalizedHotItem[] {
 export interface HotClientDeps {
   fetch: typeof fetch;
   baseUrl: string;
+  provider?: string;
 }
 
 export async function fetchHotSource(
@@ -61,16 +57,15 @@ export async function fetchHotSource(
   deps: HotClientDeps = {
     fetch: globalThis.fetch,
     baseUrl: process.env.HOT_API_URL ?? "http://localhost:6688",
+    provider: process.env.HOT_API_PROVIDER,
   },
 ): Promise<NormalizedHotItem[]> {
-  const response = await deps.fetch(
-    `${deps.baseUrl.replace(/\/+$/, "")}/${encodeURIComponent(key)}`,
-    {
-      signal: AbortSignal.timeout(15_000),
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    },
-  );
+  const provider = selectProvider(deps.provider);
+  const response = await deps.fetch(`${deps.baseUrl.replace(/\/+$/, "")}${provider.path(key)}`, {
+    signal: AbortSignal.timeout(15_000),
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
   if (response.status !== 200) throw new Error(`热榜源请求失败（HTTP ${response.status}）`);
   let payload: unknown;
   try {
@@ -79,7 +74,7 @@ export async function fetchHotSource(
     throw new Error("热榜源返回了无效的 JSON 数据");
   }
   try {
-    return normalizeHotResponse(payload);
+    return normalizeEntries(provider.entries(payload, key));
   } catch {
     throw new Error("热榜源返回了无效的数据格式");
   }

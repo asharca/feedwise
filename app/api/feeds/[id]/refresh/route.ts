@@ -16,10 +16,10 @@ export const POST = withAuth(async (_req, session, ctx) => {
       "fetch",
       { feedId: feed.feedId, url: feed.url },
       {
-        jobId: `feed-${feed.feedId}-manual-${Date.now()}`,
+        jobId: `feed-${feed.feedId}-manual-${crypto.randomUUID()}`,
         attempts: 1,
-        removeOnComplete: 100,
-        removeOnFail: 200,
+        removeOnComplete: true,
+        removeOnFail: true,
       },
     );
   } catch (queueErr) {

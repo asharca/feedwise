@@ -24,11 +24,18 @@ export async function saveHotSnapshot(
       .values({ key: sourceKey })
       .onConflictDoUpdate({ target: hotSources.key, set: { key: sourceKey } });
     const [snapshot] = await tx.insert(hotSnapshots).values({ sourceKey, capturedAt }).returning();
+    const newItems: Array<
+      Pick<typeof hotItems.$inferSelect, "id" | "sourceKey" | "title" | "url" | "desc">
+    > = [];
     if (items.length > 0) {
+      // Conflicts retain their original PK. Comparing RETURNING with our proposed
+      // UUIDs distinguishes inserts from updates even at identical capture times.
+      const proposed = new Map(items.map((item) => [item.itemKey, crypto.randomUUID()]));
       const stored = await tx
         .insert(hotItems)
         .values(
           items.map((item) => ({
+            id: proposed.get(item.itemKey),
             sourceKey,
             itemKey: item.itemKey,
             title: item.title,
@@ -53,6 +60,12 @@ export async function saveHotSnapshot(
         })
         .returning({ id: hotItems.id, itemKey: hotItems.itemKey });
       const ids = new Map(stored.map((item) => [item.itemKey, item.id]));
+      for (const item of items) {
+        const id = ids.get(item.itemKey)!;
+        if (id === proposed.get(item.itemKey)) {
+          newItems.push({ id, sourceKey, title: item.title, url: item.url, desc: item.desc });
+        }
+      }
       await tx.insert(hotRanks).values(
         items.map((item) => ({
           snapshotId: snapshot.id,
@@ -70,7 +83,7 @@ export async function saveHotSnapshot(
         consecutiveFailures: 0,
       })
       .where(eq(hotSources.key, sourceKey));
-    return { itemCount: items.length };
+    return { itemCount: items.length, newItems };
   });
 }
 

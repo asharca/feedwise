@@ -1,6 +1,7 @@
 import { and, eq, gte, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { articleTags, articles, feeds, subscriptions, tags, userArticles } from "@/lib/db/schema";
+import { articleIsVisibleTo } from "./articles";
 
 export interface DashboardStats {
   subscriptions: number;
@@ -48,7 +49,12 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
         userArticles,
         and(eq(userArticles.articleId, articles.id), eq(userArticles.userId, userId)),
       )
-      .where(or(isNull(userArticles.isRead), eq(userArticles.isRead, false))),
+      .where(
+        and(
+          sql`${userArticles.isHidden} is not true`,
+          or(isNull(userArticles.isRead), eq(userArticles.isRead, false)),
+        ),
+      ),
 
     db
       .select({ n: sql<number>`count(*)::int` })
@@ -57,7 +63,7 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
         subscriptions,
         and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
       )
-      .where(gte(articles.createdAt, since24h)),
+      .where(and(articleIsVisibleTo(userId), gte(articles.createdAt, since24h))),
 
     db
       .select({ n: sql<number>`count(*)::int` })
@@ -66,6 +72,7 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
         and(
           eq(userArticles.userId, userId),
           eq(userArticles.isRead, true),
+          eq(userArticles.isHidden, false),
           gte(userArticles.readAt, since7d),
         ),
       ),
@@ -158,7 +165,13 @@ export async function getDashboardTimeline(
       subscriptions,
       and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
     )
-    .where(and(gte(articles.createdAt, startDate), sql`${articles.createdAt} < ${endExclusive}`))
+    .where(
+      and(
+        articleIsVisibleTo(userId),
+        gte(articles.createdAt, startDate),
+        sql`${articles.createdAt} < ${endExclusive}`,
+      ),
+    )
     .groupBy(sql`date_trunc('day', ${articles.createdAt})`);
 
   // Reads per day
@@ -172,6 +185,7 @@ export async function getDashboardTimeline(
       and(
         eq(userArticles.userId, userId),
         eq(userArticles.isRead, true),
+        eq(userArticles.isHidden, false),
         gte(userArticles.readAt, startDate),
         sql`${userArticles.readAt} < ${endExclusive}`,
       ),
@@ -193,7 +207,9 @@ export async function getDashboardTimeline(
       subscriptions,
       and(eq(subscriptions.feedId, articles.feedId), eq(subscriptions.userId, userId)),
     )
-    .where(and(eq(tags.userId, userId), gte(articles.createdAt, startDate)))
+    .where(
+      and(articleIsVisibleTo(userId), eq(tags.userId, userId), gte(articles.createdAt, startDate)),
+    )
     .groupBy(tags.id, tags.name, sql`date_trunc('day', ${articles.createdAt})`);
 
   // Per-tag totals for the previous equal-length window (momentum baseline).
@@ -212,6 +228,7 @@ export async function getDashboardTimeline(
     .where(
       and(
         eq(tags.userId, userId),
+        articleIsVisibleTo(userId),
         gte(articles.createdAt, prevStart),
         sql`${articles.createdAt} < ${startDate}`,
       ),

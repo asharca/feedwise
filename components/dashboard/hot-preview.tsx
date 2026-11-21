@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowUpRight, Flame, TrendingUp } from "lucide-react";
+import { apiFetch } from "@/lib/query/api";
+import { queryKeys } from "@/lib/query/keys";
 
 interface TrendingPreview {
   crossPlatform: Array<{
@@ -25,23 +27,12 @@ interface TrendingPreview {
 }
 
 export function HotPreview() {
-  const [trending, setTrending] = useState<TrendingPreview | null>(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    async function load() {
-      try {
-        const response = await fetch("/api/hot/trending", { signal: controller.signal });
-        if (!response.ok) return;
-        const result = await response.json();
-        if (result.success && !controller.signal.aborted) setTrending(result.data);
-      } catch {
-        // This optional overview must never block the RSS reading dashboard.
-      }
-    }
-    void load();
-    return () => controller.abort();
-  }, []);
-
+  // This optional overview must never block or spam retries on the RSS reading dashboard.
+  const { data: trending } = useQuery({
+    queryKey: queryKeys.hot.trending(),
+    queryFn: ({ signal }) => apiFetch<TrendingPreview>("/api/hot/trending", { signal }),
+    retry: false,
+  });
   if (!trending || (!trending.crossPlatform.length && !trending.rising.length)) return null;
   return (
     <section aria-labelledby="hot-preview-title" className="space-y-3">

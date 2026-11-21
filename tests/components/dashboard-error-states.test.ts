@@ -1,4 +1,5 @@
 import { createElement, type ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ChartsPanel } from "@/components/dashboard/charts-panel";
@@ -24,9 +25,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function jsonResponse(body: unknown, ok = true): Response {
+function renderWithQuery(node: ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
+  return render(createElement(QueryClientProvider, { client }, node));
+}
+
+function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 500): Response {
   return {
     ok,
+    status,
     json: () => Promise.resolve(body),
   } as Response;
 }
@@ -81,7 +92,7 @@ describe("NewsDashboard resource failures", () => {
         statsAttempts += 1;
         return Promise.resolve(
           statsAttempts === 1
-            ? jsonResponse({ success: false, error: "stats unavailable" }, false)
+            ? jsonResponse({ success: false, error: "stats unavailable" }, false, 500)
             : jsonResponse(statsPayload),
         );
       }
@@ -98,10 +109,15 @@ describe("NewsDashboard resource failures", () => {
           }),
         );
       }
+      if (url === "/api/hot/trending") {
+        return Promise.resolve(
+          jsonResponse({ success: true, data: { crossPlatform: [], rising: [] } }),
+        );
+      }
       throw new Error(`Unexpected request: ${url}`);
     });
 
-    render(createElement(NewsDashboard, { onSelectArticle: vi.fn() }));
+    renderWithQuery(createElement(NewsDashboard, { onSelectArticle: vi.fn() }));
 
     expect(await screen.findByText("Available article")).toBeTruthy();
     expect(screen.queryByText("Dashboard unavailable")).toBeNull();
@@ -129,7 +145,7 @@ describe("ChartsPanel request failures", () => {
       }),
     );
 
-    render(createElement(ChartsPanel));
+    renderWithQuery(createElement(ChartsPanel));
 
     expect(await screen.findByText("Activity unavailable")).toBeTruthy();
     expect(screen.queryByLabelText("Loading activity")).toBeNull();

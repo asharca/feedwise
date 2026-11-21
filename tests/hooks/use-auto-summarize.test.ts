@@ -1,12 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useAutoSummarize } from "@/lib/hooks/use-auto-summarize";
+import { createQueryWrapper } from "../reader/query-wrapper";
 
 const fetchMock = vi.fn();
 
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 function jsonResponse(body: unknown, ok = true) {
@@ -16,27 +21,38 @@ function jsonResponse(body: unknown, ok = true) {
 describe("useAutoSummarize", () => {
   it("is null until the config loads, then true when enabled + opted in", async () => {
     fetchMock.mockReturnValueOnce(jsonResponse({ enabled: true, autoSummarize: true }));
-    const { result } = renderHook(() => useAutoSummarize());
+    const { result } = renderHook(() => useAutoSummarize(), {
+      wrapper: createQueryWrapper(),
+    });
     expect(result.current).toBeNull();
     await waitFor(() => expect(result.current).toBe(true));
-    expect(fetchMock).toHaveBeenCalledWith("/api/email/llm/config");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/email/llm/config",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it("is false when LLM is enabled but auto-summarize is off", async () => {
     fetchMock.mockReturnValueOnce(jsonResponse({ enabled: true, autoSummarize: false }));
-    const { result } = renderHook(() => useAutoSummarize());
+    const { result } = renderHook(() => useAutoSummarize(), {
+      wrapper: createQueryWrapper(),
+    });
     await waitFor(() => expect(result.current).toBe(false));
   });
 
   it("is false when the request fails", async () => {
     fetchMock.mockReturnValueOnce(Promise.reject(new Error("network")));
-    const { result } = renderHook(() => useAutoSummarize());
+    const { result } = renderHook(() => useAutoSummarize(), {
+      wrapper: createQueryWrapper(),
+    });
     await waitFor(() => expect(result.current).toBe(false));
   });
 
   it("is false when the response is not ok", async () => {
     fetchMock.mockReturnValueOnce(jsonResponse({}, false));
-    const { result } = renderHook(() => useAutoSummarize());
+    const { result } = renderHook(() => useAutoSummarize(), {
+      wrapper: createQueryWrapper(),
+    });
     await waitFor(() => expect(result.current).toBe(false));
   });
 });

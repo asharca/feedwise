@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { Info, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { refreshHotSource, type HotBoard, type HotItem } from "@/lib/hooks/use-hot";
+import { useRefreshHotSource, type HotBoard, type HotItem } from "@/lib/hooks/use-hot";
 import { cn } from "@/lib/utils";
 
 const categoryColors = {
@@ -46,40 +46,31 @@ export function RankChange({ item }: { item: Pick<HotItem, "isNew" | "rankDelta"
 }
 
 export function HotBoardCard({ board, onRefresh }: { board: HotBoard; onRefresh: () => void }) {
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [queued, setQueued] = useState(false);
-  const controller = useRef<AbortController | null>(null);
+  const refreshMutation = useRefreshHotSource();
 
-  useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     if (!queued) return;
     const timer = window.setTimeout(() => {
       setQueued(false);
-      setRefreshing(false);
       onRefresh();
     }, 2500);
     return () => window.clearTimeout(timer);
   }, [queued, onRefresh]);
 
-  const refresh = async () => {
-    if (refreshing) return;
-    controller.current?.abort();
-    const current = new AbortController();
-    controller.current = current;
-    setRefreshing(true);
-    setRefreshError(null);
-    try {
-      await refreshHotSource(board.source.key, current.signal);
-      if (!current.signal.aborted) setQueued(true);
-    } catch (error) {
-      if (!current.signal.aborted) {
-        setRefreshError(error instanceof Error ? error.message : "刷新失败，请稍后重试");
-        setRefreshing(false);
-      }
-    }
-  };
+  const refreshing = refreshMutation.isPending || queued;
+  const refreshError = refreshMutation.error
+    ? refreshMutation.error instanceof Error
+      ? refreshMutation.error.message
+      : "刷新失败，请稍后重试"
+    : null;
 
+  const refresh = () => {
+    if (refreshing) return;
+    refreshMutation.mutate(board.source.key, {
+      onSuccess: () => setQueued(true),
+    });
+  };
   const fetchedDate = board.fetchedAt ? new Date(board.fetchedAt) : null;
   const validDate = fetchedDate && !Number.isNaN(fetchedDate.getTime()) ? fetchedDate : null;
 

@@ -1,44 +1,40 @@
-import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
-import { getClient, saveClient, saveAuthCode } from "@/lib/oauth/store";
+import { withAuth } from "@/lib/api/with-auth";
+import { authorization, callbackUrl, validApproval } from "@/lib/oauth/authorization";
+import { oauthOrigin } from "@/lib/oauth/metadata";
+import { getClient, saveAuthCode } from "@/lib/oauth/store";
+import { randomToken } from "@/lib/oauth/tokens";
+import { z } from "zod";
 
-export async function POST(req: Request) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ error: "Not logged in" }, { status: 401 });
+const approval = authorization.extend({ deny: z.boolean().optional() });
+export const POST = withAuth(async (req, session) => {
+  const origin = oauthOrigin(req);
+  if (
+    req.headers.get("origin") !== origin ||
+    req.headers.get("content-type")?.split(";")[0] !== "application/json"
+  ) {
+    return Response.json({ error: "invalid_request" }, { status: 403 });
   }
-
-  const body = await req.json();
-  const { client_id, redirect_uri, state, code_challenge, code_challenge_method } = body;
-
-  let client = await getClient(client_id);
-  if (!client) {
-    // Auto-register unknown clients (e.g. Claude.ai skips /register)
-    client = {
-      client_id,
-      client_secret: "",
-      client_name: client_id,
-      redirect_uris: [redirect_uri],
-    };
-    await saveClient(client);
+  const parsed = approval.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return Response.json({ error: "invalid_request" }, { status: 400 });
+  const params = parsed.data,
+    resource = `${origin}/api/mcp`;
+  const client = await getClient(params.client_id);
+  if (!client || !validApproval(params, client.redirect_uris, resource)) {
+    return Response.json({ error: "invalid_request" }, { status: 400 });
   }
-
-  // Generate authorization code
-  const code = crypto.randomUUID();
-  await saveAuthCode({
-    code,
-    clientId: client_id,
-    userId: session.user.id,
-    redirectUri: redirect_uri,
-    codeChallenge: code_challenge,
-    codeChallengeMethod: code_challenge_method ?? "S256",
-  });
-
-  const url = new URL(redirect_uri);
-  url.searchParams.set("code", code);
-  if (state) url.searchParams.set("state", state);
-
-  return NextResponse.json({ redirect_to: url.toString() });
-}
+  const code = randomToken();
+  if (!params.deny) {
+    await saveAuthCode(code, {
+      clientId: params.client_id,
+      userId: session.user.id,
+      resource,
+      redirectUri: params.redirect_uri,
+      codeChallenge: params.code_challenge,
+      codeChallengeMethod: "S256",
+    });
+  }
+  return Response.json(
+    { redirect_to: callbackUrl(params, params.deny ? { error: "access_denied" } : { code }) },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+});

@@ -3,7 +3,7 @@ export async function verifyPKCE(
   codeChallenge: string,
   method: string,
 ): Promise<boolean> {
-  if (method !== "S256") return false;
+  if (method !== "S256" || !/^[A-Za-z0-9._~-]{43,128}$/.test(codeVerifier)) return false;
 
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(codeVerifier));
 

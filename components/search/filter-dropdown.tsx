@@ -14,15 +14,22 @@ interface Props {
   align?: "start" | "end";
   /** When set, shows the active option's label inside the chip. */
   activeId?: string;
-  /** Lazy loader; called on first open. Returns options for the menu. */
-  loadOptions: () => Promise<DropdownOption[]>;
+  options: DropdownOption[];
+  loading?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onSelect: (id: string | undefined) => void;
 }
 
-export function FilterDropdown({ label, align = "start", activeId, loadOptions, onSelect }: Props) {
+export function FilterDropdown({
+  label,
+  align = "start",
+  activeId,
+  options,
+  loading = false,
+  onOpenChange,
+  onSelect,
+}: Props) {
   const [open, setOpen] = useState(false);
-  const [options, setOptions] = useState<DropdownOption[] | null>(null);
-  const [loading, setLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -30,28 +37,26 @@ export function FilterDropdown({ label, align = "start", activeId, loadOptions, 
   const openPreferenceRef = useRef<"active" | "first" | "last">("active");
   const listboxId = useId();
 
-  // Lazy-load on first open.
-  useEffect(() => {
-    if (!open || options !== null || loading) return;
-    setLoading(true);
-    loadOptions()
-      .then((opts) => setOptions(opts))
-      .catch(() => setOptions([]))
-      .finally(() => setLoading(false));
-  }, [open, options, loading, loadOptions]);
+  function setMenuOpen(next: boolean) {
+    setOpen(next);
+    onOpenChange?.(next);
+  }
 
   // Close on outside click.
   useEffect(() => {
     if (!open) return;
     function onDoc(e: PointerEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        onOpenChange?.(false);
+      }
     }
     document.addEventListener("pointerdown", onDoc);
     return () => document.removeEventListener("pointerdown", onDoc);
-  }, [open]);
+  }, [open, onOpenChange]);
 
   useEffect(() => {
-    if (!open || !options?.length) return;
+    if (!open || !options.length) return;
 
     const activeIndex = activeId ? options.findIndex((option) => option.id === activeId) : -1;
     const nextIndex =
@@ -68,22 +73,22 @@ export function FilterDropdown({ label, align = "start", activeId, loadOptions, 
     optionRefs.current[highlightedIndex]?.focus();
   }, [highlightedIndex, open]);
 
-  const active = activeId ? options?.find((o) => o.id === activeId) : undefined;
+  const active = activeId ? options.find((o) => o.id === activeId) : undefined;
   const chipLabel = active?.label ?? label;
 
   function openMenu(preference: "active" | "first" | "last") {
     openPreferenceRef.current = preference;
-    setOpen(true);
+    setMenuOpen(true);
   }
 
   function closeMenu({ restoreFocus = false } = {}) {
-    setOpen(false);
+    setMenuOpen(false);
     setHighlightedIndex(-1);
     if (restoreFocus) queueMicrotask(() => triggerRef.current?.focus());
   }
 
   function moveHighlight(nextIndex: number) {
-    if (!options?.length) return;
+    if (!options.length) return;
     const wrappedIndex = (nextIndex + options.length) % options.length;
     setHighlightedIndex(wrappedIndex);
   }
@@ -133,19 +138,19 @@ export function FilterDropdown({ label, align = "start", activeId, loadOptions, 
         break;
       case "End":
         event.preventDefault();
-        moveHighlight((options?.length ?? 1) - 1);
+        moveHighlight(Math.max(options.length - 1, 0));
         break;
       case "Enter":
       case " ":
         event.preventDefault();
-        if (options?.[index]) selectOption(options[index].id);
+        if (options[index]) selectOption(options[index].id);
         break;
       case "Escape":
         event.preventDefault();
         closeMenu({ restoreFocus: true });
         break;
       case "Tab":
-        setOpen(false);
+        setMenuOpen(false);
         setHighlightedIndex(-1);
         break;
     }
@@ -157,8 +162,8 @@ export function FilterDropdown({ label, align = "start", activeId, loadOptions, 
         className={cn(
           "inline-flex h-11 items-stretch overflow-hidden rounded-full border text-xs transition-colors md:h-10",
           activeId
-            ? "bg-primary/10 border-primary/30 text-primary"
-            : "bg-muted border-transparent hover:border-border text-muted-foreground",
+            ? "border-primary/30 bg-primary/10 text-primary"
+            : "border-transparent bg-muted text-muted-foreground hover:border-border",
         )}
       >
         <button
@@ -202,7 +207,7 @@ export function FilterDropdown({ label, align = "start", activeId, loadOptions, 
         >
           {loading ? (
             <div className="px-3 py-3 text-xs text-muted-foreground">Loading...</div>
-          ) : !options || options.length === 0 ? (
+          ) : options.length === 0 ? (
             <div className="px-3 py-3 text-xs text-muted-foreground">No options.</div>
           ) : (
             options.map((opt, index) => (

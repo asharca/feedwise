@@ -1,106 +1,41 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CircleAlert, Clock, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
+import { useReaderShortcuts } from "@/components/article/article-list-controls";
 import { ArticleReader } from "@/components/article/article-reader";
-import {
-  DatedArticleListPane,
-  type DatedArticleItem,
-} from "@/components/article/dated-article-list-pane";
+import { DatedArticleListPane } from "@/components/article/dated-article-list-pane";
 import { ListReaderShell } from "@/components/article/list-reader-shell";
 import { ReaderSkeleton } from "@/components/article/reader-skeleton";
 import { Button } from "@/components/ui/button";
+import { useArticleDetail } from "@/lib/hooks/use-article-detail";
 import { useAutoSummarize } from "@/lib/hooks/use-auto-summarize";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
-import { useArticleDetail } from "@/lib/hooks/use-article-detail";
-import { dispatchUnreadDelta } from "@/lib/reader/events";
-import { mergeUniqueArticles, patchArticle } from "@/lib/reader/article-api";
-
-interface HistoryItem extends DatedArticleItem {
-  // History items always have readAt set.
-  readAt: string;
-}
-
-const PAGE_SIZE = 50;
+import { flattenArticlePages } from "@/lib/reader/article-cache";
+import { useArticleToggleMutation, useHistoryInfinite } from "@/lib/reader/use-articles";
 
 function HistoryPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const articleId = searchParams.get("articleId") ?? undefined;
 
-  const [items, setItems] = useState<HistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [listError, setListError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search.trim(), 250);
   const autoSummarize = useAutoSummarize();
-  const abortRef = useRef<AbortController | null>(null);
-  const requestIdRef = useRef(0);
-  const mutationVersionRef = useRef(new Map<string, number>());
+
+  const historyQuery = useHistoryInfinite(debouncedSearch || undefined);
+  const items = useMemo(() => flattenArticlePages(historyQuery.data), [historyQuery.data]);
+  const displayItems = useMemo(() => items.map((item) => ({ ...item, isRead: true })), [items]);
 
   const {
     detail: active,
-    setDetail: setActive,
     loading: detailLoading,
     error: detailError,
     retry: retryDetail,
   } = useArticleDetail(articleId, { markReadOnOpen: false });
 
-  const load = useCallback(async (q: string, offset: number) => {
-    abortRef.current?.abort();
-    const ac = new AbortController();
-    abortRef.current = ac;
-
-    const params = new URLSearchParams();
-    params.set("limit", String(PAGE_SIZE));
-    params.set("offset", String(offset));
-    if (q) params.set("search", q);
-
-    const res = await fetch(`/api/articles/history?${params}`, { signal: ac.signal });
-    if (!res.ok) throw new Error("Failed to load history");
-    const json = await res.json();
-    return (json?.data ?? []) as HistoryItem[];
-  }, []);
-
-  useEffect(() => {
-    const requestId = ++requestIdRef.current;
-    setLoading(true);
-    setListError(null);
-    load(debouncedSearch, 0)
-      .then((rows) => {
-        if (requestId !== requestIdRef.current) return;
-        setItems(rows);
-        setHasMore(rows.length === PAGE_SIZE);
-      })
-      .catch((err) => {
-        if ((err as Error).name === "AbortError" || requestId !== requestIdRef.current) return;
-        setItems([]);
-        setHasMore(false);
-        setListError("Check your connection and try again.");
-      })
-      .finally(() => {
-        if (requestId === requestIdRef.current) setLoading(false);
-      });
-  }, [debouncedSearch, load, reloadKey]);
-
-  async function loadMore() {
-    if (loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    try {
-      const rows = await load(debouncedSearch, items.length);
-      setItems((prev) => mergeUniqueArticles(prev, rows));
-      setHasMore(rows.length === PAGE_SIZE);
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") setHasMore(false);
-    } finally {
-      setLoadingMore(false);
-    }
-  }
+  const toggleMutation = useArticleToggleMutation();
 
   const selectArticle = useCallback(
     (id: string) => {
@@ -118,104 +53,86 @@ function HistoryPageInner() {
     router.replace(qs ? `/reader/history?${qs}` : "/reader/history");
   }, [router, searchParams]);
 
+  const handleLoadMore = useCallback(() => {
+    if (historyQuery.hasNextPage && !historyQuery.isFetchingNextPage) {
+      void historyQuery.fetchNextPage();
+    }
+  }, [historyQuery]);
+
   const handleStar = useCallback(
-    async (id: string, starred: boolean) => {
-      const mutationKey = `${id}:starred`;
-      const version = (mutationVersionRef.current.get(mutationKey) ?? 0) + 1;
-      mutationVersionRef.current.set(mutationKey, version);
-      setItems((prev) => prev.map((a) => (a.id === id ? { ...a, isStarred: starred } : a)));
-      setActive((prev) => (prev?.id === id ? { ...prev, isStarred: starred } : prev));
-      try {
-        await patchArticle(id, { isStarred: starred });
-      } catch {
-        if (mutationVersionRef.current.get(mutationKey) !== version) return;
-        setItems((prev) =>
-          prev.map((article) =>
-            article.id === id ? { ...article, isStarred: !starred } : article,
-          ),
-        );
-        setActive((current) =>
-          current?.id === id ? { ...current, isStarred: !starred } : current,
-        );
-        toast.error("Could not update star");
-      }
+    (id: string, starred: boolean) => {
+      const feedId =
+        items.find((a) => a.id === id)?.feedId ?? (active?.id === id ? active.feedId : undefined);
+      toggleMutation.mutate({ id, patch: { isStarred: starred }, feedId });
     },
-    [setActive],
+    [active, items, toggleMutation],
   );
 
   const handleMarkRead = useCallback(
-    async (id: string, read: boolean) => {
-      const target = items.find((a) => a.id === id);
-      const wasRead = target?.isRead ?? true;
-      const mutationKey = `${id}:read`;
-      const version = (mutationVersionRef.current.get(mutationKey) ?? 0) + 1;
-      mutationVersionRef.current.set(mutationKey, version);
-      setItems((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: read } : a)));
-      setActive((prev) => (prev?.id === id ? { ...prev, isRead: read } : prev));
-      if (target && wasRead !== read) dispatchUnreadDelta(target.feedId, read ? -1 : 1);
-      try {
-        await patchArticle(id, { isRead: read });
-      } catch {
-        if (mutationVersionRef.current.get(mutationKey) !== version) return;
-        setItems((prev) =>
-          prev.map((article) => (article.id === id ? { ...article, isRead: wasRead } : article)),
-        );
-        setActive((current) => (current?.id === id ? { ...current, isRead: wasRead } : current));
-        if (target && wasRead !== read) dispatchUnreadDelta(target.feedId, read ? 1 : -1);
-        toast.error("Could not update read status");
-      }
+    (id: string, read: boolean) => {
+      const feedId =
+        items.find((a) => a.id === id)?.feedId ?? (active?.id === id ? active.feedId : undefined);
+      toggleMutation.mutate({ id, patch: { isRead: read }, feedId });
     },
-    [items, setActive],
+    [active, items, toggleMutation],
   );
+
+  useReaderShortcuts({
+    article: active?.id === articleId ? active : null,
+    onStar: handleStar,
+    onMarkRead: handleMarkRead,
+    onClose: closeArticle,
+  });
+
+  const listError = historyQuery.error
+    ? historyQuery.error instanceof Error
+      ? historyQuery.error.message
+      : "请检查网络连接后重试。"
+    : null;
 
   return (
     <ListReaderShell
       hasActive={Boolean(articleId)}
       list={
         <DatedArticleListPane
-          title="Reading History"
+          title="阅读历史"
           headerIcon={Clock}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="Filter by title or feed…"
-          articles={items.map((i) => ({ ...i, isRead: true }))}
+          searchPlaceholder="按标题或订阅源筛选…"
+          articles={displayItems}
           dateField="readAt"
           activeId={articleId}
           onSelect={selectArticle}
+          onStar={handleStar}
+          onMarkRead={handleMarkRead}
           layout={articleId ? "compact" : "grid"}
-          loading={loading}
+          loading={historyQuery.isPending}
           error={listError}
-          onRetry={() => setReloadKey((key) => key + 1)}
-          hasMore={hasMore}
-          loadingMore={loadingMore}
-          onLoadMore={loadMore}
-          emptyTitle={debouncedSearch ? "No results" : "No reading history yet"}
+          onRetry={() => void historyQuery.refetch()}
+          hasMore={Boolean(historyQuery.hasNextPage)}
+          loadingMore={historyQuery.isFetchingNextPage}
+          onLoadMore={handleLoadMore}
+          emptyTitle={debouncedSearch ? "未找到匹配记录" : "暂无阅读历史"}
           emptyHint={
-            debouncedSearch
-              ? "Try a different search."
-              : "Articles you read or mark as read show up here."
+            debouncedSearch ? "试试更换搜索关键词。" : "阅读或标记已读的文章会出现在这里。"
           }
         />
       }
       reader={
         active?.id === articleId && active ? (
           <ArticleReader
-            article={{
-              ...active,
-              publishedAt: active.publishedAt ? new Date(active.publishedAt) : null,
-              createdAt: active.createdAt ? new Date(active.createdAt) : null,
-            }}
+            article={active}
             onMarkRead={handleMarkRead}
             onStar={handleStar}
             onBack={closeArticle}
-            contextLabel="History"
+            onSelectRelated={selectArticle}
+            contextLabel="阅读历史"
             autoSummarize={autoSummarize ?? false}
           />
         ) : detailError ? (
           <HistoryDetailError error={detailError} onRetry={retryDetail} onBack={closeArticle} />
-        ) : detailLoading ? (
-          <ReaderSkeleton />
-        ) : articleId ? (
+        ) : detailLoading || articleId ? (
           <ReaderSkeleton />
         ) : null
       }
@@ -241,16 +158,16 @@ function HistoryDetailError({
         <CircleAlert className="size-6 text-destructive" />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium">Could not open this article</p>
+        <p className="text-sm font-medium">无法打开这篇文章</p>
         <p className="text-xs text-muted-foreground">{error}</p>
       </div>
       <div className="flex items-center gap-2">
         <Button type="button" size="sm" onClick={onRetry}>
           <RefreshCw className="size-4" />
-          Retry
+          重试
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onBack}>
-          Back to list
+          返回列表
         </Button>
       </div>
     </div>

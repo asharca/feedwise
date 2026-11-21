@@ -10,8 +10,7 @@ These constraints survive across sessions. Do NOT override without explicit user
 
 ### Architecture
 
-- **Web UI: no AI features** — reader, settings, auth are purely rule-based
-- **Digest pipeline: LLM allowed** — clustering, summarization, importance scoring
+- **LLM features**: allowed in the digest pipeline and Web UI; always opt-in and gated on the user's own API key/config
 - **LLM config**: OpenAI-compatible (baseURL + key + model), JSON mode
 - **File size**: prefer small files, single responsibility
 - **Testing**: new modules must have tests (pure functions mockable, fixtures for templates)

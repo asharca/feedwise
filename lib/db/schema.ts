@@ -7,13 +7,37 @@ import {
   timestamp,
   integer,
   real,
+  bigint,
+  serial,
+  bigserial,
   doublePrecision,
   jsonb,
   unique,
   index,
   primaryKey,
+  customType,
 } from "drizzle-orm/pg-core";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import type {
+  ArticleMedia,
+  ContentView,
+  FeedSourceType,
+  FullContentStatus,
+  HtmlSourceConfig,
+  NotificationChannelType,
+  RuleAction,
+  RuleCondition,
+  RuleMatchMode,
+  RuleScope,
+  ShareFeedFilter,
+} from "./schema-types";
+
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 // ─── Users (id is text — Better Auth generates non-UUID string IDs) ──
 export const users = pgTable("users", {
@@ -74,6 +98,8 @@ export const folders = pgTable(
   "folders",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    /** Stable integer id for client APIs (Fever groups). */
+    seq: serial("seq").notNull().unique(),
     userId: text("user_id")
       .references(() => users.id, { onDelete: "cascade" })
       .notNull(),
@@ -86,23 +112,40 @@ export const folders = pgTable(
 );
 
 // ─── Feeds (global) ───────────────────────────────────────────
-export const feeds = pgTable("feeds", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  url: text("url").notNull().unique(),
-  title: varchar("title", { length: 500 }),
-  description: text("description"),
-  siteUrl: text("site_url"),
-  iconUrl: text("icon_url"),
-  feedType: varchar("feed_type", { length: 20 }).$type<"rss" | "atom" | "json">(),
-  lastFetchedAt: timestamp("last_fetched_at"),
-  lastFetchError: text("last_fetch_error"),
-  errorCode: varchar("error_code", { length: 30 }),
-  consecutiveFailures: integer("consecutive_failures").notNull().default(0),
-  fetchIntervalMinutes: integer("fetch_interval_minutes").default(60),
-  etag: varchar("etag", { length: 255 }),
-  lastModified: varchar("last_modified", { length: 255 }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const feeds = pgTable(
+  "feeds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Stable integer id for client APIs (Fever feeds). */
+    seq: serial("seq").notNull().unique(),
+    url: text("url").notNull().unique(),
+    title: varchar("title", { length: 500 }),
+    description: text("description"),
+    siteUrl: text("site_url"),
+    iconUrl: text("icon_url"),
+    feedType: varchar("feed_type", { length: 20 }).$type<"rss" | "atom" | "json">(),
+    sourceType: varchar("source_type", { length: 10 })
+      .$type<FeedSourceType>()
+      .notNull()
+      .default("rss"),
+    /** Only for sourceType = "html". */
+    sourceConfig: jsonb("source_config").$type<HtmlSourceConfig>(),
+    /** Detected presentation; subscriptions.view overrides per user. */
+    defaultView: varchar("default_view", { length: 10 }).$type<ContentView>(),
+    lastFetchedAt: timestamp("last_fetched_at"),
+    /** Scheduler polls feeds whose next_fetch_at is null or past. */
+    nextFetchAt: timestamp("next_fetch_at"),
+    lastFetchError: text("last_fetch_error"),
+    errorCode: varchar("error_code", { length: 30 }),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    /** Current adaptive polling interval. */
+    fetchIntervalMinutes: integer("fetch_interval_minutes").default(60),
+    etag: varchar("etag", { length: 255 }),
+    lastModified: varchar("last_modified", { length: 255 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("feeds_next_fetch_idx").on(t.nextFetchAt)],
+);
 
 // ─── Subscriptions (user ↔ feed) ──────────────────────────────
 export const subscriptions = pgTable(
@@ -119,6 +162,10 @@ export const subscriptions = pgTable(
       onDelete: "set null",
     }),
     customTitle: varchar("custom_title", { length: 500 }),
+    /** Null = use feeds.default_view (falls back to "article"). */
+    view: varchar("view", { length: 10 }).$type<ContentView>(),
+    /** Fetch the original page's readable content for new articles. */
+    fetchFullText: boolean("fetch_full_text").notNull().default(false),
 
     position: integer("position").default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -131,6 +178,8 @@ export const articles = pgTable(
   "articles",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    /** Stable 64-bit item id for client APIs (Google Reader / Fever). */
+    seq: bigserial("seq", { mode: "number" }).notNull().unique(),
     feedId: uuid("feed_id")
       .references(() => feeds.id, { onDelete: "cascade" })
       .notNull(),
@@ -144,12 +193,30 @@ export const articles = pgTable(
     aiSummary: text("ai_summary"),
     importance: varchar("importance", { length: 6 }).$type<"high" | "med" | "low">(),
     imageUrl: text("image_url"),
+    media: jsonb("media").$type<ArticleMedia[]>(),
+    /** 64-bit SimHash of title + text for near-duplicate detection. Never serialize directly (BigInt). */
+    simhash: bigint("simhash", { mode: "bigint" }),
+    /** Readability-extracted content of the original page. */
+    fullContentHtml: text("full_content_html"),
+    fullContentStatus: varchar("full_content_status", { length: 10 }).$type<FullContentStatus>(),
+    fullContentFetchedAt: timestamp("full_content_fetched_at"),
     publishedAt: timestamp("published_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    /** Keyset pagination key. */
+    sortAt: timestamp("sort_at")
+      .notNull()
+      .generatedAlwaysAs(sql`coalesce(published_at, created_at)`),
+    /** CJK-bigram aware full-text document; see feedwise_search_text() in migrations. */
+    searchTsv: tsvector("search_tsv").generatedAlwaysAs(
+      sql`setweight(to_tsvector('simple'::regconfig, feedwise_search_text(coalesce(title, ''))), 'A') || setweight(to_tsvector('simple'::regconfig, feedwise_search_text(coalesce(ai_summary, '') || ' ' || coalesce(summary, '') || ' ' || left(coalesce(content_text, ''), 20000))), 'B')`,
+    ),
   },
   (t) => [
     unique().on(t.feedId, t.guid),
     index("articles_feed_published_idx").on(t.feedId, t.publishedAt),
+    index("articles_feed_sort_idx").on(t.feedId, t.sortAt.desc(), t.id.desc()),
+    index("articles_sort_idx").on(t.sortAt),
+    index("articles_search_tsv_idx").using("gin", t.searchTsv),
   ],
 );
 
@@ -168,6 +235,8 @@ export const userArticles = pgTable(
     isStarred: boolean("is_starred").default(false),
     readAt: timestamp("read_at"),
     readProgress: real("read_progress").default(0),
+    /** Set by "hide" rule actions; hidden articles are excluded from lists and counts. */
+    isHidden: boolean("is_hidden").notNull().default(false),
   },
   (t) => [
     unique().on(t.userId, t.articleId),
@@ -366,4 +435,123 @@ export const hotRanks = pgTable(
     heat: doublePrecision("heat"),
   },
   (t) => [primaryKey({ columns: [t.snapshotId, t.itemId] })],
+);
+
+// ─── Rules (per-user automation over new articles / hot items) ──
+export const rules = pgTable(
+  "rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    scope: varchar("scope", { length: 10 }).$type<RuleScope>().notNull().default("article"),
+    matchMode: varchar("match_mode", { length: 3 }).$type<RuleMatchMode>().notNull().default("all"),
+    conditions: jsonb("conditions").$type<RuleCondition[]>().notNull().default([]),
+    actions: jsonb("actions").$type<RuleAction[]>().notNull().default([]),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("rules_user_idx").on(t.userId)],
+);
+
+/** Hot items already notified per rule, so a re-ranked item doesn't alert twice. */
+export const ruleHotHits = pgTable(
+  "rule_hot_hits",
+  {
+    ruleId: uuid("rule_id")
+      .references(() => rules.id, { onDelete: "cascade" })
+      .notNull(),
+    itemId: uuid("item_id")
+      .references(() => hotItems.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.ruleId, t.itemId] })],
+);
+
+// ─── Notification channels ────────────────────────────────────
+export const notificationChannels = pgTable(
+  "notification_channels",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    type: varchar("type", { length: 20 }).$type<NotificationChannelType>().notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    /** Channel-specific JSON, encrypted with lib/crypto/secrets. Null for webpush. */
+    config: text("config"),
+    enabled: boolean("enabled").notNull().default(true),
+    lastError: text("last_error"),
+    lastSentAt: timestamp("last_sent_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("notification_channels_user_idx").on(t.userId)],
+);
+
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("push_subscriptions_user_idx").on(t.userId)],
+);
+
+// ─── Third-party client access (Google Reader / Fever APIs) ────
+export const apiCredentials = pgTable("api_credentials", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** scrypt hash of the dedicated API password (never the login password). */
+  passwordHash: text("password_hash").notNull(),
+  /** Fever api_key = md5("email:apiPassword"), hex. */
+  feverKey: varchar("fever_key", { length: 32 }).notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/** Bearer tokens issued by Google Reader ClientLogin. Stored as sha256 hex. */
+export const clientTokens = pgTable(
+  "client_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+    client: varchar("client", { length: 100 }),
+    lastUsedAt: timestamp("last_used_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("client_tokens_user_idx").on(t.userId)],
+);
+
+// ─── Re-published RSS outputs ─────────────────────────────────
+export const shareFeeds = pgTable(
+  "share_feeds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    /** Unguessable URL token (base64url, 32 bytes). */
+    token: varchar("token", { length: 64 }).notNull().unique(),
+    filter: jsonb("filter").$type<ShareFeedFilter>().notNull().default({}),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("share_feeds_user_idx").on(t.userId)],
 );

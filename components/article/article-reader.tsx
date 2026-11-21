@@ -1,57 +1,29 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect, useMemo, memo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import DOMPurify from "dompurify";
-import {
-  ExternalLink,
-  Star,
-  CheckCheck,
-  BookOpen,
-  ArrowLeft,
-  Copy,
-  Ellipsis,
-  Sparkles,
-  Tag,
-  X,
-} from "lucide-react";
+import { zhCN } from "date-fns/locale";
+import { BookOpen, CircleAlert, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import type { ArticleMedia, ContentView, FullContentStatus } from "@/lib/db/schema-types";
+import { queryKeys } from "@/lib/query/keys";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  addArticleTag,
+  patchArticle,
+  removeArticleTag,
+  suggestArticleTags,
+  summarizeArticle,
+} from "@/lib/reader/article-api";
+import { useFetchFullContentMutation } from "@/lib/reader/use-articles";
+import type { ReaderArticleDetail, TagSuggestion } from "@/lib/reader/types";
+import { ArticleBody, prepareArticleBodyHtml } from "./article-body";
+import { ArticleMediaBlock } from "./article-media-block";
+import { ArticleReaderHeader, type ContentDisplayMode } from "./article-reader-header";
+import { ArticleRelatedPanel } from "./article-related-panel";
+import { ArticleSummaryPanel } from "./article-summary-panel";
 
-/**
- * The article body, isolated in a memoized component. ArticleReader re-renders
- * on every scroll frame (scroll-progress state); without this memo the
- * `dangerouslySetInnerHTML` below re-injects on each of those renders, which
- * destroys and recreates all <img> nodes → every image re-decodes → visible
- * flicker while scrolling on iOS WebKit. Memoizing on the (stable) html string
- * keeps the DOM subtree untouched across scroll re-renders.
- */
-const ArticleBody = memo(function ArticleBody({ html }: { html: string }) {
-  return <div className="article-content" dangerouslySetInnerHTML={{ __html: html }} />;
-});
-
-function proxyImagesInHtml(html: string): string {
-  return html.replace(
-    /(<img\b[^>]*?\ssrc=)(["'])(https?:\/\/[^"']+)\2/gi,
-    (_, prefix, quote, url) =>
-      // Downscale body images to the 1280 tier (WebP) like every other image in
-      // the app. Full-size originals (often 2000px+) decode to huge bitmaps; in
-      // a long article's inner scroller iOS WebKit evicts the offscreen ones and
-      // re-decodes on scroll-back, which flashes. The proven-clean lab images
-      // were all downscaled — body images were the one place still full-size.
-      `${prefix}${quote}/api/image-proxy?url=${encodeURIComponent(url)}&w=1280${quote} loading="lazy" decoding="async"`,
-  );
-}
-
-interface ArticleDetail {
+export interface ArticleReaderItem {
   id: string;
   feedTitle: string | null;
   title: string | null;
@@ -59,28 +31,26 @@ interface ArticleDetail {
   url: string | null;
   contentHtml: string | null;
   contentText?: string | null;
-  // AI-generated summary, only set by the user clicking Summarize. The feed's
-  // own RSS-provided `summary` is intentionally not exposed here so we never
-  // mislabel it as AI output.
+  media?: ArticleMedia[] | null;
+  view?: ContentView;
+  fullContentHtml?: string | null;
+  fullContentStatus?: FullContentStatus | null;
+  fetchFullText?: boolean;
   aiSummary?: string | null;
   importance?: "high" | "med" | "low" | null;
   tags?: Array<{ id: string; name: string; color?: string | null }>;
-  publishedAt: Date | null;
-  createdAt?: Date | null;
+  publishedAt: Date | string | null;
+  createdAt?: Date | string | null;
   isRead: boolean;
   isStarred: boolean;
 }
 
-interface TagSuggestion {
-  name: string;
-  existingTagId: string | null;
-}
-
 interface ArticleReaderProps {
-  article: ArticleDetail | null;
+  article: ArticleReaderItem | null;
   onMarkRead: (id: string, read: boolean) => void;
   onStar: (id: string, starred: boolean) => void;
   onBack?: () => void;
+  onSelectRelated?: (articleId: string) => void;
   contextLabel?: string;
   /**
    * When true, automatically POST to /summarize on article open if there is
@@ -94,275 +64,276 @@ function estimateReadingTime(text: string | null | undefined): number {
   return Math.max(1, Math.ceil(text.length / 1000));
 }
 
-function ActionButton({
-  onClick,
-  title,
-  children,
-  className,
-  disabled,
-  pressed,
-}: {
-  onClick?: () => void;
-  title: string;
-  children: React.ReactNode;
-  className?: string;
-  disabled?: boolean;
-  pressed?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      aria-pressed={pressed}
-      disabled={disabled}
-      className={cn(
-        "size-11 md:size-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50",
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
 export function ArticleReader({
   article,
   onMarkRead,
   onStar,
   onBack,
+  onSelectRelated,
   contextLabel,
   autoSummarize = false,
 }: ArticleReaderProps) {
+  const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const progressSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [aiSummary, setAiSummary] = useState<string | null>(article?.aiSummary ?? null);
-  const [importance, setImportance] = useState<"high" | "med" | "low" | null>(
-    article?.importance ?? null,
-  );
-  const [summarizing, setSummarizing] = useState(false);
-  const [tagSuggestions, setTagSuggestions] = useState<TagSuggestion[] | null>(null);
-  const [suggestingTags, setSuggestingTags] = useState(false);
-  const [acceptedTagNames, setAcceptedTagNames] = useState<Set<string>>(new Set());
-  const [currentTags, setCurrentTags] = useState<Array<{ id: string; name: string }>>(
-    article?.tags?.map((t) => ({ id: t.id, name: t.name })) ?? [],
-  );
-
-  // Sanitize + proxy the body HTML once per article (NOT on every scroll
-  // re-render) so the memoized ArticleBody never re-injects and the image
-  // nodes stay put. See ArticleBody above for why this matters.
-  const bodyHtml = useMemo(
-    () => (article?.contentHtml ? proxyImagesInHtml(sanitize(article.contentHtml)) : ""),
-    [article?.contentHtml],
-  );
-
-  // Track which article ids we already auto-triggered for, so flipping
-  // dependent state (autoSummarize, etc.) doesn't refire the request on the
-  // same article. Cleared when article id changes.
+  const progressSaveRef = useRef<number | undefined>(undefined);
   const autoTriggeredRef = useRef<Set<string>>(new Set());
 
-  // Always reflects the currently-displayed article id. Used to drop late
-  // /summarize responses for articles the user has navigated away from.
-  const currentArticleIdRef = useRef<string | undefined>(undefined);
+  // Article-scoped local overrides so mutations reflect immediately even when
+  // rendered standalone without a parent reading back from the query cache.
+  const [summaryState, setSummaryState] = useState<{
+    articleId: string;
+    summary: string | null;
+    importance: "high" | "med" | "low" | null;
+  } | null>(null);
+  const [tagSuggestionState, setTagSuggestionState] = useState<{
+    articleId: string;
+    suggestions: TagSuggestion[];
+    accepted: Set<string>;
+  } | null>(null);
+  const [tagsOverride, setTagsOverride] = useState<{
+    articleId: string;
+    tags: Array<{ id: string; name: string }>;
+  } | null>(null);
+  const [fullContentOverride, setFullContentOverride] = useState<{
+    articleId: string;
+    html: string | null;
+    status: FullContentStatus | null;
+  } | null>(null);
+  const [modePreference, setModePreference] = useState<{
+    articleId: string;
+    mode: ContentDisplayMode;
+  } | null>(null);
 
-  useEffect(() => {
-    currentArticleIdRef.current = article?.id;
-    setAiSummary(article?.aiSummary ?? null);
-    setImportance(article?.importance ?? null);
-    setSummarizing(false);
-    setTagSuggestions(null);
-    setSuggestingTags(false);
-    setAcceptedTagNames(new Set());
-    setCurrentTags(article?.tags?.map((t) => ({ id: t.id, name: t.name })) ?? []);
-  }, [article?.id, article?.aiSummary, article?.importance, article?.tags]);
+  const articleId = article?.id;
+  const currentIdRef = useRef<string | undefined>(articleId);
+  currentIdRef.current = articleId;
 
-  const handleSummarize = useCallback(
-    async (opts?: { manual?: boolean }) => {
-      if (!article) return;
-      const manual = opts?.manual === true;
-      const targetId = article.id;
-      setSummarizing(true);
-      try {
-        const res = await fetch(`/api/articles/${targetId}/summarize`, { method: "POST" });
-        const data = (await res.json()) as {
-          success: boolean;
-          error?: string;
-          data?: {
-            summary: string | null;
-            importance: "high" | "med" | "low" | null;
-            skipped?: string;
-            minChars?: number;
-            sourceChars?: number;
-          };
-        };
-        if (!data.success) {
-          toast.error(data.error ?? "Failed to summarise");
-          return;
-        }
-        // Guard against the user clicking through several articles before this
-        // request lands — we only want to apply the result to the article that
-        // initiated it.
-        if (targetId !== currentArticleIdRef.current) return;
+  const effectiveFullHtml =
+    fullContentOverride && fullContentOverride.articleId === articleId
+      ? fullContentOverride.html
+      : (article?.fullContentHtml ?? null);
 
-        if (data.data?.skipped === "too-short") {
-          // Article is short enough that no summary is needed. Quietly skip on
-          // auto-trigger; tell the user only if they clicked the button.
-          if (manual) {
-            toast.info(
-              `Article is too short to summarise (${data.data.sourceChars} < ${data.data.minChars} chars).`,
-            );
-          }
-          return;
-        }
+  const effectiveFullStatus =
+    fullContentOverride && fullContentOverride.articleId === articleId
+      ? fullContentOverride.status
+      : (article?.fullContentStatus ?? null);
 
-        setAiSummary(data.data?.summary ?? null);
-        if (data.data?.importance) setImportance(data.data.importance);
-      } catch (err) {
-        if (targetId === currentArticleIdRef.current) {
-          toast.error(err instanceof Error ? err.message : "Failed to summarise");
-        }
-      } finally {
-        if (targetId === currentArticleIdRef.current) {
-          setSummarizing(false);
-        }
-      }
-    },
-    [article],
+  const hasFullContent = Boolean(effectiveFullHtml);
+  const contentMode: ContentDisplayMode =
+    modePreference && modePreference.articleId === articleId
+      ? modePreference.mode
+      : hasFullContent
+        ? "full"
+        : "original";
+
+  const effectiveAiSummary =
+    summaryState && summaryState.articleId === articleId
+      ? summaryState.summary
+      : (article?.aiSummary ?? null);
+
+  const effectiveImportance =
+    summaryState && summaryState.articleId === articleId
+      ? summaryState.importance
+      : (article?.importance ?? null);
+
+  const effectiveTags = useMemo(() => {
+    if (tagsOverride && tagsOverride.articleId === articleId) return tagsOverride.tags;
+    return article?.tags?.map((t) => ({ id: t.id, name: t.name })) ?? [];
+  }, [article?.tags, articleId, tagsOverride]);
+
+  const activeSuggestions =
+    tagSuggestionState && tagSuggestionState.articleId === articleId
+      ? tagSuggestionState.suggestions
+      : null;
+
+  const acceptedTagNames = useMemo(
+    () =>
+      tagSuggestionState && tagSuggestionState.articleId === articleId
+        ? tagSuggestionState.accepted
+        : new Set<string>(),
+    [articleId, tagSuggestionState],
   );
 
-  // Auto-summarise on article open when the user has opted in.
-  useEffect(() => {
-    if (!autoSummarize) return;
-    if (!article) return;
-    if (article.aiSummary) return;
-    if (autoTriggeredRef.current.has(article.id)) return;
-    autoTriggeredRef.current.add(article.id);
-    handleSummarize();
-  }, [article, autoSummarize, handleSummarize]);
+  // Sanitize + proxy body HTML once per active HTML source (NOT on scroll
+  // re-renders) so memoized ArticleBody never recreates <img> nodes on iOS.
+  const activeRawHtml =
+    contentMode === "full" && effectiveFullHtml ? effectiveFullHtml : (article?.contentHtml ?? "");
 
-  async function handleSuggestTags() {
-    if (!article) return;
-    const targetId = article.id;
-    setSuggestingTags(true);
-    try {
-      const res = await fetch(`/api/articles/${targetId}/tag-suggestions`, { method: "POST" });
-      const data = (await res.json()) as {
-        success: boolean;
-        error?: string;
-        data?: { suggestions: TagSuggestion[] };
-      };
-      if (targetId !== currentArticleIdRef.current) return;
-      if (!data.success) {
-        toast.error(data.error ?? "Failed to suggest tags");
-        return;
-      }
-      setTagSuggestions(data.data?.suggestions ?? []);
-    } catch (err) {
-      if (targetId === currentArticleIdRef.current) {
-        toast.error(err instanceof Error ? err.message : "Failed to suggest tags");
-      }
-    } finally {
-      if (targetId === currentArticleIdRef.current) {
-        setSuggestingTags(false);
-      }
-    }
-  }
+  const bodyHtml = useMemo(() => prepareArticleBodyHtml(activeRawHtml), [activeRawHtml]);
+  const bodyHasImages = useMemo(() => /<img\b/i.test(activeRawHtml), [activeRawHtml]);
 
-  async function handleAcceptTag(suggestion: TagSuggestion) {
-    if (!article) return;
-    const targetId = article.id;
-    try {
-      const res = await fetch(`/api/articles/${targetId}/tags`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: suggestion.name }),
-      });
-      const data = (await res.json()) as {
-        success: boolean;
-        error?: string;
-        data?: { tagId: string; name: string };
-      };
-      if (targetId !== currentArticleIdRef.current) {
-        if (data.success) window.dispatchEvent(new CustomEvent("tags-changed"));
-        return;
-      }
-      if (!data.success) {
-        toast.error(data.error ?? "Failed to add tag");
-        return;
-      }
-      setAcceptedTagNames((prev) => new Set(prev).add(suggestion.name));
-      if (data.data) {
-        setCurrentTags((prev) =>
-          prev.find((t) => t.id === data.data!.tagId)
-            ? prev
-            : [...prev, { id: data.data!.tagId, name: data.data!.name }],
-        );
-      }
-      window.dispatchEvent(new CustomEvent("tags-changed"));
-      toast.success(`Tagged: ${suggestion.name}`);
-    } catch (err) {
-      if (targetId === currentArticleIdRef.current) {
-        toast.error(err instanceof Error ? err.message : "Failed to add tag");
-      }
-    }
-  }
-
-  async function handleRemoveTag(tagId: string) {
-    if (!article) return;
-    const targetId = article.id;
-    const prev = currentTags;
-    setCurrentTags((cur) => cur.filter((t) => t.id !== tagId));
-    try {
-      const res = await fetch(`/api/articles/${targetId}/tags/${tagId}`, { method: "DELETE" });
-      const data = (await res.json()) as { success: boolean; error?: string };
-      if (!data.success) {
-        if (targetId === currentArticleIdRef.current) {
-          setCurrentTags(prev);
-          toast.error(data.error ?? "Failed to remove tag");
+  const summarizeMutation = useMutation({
+    mutationFn: ({ targetId }: { targetId: string; manual: boolean }) => summarizeArticle(targetId),
+    onSuccess: (data, { targetId, manual }) => {
+      if (data.skipped === "too-short") {
+        if (manual && currentIdRef.current === targetId) {
+          toast.info(`文章字数较少，无需摘要（${data.sourceChars} < ${data.minChars} 字）`);
         }
         return;
       }
-      window.dispatchEvent(new CustomEvent("tags-changed"));
-    } catch (err) {
-      if (targetId === currentArticleIdRef.current) {
-        setCurrentTags(prev);
-        toast.error(err instanceof Error ? err.message : "Failed to remove tag");
+      queryClient.setQueryData<ReaderArticleDetail>(queryKeys.article.detail(targetId), (prev) =>
+        prev
+          ? {
+              ...prev,
+              aiSummary: data.summary ?? prev.aiSummary,
+              importance: data.importance ?? prev.importance,
+            }
+          : prev,
+      );
+      if (currentIdRef.current !== targetId) return;
+      setSummaryState({
+        articleId: targetId,
+        summary: data.summary ?? null,
+        importance: data.importance ?? effectiveImportance,
+      });
+    },
+    onError: (err, { targetId }) => {
+      if (currentIdRef.current === targetId) {
+        toast.error(err instanceof Error ? err.message : "生成摘要失败");
       }
-    }
-  }
+    },
+  });
 
+  const suggestTagsMutation = useMutation({
+    mutationFn: (targetId: string) => suggestArticleTags(targetId),
+    onSuccess: (data, targetId) => {
+      if (currentIdRef.current !== targetId) return;
+      setTagSuggestionState({
+        articleId: targetId,
+        suggestions: data.suggestions ?? [],
+        accepted: new Set(),
+      });
+    },
+    onError: (err, targetId) => {
+      if (currentIdRef.current === targetId) {
+        toast.error(err instanceof Error ? err.message : "推荐标签失败");
+      }
+    },
+  });
+
+  const acceptTagMutation = useMutation({
+    mutationFn: ({ targetId, name }: { targetId: string; name: string }) =>
+      addArticleTag(targetId, name),
+    onSuccess: (data, { targetId, name }) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+      queryClient.setQueryData<ReaderArticleDetail>(queryKeys.article.detail(targetId), (prev) => {
+        if (!prev) return prev;
+        const current = prev.tags ?? [];
+        if (current.some((t) => t.id === data.tagId)) return prev;
+        return { ...prev, tags: [...current, { id: data.tagId, name: data.name }] };
+      });
+      if (currentIdRef.current !== targetId) return;
+      setTagSuggestionState((prev) => {
+        if (!prev || prev.articleId !== targetId) return prev;
+        const next = new Set(prev.accepted);
+        next.add(name);
+        return { ...prev, accepted: next };
+      });
+      setTagsOverride((prev) => {
+        const base =
+          prev && prev.articleId === targetId
+            ? prev.tags
+            : (article?.tags?.map((t) => ({ id: t.id, name: t.name })) ?? []);
+        if (base.some((t) => t.id === data.tagId)) return { articleId: targetId, tags: base };
+        return {
+          articleId: targetId,
+          tags: [...base, { id: data.tagId, name: data.name }],
+        };
+      });
+      toast.success(`已添加标签：${name}`);
+    },
+    onError: (err, { targetId }) => {
+      if (currentIdRef.current === targetId) {
+        toast.error(err instanceof Error ? err.message : "添加标签失败");
+      }
+    },
+  });
+
+  const removeTagMutation = useMutation({
+    mutationFn: ({ targetId, tagId }: { targetId: string; tagId: string }) =>
+      removeArticleTag(targetId, tagId),
+    onMutate: ({ targetId, tagId }) => {
+      const prevTags = effectiveTags;
+      setTagsOverride({
+        articleId: targetId,
+        tags: prevTags.filter((t) => t.id !== tagId),
+      });
+      return { prevTags };
+    },
+    onSuccess: (_data, { targetId, tagId }) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+      queryClient.setQueryData<ReaderArticleDetail>(queryKeys.article.detail(targetId), (prev) =>
+        prev ? { ...prev, tags: (prev.tags ?? []).filter((t) => t.id !== tagId) } : prev,
+      );
+    },
+    onError: (err, { targetId }, context) => {
+      if (currentIdRef.current === targetId && context) {
+        setTagsOverride({ articleId: targetId, tags: context.prevTags });
+        toast.error(err instanceof Error ? err.message : "移除标签失败");
+      }
+    },
+  });
+
+  const fetchFullMutation = useFetchFullContentMutation();
+
+  const progressMutation = useMutation({
+    mutationFn: ({ targetId, readProgress }: { targetId: string; readProgress: number }) =>
+      patchArticle(targetId, { readProgress }),
+  });
+
+  const { mutate: runSummarize } = summarizeMutation;
+  useEffect(() => {
+    if (!autoSummarize || !article || article.aiSummary) return;
+    if (autoTriggeredRef.current.has(article.id)) return;
+    autoTriggeredRef.current.add(article.id);
+    runSummarize({ targetId: article.id, manual: false });
+  }, [article, autoSummarize, runSummarize]);
+
+  const { mutate: saveProgress } = progressMutation;
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el || !article) return;
-    const { scrollTop, scrollHeight, clientHeight } = el;
-    const max = scrollHeight - clientHeight;
-    const progress = max > 0 ? scrollTop / max : 0;
+    const max = el.scrollHeight - el.clientHeight;
+    const progress = max > 0 ? el.scrollTop / max : 0;
     setScrollProgress(progress);
 
-    if (progressSaveRef.current) clearTimeout(progressSaveRef.current);
-    progressSaveRef.current = setTimeout(() => {
-      fetch(`/api/articles/${article.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ readProgress: progress }),
-      }).catch(() => {});
+    clearTimeout(progressSaveRef.current);
+    progressSaveRef.current = window.setTimeout(() => {
+      saveProgress({ targetId: article.id, readProgress: progress });
     }, 1000);
-  }, [article]);
+  }, [article, saveProgress]);
 
   useEffect(() => {
     setScrollProgress(0);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
     return () => {
-      if (progressSaveRef.current) clearTimeout(progressSaveRef.current);
+      clearTimeout(progressSaveRef.current);
     };
-  }, [article?.id]);
+  }, [articleId]);
+
+  function handleFetchFullContent() {
+    if (!article) return;
+    const targetId = article.id;
+    fetchFullMutation.mutate(targetId, {
+      onSuccess: (result) => {
+        if (currentIdRef.current !== targetId) return;
+        setFullContentOverride({
+          articleId: targetId,
+          html: result.html ?? effectiveFullHtml,
+          status: result.status,
+        });
+        if (result.status === "ok" && result.html) {
+          setModePreference({ articleId: targetId, mode: "full" });
+        }
+      },
+    });
+  }
 
   async function handleCopyUrl() {
     if (!article?.url) return;
     await navigator.clipboard.writeText(article.url);
-    toast.success("Link copied");
+    toast.success("已复制链接");
   }
 
   function handleOpenOriginal() {
@@ -372,163 +343,57 @@ export function ArticleReader({
 
   if (!article) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
-        <div className="size-14 rounded-lg bg-muted flex items-center justify-center">
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+        <div className="flex size-14 items-center justify-center rounded-lg bg-muted">
           <BookOpen className="size-7 text-muted-foreground/30" />
         </div>
-        <p className="text-sm">Select an article to read</p>
+        <p className="text-sm">选择一篇文章开始阅读</p>
       </div>
     );
   }
 
-  const readingTime = estimateReadingTime(article.contentText ?? article.contentHtml);
+  const summarizingForCurrent =
+    summarizeMutation.isPending && summarizeMutation.variables?.targetId === article.id;
+  const suggestingTagsForCurrent =
+    suggestTagsMutation.isPending && suggestTagsMutation.variables === article.id;
+  const fetchingFullForCurrent =
+    fetchFullMutation.isPending && fetchFullMutation.variables === article.id;
+
+  const readingTime = estimateReadingTime(article.contentText ?? activeRawHtml);
+  const displayDate = article.publishedAt ?? article.createdAt;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden relative animate-in fade-in duration-200 ease-[var(--ease-out)] motion-reduce:animate-none">
-      {/* Scroll progress */}
-      <div className="scroll-progress" style={{ width: `${scrollProgress * 100}%` }} />
+    <div className="relative flex h-full flex-col overflow-hidden animate-in fade-in duration-200 ease-[var(--ease-out)] motion-reduce:animate-none">
+      <ArticleReaderHeader
+        articleId={article.id}
+        url={article.url}
+        isRead={article.isRead}
+        isStarred={article.isStarred}
+        scrollProgress={scrollProgress}
+        contextLabel={contextLabel}
+        hasFullContent={hasFullContent}
+        contentMode={contentMode}
+        onContentModeChange={(mode) => setModePreference({ articleId: article.id, mode })}
+        fetchingFullContent={fetchingFullForCurrent}
+        onFetchFullContent={handleFetchFullContent}
+        hasAiSummary={Boolean(effectiveAiSummary)}
+        summarizing={summarizingForCurrent}
+        onSummarize={() => summarizeMutation.mutate({ targetId: article.id, manual: true })}
+        suggestingTags={suggestingTagsForCurrent}
+        onSuggestTags={() => suggestTagsMutation.mutate(article.id)}
+        onMarkRead={onMarkRead}
+        onStar={onStar}
+        onBack={onBack}
+        onCopyUrl={handleCopyUrl}
+        onOpenOriginal={handleOpenOriginal}
+      />
 
-      {/* Action bar */}
-      <div className="flex min-h-11 items-center gap-0.5 px-1 md:px-3 md:py-1.5 shrink-0 border-b border-border/50">
-        <div className="flex min-w-0 items-center gap-0.5">
-          <SidebarTrigger className="md:hidden size-11" />
-          {onBack && (
-            <ActionButton title="Back to article list" onClick={onBack}>
-              <ArrowLeft className="size-4 text-muted-foreground" />
-            </ActionButton>
-          )}
-          {contextLabel && (
-            <span className="hidden md:inline-block text-xs text-muted-foreground truncate max-w-[160px] ml-1">
-              {contextLabel}
-            </span>
-          )}
-        </div>
-
-        <div className="ml-auto flex items-center gap-0.5">
-          <ActionButton
-            title={article.isRead ? "Mark unread" : "Mark read"}
-            pressed={article.isRead}
-            onClick={() => onMarkRead(article.id, !article.isRead)}
-          >
-            <CheckCheck
-              className={cn("size-4", article.isRead ? "text-primary" : "text-muted-foreground")}
-            />
-          </ActionButton>
-
-          <ActionButton
-            title={article.isStarred ? "Unstar article" : "Star article"}
-            pressed={article.isStarred}
-            onClick={() => onStar(article.id, !article.isStarred)}
-          >
-            <Star
-              className={cn(
-                "size-4",
-                article.isStarred ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground",
-              )}
-            />
-          </ActionButton>
-
-          <div className="hidden md:flex items-center gap-0.5">
-            {article.url && (
-              <>
-                <ActionButton title="Copy link" onClick={handleCopyUrl}>
-                  <Copy className="size-4 text-muted-foreground" />
-                </ActionButton>
-                <a
-                  href={article.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Open original"
-                  aria-label="Open original"
-                  className="size-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                >
-                  <ExternalLink className="size-4 text-muted-foreground" />
-                </a>
-              </>
-            )}
-            <div className="w-px h-5 bg-border/60 mx-1" aria-hidden />
-            <ActionButton
-              title={aiSummary ? "Re-summarise" : "Summarise with AI"}
-              onClick={() => handleSummarize({ manual: true })}
-              disabled={summarizing}
-            >
-              <Sparkles
-                className={cn(
-                  "size-4",
-                  summarizing
-                    ? "animate-pulse text-primary"
-                    : aiSummary
-                      ? "text-primary"
-                      : "text-muted-foreground",
-                )}
-              />
-            </ActionButton>
-            <ActionButton
-              title="Suggest tags with AI"
-              onClick={handleSuggestTags}
-              disabled={suggestingTags}
-            >
-              <Tag
-                className={cn(
-                  "size-4",
-                  suggestingTags ? "animate-pulse text-primary" : "text-muted-foreground",
-                )}
-              />
-            </ActionButton>
-          </div>
-
-          <div className="md:hidden">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<button type="button" aria-label="More article actions" />}
-                className="size-11 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              >
-                <Ellipsis className="size-5" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-52 rounded-md">
-                {article.url && (
-                  <>
-                    <DropdownMenuItem className="min-h-11 px-3" onClick={handleCopyUrl}>
-                      <Copy className="size-4" />
-                      Copy link
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="min-h-11 px-3" onClick={handleOpenOriginal}>
-                      <ExternalLink className="size-4" />
-                      Open original
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                <DropdownMenuItem
-                  className="min-h-11 px-3"
-                  onClick={() => handleSummarize({ manual: true })}
-                  disabled={summarizing}
-                >
-                  <Sparkles className="size-4" />
-                  {summarizing ? "Summarising…" : aiSummary ? "Re-summarise" : "Summarise with AI"}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="min-h-11 px-3"
-                  onClick={handleSuggestTags}
-                  disabled={suggestingTags}
-                >
-                  <Tag className="size-4" />
-                  {suggestingTags ? "Suggesting tags…" : "Suggest tags with AI"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto scrollbar-thin"
       >
-        <div className="max-w-2xl mx-auto px-6 py-8 sm:px-8">
-          {/* Source meta */}
+        <div className="mx-auto max-w-2xl px-6 py-8 sm:px-8">
           <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span className="max-w-full truncate font-medium">{article.feedTitle}</span>
             {article.author && (
@@ -537,12 +402,13 @@ export function ArticleReader({
                 <span>{article.author}</span>
               </>
             )}
-            {(article.publishedAt ?? article.createdAt) && (
+            {displayDate && (
               <>
                 <span className="text-muted-foreground/40">&middot;</span>
                 <span>
-                  {formatDistanceToNow(new Date(article.publishedAt ?? article.createdAt!), {
+                  {formatDistanceToNow(new Date(displayDate), {
                     addSuffix: true,
+                    locale: zhCN,
                   })}
                 </span>
               </>
@@ -550,123 +416,69 @@ export function ArticleReader({
             {readingTime > 0 && (
               <>
                 <span className="text-muted-foreground/40">&middot;</span>
-                <span>{readingTime} min read</span>
+                <span>约 {readingTime} 分钟</span>
               </>
             )}
           </div>
 
-          {/* Title */}
-          <h1 className="text-2xl sm:text-3xl font-semibold leading-tight tracking-tight mb-4">
+          <h1 className="mb-4 text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
             {article.title}
           </h1>
 
-          {/* Importance + AI summary */}
-          {importance && (
-            <div className="mb-4 inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-2 py-1 rounded-md bg-muted">
-              <span
-                className={cn(
-                  "size-2 rounded-full",
-                  importance === "high" && "bg-red-500",
-                  importance === "med" && "bg-amber-500",
-                  importance === "low" && "bg-muted-foreground/40",
-                )}
-              />
-              <span className="font-medium text-muted-foreground">
-                {importance === "high"
-                  ? "High importance"
-                  : importance === "med"
-                    ? "Medium"
-                    : "Low"}
-              </span>
-            </div>
-          )}
-
-          {(aiSummary || summarizing) && (
-            <div className="mb-6 rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
-              <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-primary/80 font-medium mb-1.5">
-                <Sparkles className="size-3" />
-                AI summary
+          {effectiveFullStatus === "failed" && (
+            <div
+              role="status"
+              className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-xs text-destructive"
+            >
+              <div className="flex items-center gap-2">
+                <CircleAlert className="size-4 shrink-0" aria-hidden="true" />
+                <span>全文抓取失败，当前显示 RSS 原始内容。</span>
               </div>
-              {summarizing && !aiSummary ? (
-                <p className="text-sm text-muted-foreground">Summarising…</p>
-              ) : (
-                <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                  {aiSummary}
-                </p>
+              {article.url && (
+                <button
+                  type="button"
+                  onClick={handleFetchFullContent}
+                  disabled={fetchingFullForCurrent}
+                  className="inline-flex items-center gap-1 rounded px-2 py-1 font-medium underline-offset-2 hover:underline disabled:opacity-50"
+                >
+                  <RefreshCw className="size-3" aria-hidden="true" />
+                  重新抓取
+                </button>
               )}
             </div>
           )}
 
-          {currentTags.length > 0 && (
-            <div className="mb-4 flex flex-wrap items-center gap-1.5">
-              {currentTags.map((t) => (
-                <span
-                  key={t.id}
-                  className="group/tag inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-foreground"
-                >
-                  <Tag className="size-3 text-muted-foreground" />
-                  {t.name}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(t.id)}
-                    title="Remove tag"
-                    className="text-muted-foreground/60 hover:text-destructive transition-colors"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
+          <ArticleSummaryPanel
+            importance={effectiveImportance}
+            aiSummary={effectiveAiSummary}
+            summarizing={summarizingForCurrent}
+            tags={effectiveTags}
+            tagSuggestions={activeSuggestions}
+            acceptedTagNames={acceptedTagNames}
+            onAcceptTag={(suggestion) =>
+              acceptTagMutation.mutate({ targetId: article.id, name: suggestion.name })
+            }
+            onRemoveTag={(tagId) => removeTagMutation.mutate({ targetId: article.id, tagId })}
+          />
 
-          {tagSuggestions && tagSuggestions.length > 0 && (
-            <div className="mb-6 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mr-1">
-                Suggested tags:
-              </span>
-              {tagSuggestions.map((s) => {
-                const accepted = acceptedTagNames.has(s.name);
-                return (
-                  <button
-                    key={s.name}
-                    type="button"
-                    onClick={() => !accepted && handleAcceptTag(s)}
-                    className={cn(
-                      "text-xs px-2 py-0.5 rounded-full transition-colors",
-                      accepted
-                        ? "bg-primary/20 text-primary cursor-default"
-                        : "bg-muted text-foreground hover:bg-primary/10 hover:text-primary",
-                    )}
-                    disabled={accepted}
-                  >
-                    {accepted ? "✓ " : "+ "}
-                    {s.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <ArticleMediaBlock
+            media={article.media}
+            bodyHasImages={bodyHasImages}
+            articleUrl={article.url}
+            title={article.title}
+          />
 
-          {/* Body */}
-          {article.contentHtml ? (
+          {bodyHtml ? (
             <ArticleBody html={bodyHtml} />
           ) : (
-            <p className="text-muted-foreground text-sm">No content available.</p>
+            <p className="text-sm text-muted-foreground">暂无正文内容。</p>
           )}
 
-          {/* Bottom spacer */}
+          <ArticleRelatedPanel articleId={article.id} onSelectArticle={onSelectRelated} />
+
           <div className="h-16" />
         </div>
       </div>
     </div>
   );
-}
-
-function sanitize(html: string): string {
-  if (typeof window === "undefined") return html;
-  return DOMPurify.sanitize(html, {
-    ADD_TAGS: ["iframe"],
-    ADD_ATTR: ["target", "allow", "allowfullscreen"],
-    FORBID_TAGS: ["form", "object", "embed"],
-  });
 }

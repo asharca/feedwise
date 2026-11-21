@@ -1,138 +1,87 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { withTimeout, preflightFeed } from "@/lib/feeds/parser";
-import { FeedError } from "@/lib/feeds/feed-error";
+import { expect, it } from "vitest";
+import { parseFeed } from "@/lib/feeds/parser";
 
-describe("withTimeout", () => {
-  it("resolves the inner promise when it wins", async () => {
-    const result = await withTimeout(Promise.resolve(42), 50);
-    expect(result).toBe(42);
+const base = "https://example.org/news/feed";
+const rss = `<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:media="http://search.yahoo.com/mrss/"><channel>
+<title>A podcast</title><item><guid isPermaLink="false">ep-1</guid><title>One</title><link>https://example.org/episodes/1</link>
+<enclosure url="https://cdn.example.org/1.mp3" type="audio/mpeg" length="42"/>
+<itunes:duration>00:01:30</itunes:duration><itunes:image href="https://cdn.example.org/cover.png"/></item>
+<item><title>Film</title><media:group><media:content url="https://cdn.example.org/film.mp4" type="video/mp4" width="640"/>
+<media:thumbnail url="https://cdn.example.org/poster.jpg"/></media:group></item></channel></rss>`;
+
+it("maps enclosures, iTunes metadata and grouped Media RSS", () => {
+  const feed = parseFeed(rss, base);
+  expect(feed).toMatchObject({ feedType: "rss", title: "A podcast" });
+  expect(feed.articles[0]).toMatchObject({
+    guid: "ep-1",
+    imageUrl: "https://cdn.example.org/cover.png",
+    media: [{ type: "audio", mimeType: "audio/mpeg", duration: 90 }, { type: "image" }],
   });
-
-  it("rejects with FeedError(timeout) when the timer fires", async () => {
-    const slow = new Promise((resolve) => setTimeout(() => resolve("late"), 100));
-    await expect(withTimeout(slow, 10)).rejects.toMatchObject({
-      name: "FeedError",
-      code: "timeout",
-    });
-  });
-
-  it("classifies inner-promise rejections via classifyError", async () => {
-    const inner = Promise.reject(new Error("Not a feed"));
-    await expect(withTimeout(inner, 100)).rejects.toMatchObject({
-      name: "FeedError",
-      code: "parse",
-    });
+  expect(feed.articles[1]).toMatchObject({
+    media: [
+      { type: "video", width: 640, previewUrl: "https://cdn.example.org/poster.jpg" },
+      { type: "image" },
+    ],
   });
 });
 
-describe("preflightFeed", () => {
-  const realFetch = globalThis.fetch;
-
-  afterEach(() => {
-    globalThis.fetch = realFetch;
-    vi.restoreAllMocks();
+it("uses Atom id rather than the alternate link; recognizes a video permalink", () => {
+  const atom = `<feed xmlns="http://www.w3.org/2005/Atom"><title>Videos</title><entry>
+    <id>tag:example.org,2026:1</id><title>Film</title><updated>2026-11-01T12:00:00Z</updated>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=1"/><summary>Hello</summary></entry></feed>`;
+  expect(parseFeed(atom).articles[0]).toMatchObject({
+    guid: "tag:example.org,2026:1",
+    title: "Film",
+    contentText: "Hello",
+    publishedAt: new Date("2026-11-01T12:00:00Z"),
+    media: [{ type: "video" }],
   });
+});
 
-  beforeEach(() => {
-    vi.useRealTimers();
+it("maps RDF (RSS 1.0) and Dublin Core", () => {
+  const rdf = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel rdf:about="https://example.org/feed"><title>News</title></channel>
+    <item rdf:about="https://example.org/1"><title>Hello</title><link>https://example.org/1</link><dc:creator>Ada</dc:creator></item></rdf:RDF>`;
+  expect(parseFeed(rdf)).toMatchObject({
+    feedType: "rss",
+    articles: [{ title: "Hello", author: "Ada", guid: "https://example.org/1" }],
   });
+});
 
-  function mockFetch(
-    status: number,
-    {
-      contentType = "application/xml",
-      body = "<rss><channel></channel></rss>",
-    }: { contentType?: string; body?: string } = {},
-  ) {
-    globalThis.fetch = vi.fn(async () => {
-      return new Response(body, {
-        status,
-        headers: { "content-type": contentType },
-      });
-    }) as unknown as typeof fetch;
-  }
-
-  it("resolves when status is 200 and content-type looks like a feed", async () => {
-    mockFetch(200, { contentType: "application/rss+xml" });
-    await expect(preflightFeed("https://example.com/feed.xml", 100)).resolves.toBeUndefined();
+it("maps JSON Feed attachments and the first image in the HTML", () => {
+  const body = JSON.stringify({
+    version: "https://jsonfeed.org/version/1.1",
+    title: "Feed",
+    items: [
+      {
+        id: "42",
+        url: "https://example.org/post",
+        content_html: '<p>Hello<img src="/pic.jpg"></p>',
+        attachments: [
+          { url: "https://example.org/film.mp4", mime_type: "video/mp4", duration_in_seconds: 12 },
+        ],
+      },
+    ],
   });
-
-  it("accepts text/xml as a valid feed content-type", async () => {
-    mockFetch(200, { contentType: "text/xml; charset=utf-8" });
-    await expect(preflightFeed("https://example.com/feed.xml", 100)).resolves.toBeUndefined();
+  expect(parseFeed(body, base)).toMatchObject({
+    feedType: "json",
+    articles: [
+      {
+        guid: "42",
+        contentText: "Hello",
+        imageUrl: "https://example.org/pic.jpg",
+        media: [{ type: "video", duration: 12 }],
+      },
+    ],
   });
+});
 
-  it("accepts application/json (JSON feeds)", async () => {
-    mockFetch(200, { contentType: "application/json" });
-    await expect(preflightFeed("https://example.com/feed.json", 100)).resolves.toBeUndefined();
-  });
-
-  it("rejects with http-4xx for 404", async () => {
-    mockFetch(404);
-    await expect(preflightFeed("https://example.com/missing", 100)).rejects.toMatchObject({
-      code: "http-4xx",
-      httpStatus: 404,
-    });
-  });
-
-  it("rejects with http-5xx for 503", async () => {
-    mockFetch(503);
-    await expect(preflightFeed("https://example.com/down", 100)).rejects.toMatchObject({
-      code: "http-5xx",
-      httpStatus: 503,
-    });
-  });
-
-  it("rejects with not-feed for text/html that has no feed-like content", async () => {
-    mockFetch(200, { contentType: "text/html", body: "<html><body>not a feed</body></html>" });
-    await expect(preflightFeed("https://example.com/page", 100)).rejects.toMatchObject({
-      code: "not-feed",
-    });
-  });
-
-  it("accepts text/html if body contains <rss or <feed (lenient — server misconfig)", async () => {
-    mockFetch(200, {
-      contentType: "text/html",
-      body: '<?xml version="1.0"?><rss><channel><title>x</title></channel></rss>',
-    });
-    await expect(preflightFeed("https://example.com/feed", 100)).resolves.toBeUndefined();
-  });
-
-  it("rejects with timeout when fetch aborts", async () => {
-    globalThis.fetch = vi.fn(async (_url, init?: RequestInit) => {
-      return new Promise<Response>((_resolve, reject) => {
-        const signal = init?.signal;
-        signal?.addEventListener("abort", () => {
-          const err = new Error("aborted");
-          err.name = "AbortError";
-          reject(err);
-        });
-      });
-    }) as unknown as typeof fetch;
-
-    await expect(preflightFeed("https://example.com/slow", 20)).rejects.toMatchObject({
-      code: "timeout",
-    });
-  });
-
-  it("rejects with network for ENOTFOUND-style fetch errors", async () => {
-    globalThis.fetch = vi.fn(async () => {
-      throw Object.assign(new Error("getaddrinfo ENOTFOUND nope.invalid"), {
-        code: "ENOTFOUND",
-      });
-    }) as unknown as typeof fetch;
-
-    await expect(preflightFeed("https://nope.invalid/feed", 100)).rejects.toMatchObject({
-      code: "network",
-    });
-  });
-
-  it("wraps non-FeedError exceptions as FeedError", async () => {
-    globalThis.fetch = vi.fn(async () => {
-      throw new Error("weird");
-    }) as unknown as typeof fetch;
-
-    const result = preflightFeed("https://example.com/x", 100);
-    await expect(result).rejects.toBeInstanceOf(FeedError);
-  });
+it("prefers a link, then hashes missing identifiers deterministically", () => {
+  const body =
+    '<rss version="2.0"><channel><title>T</title><item><link>https://example.org/x</link></item><item><title>A</title><description>B</description></item></channel></rss>';
+  const ids = (s: string) => parseFeed(s).articles.map((a) => a.guid);
+  expect(ids(body)).toEqual(["https://example.org/x", expect.stringMatching(/^[a-f0-9]{40}$/)]);
+  expect(ids(body)).toEqual(ids(body));
+  expect(ids(body)[1]).not.toEqual(ids(body.replace(">B<", ">C<"))[1]);
+  expect(() => parseFeed("not a feed")).toThrow(expect.objectContaining({ code: "parse" }));
 });

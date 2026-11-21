@@ -1,38 +1,38 @@
-import { getFeedFetchQueue } from "./queue";
+import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { feeds, subscriptions } from "@/lib/db/schema";
-import { sql, lt, or, isNull } from "drizzle-orm";
+import { getFeedFetchQueue } from "./queue";
 
-/** Enqueue fetch jobs for all feeds due for a refresh. Called by cron. */
-export async function scheduleFeedRefreshes() {
-  const due = await db
-    .selectDistinct({ id: feeds.id, url: feeds.url })
-    .from(feeds)
-    .innerJoin(subscriptions, sql`${subscriptions.feedId} = ${feeds.id}`)
-    .where(
-      or(
-        isNull(feeds.lastFetchedAt),
-        lt(feeds.lastFetchedAt, sql`now() - (${feeds.fetchIntervalMinutes} * interval '1 minute')`),
-      ),
-    );
+async function claimDueFeeds() {
+  // The short lease also recovers a claim if this process dies before enqueue.
+  const { rows } = await db.execute<{ id: string; url: string }>(sql`
+    with due as materialized (
+      select f.id from feeds f
+      where (f.next_fetch_at is null or f.next_fetch_at <= now())
+        and exists (select 1 from subscriptions s where s.feed_id = f.id)
+      order by f.next_fetch_at nulls first, f.id
+      limit 200 for update skip locked
+    )
+    update feeds set next_fetch_at = now() + interval '10 minutes'
+    where id in (select id from due) returning id, url
+  `);
+  return rows;
+}
 
-  let enqueued = 0;
+async function enqueue(feed: { id: string; url: string }) {
+  await getFeedFetchQueue().add(
+    "fetch",
+    { feedId: feed.id, url: feed.url },
+    {
+      jobId: "feed-" + feed.id,
+      attempts: 1,
+      removeOnComplete: true,
+      removeOnFail: true,
+    },
+  );
+}
 
-  for (const feed of due) {
-    await getFeedFetchQueue().add(
-      "fetch",
-      { feedId: feed.id, url: feed.url },
-      {
-        // Use a per-run unique ID so periodic refresh jobs are not permanently deduplicated.
-        jobId: `feed-${feed.id}-scheduled-${Date.now()}`,
-        attempts: 3,
-        backoff: { type: "exponential", delay: 5000 },
-        removeOnComplete: 100,
-        removeOnFail: 200,
-      },
-    );
-    enqueued++;
-  }
-
-  return enqueued;
+export async function scheduleFeedRefreshes(claim = claimDueFeeds, add = enqueue) {
+  const due = await claim();
+  await Promise.all(due.map(add));
+  return due.length;
 }

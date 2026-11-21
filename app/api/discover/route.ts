@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api/with-auth";
 
-const RSSHUB_BASE = "https://rsshub.ashark.icu";
+const RSSHUB_BASE = (process.env.RSSHUB_BASE_URL || "https://rsshub.app").replace(/\/+$/, "");
 const NAMESPACE_URL = `${RSSHUB_BASE}/api/namespace`;
 const CACHE_TTL = 1000 * 60 * 60 * 6; // 6 hours
 
@@ -23,7 +23,8 @@ interface NamespacePayload {
   name?: string;
 }
 
-let cache: { data: FlatRouteMap; at: number } | null = null;
+// Clients build feed URLs from `baseUrl`, so the instance is configured in one place.
+let cache: { data: { baseUrl: string; routes: FlatRouteMap }; at: number } | null = null;
 
 function flattenNamespaceRoutes(json: Record<string, NamespacePayload>): FlatRouteMap {
   const result: FlatRouteMap = {};
@@ -48,7 +49,7 @@ export const GET = withAuth(async () => {
     if (!res.ok) throw new Error(`RSSHub responded ${res.status}`);
     const json = await res.json();
     const flat = flattenNamespaceRoutes(json);
-    cache = { data: flat, at: Date.now() };
+    cache = { data: { baseUrl: RSSHUB_BASE, routes: flat }, at: Date.now() };
     return NextResponse.json({ success: true, data: cache.data });
   } catch (err) {
     return NextResponse.json(

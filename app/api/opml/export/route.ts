@@ -10,7 +10,11 @@ export const GET = withAuth(async (_req, session) => {
       const title = escapeXml(s.title ?? s.feedTitle ?? s.url);
       const xmlUrl = escapeXml(s.url);
       const htmlUrl = escapeXml(s.siteUrl ?? "");
-      return `    <outline type="rss" text="${title}" title="${title}" xmlUrl="${xmlUrl}" htmlUrl="${htmlUrl}" />`;
+      const config =
+        s.sourceType === "html" && s.sourceConfig
+          ? ` feedwise-html="${escapeXml(JSON.stringify(s.sourceConfig))}"`
+          : "";
+      return `    <outline type="rss" text="${title}" title="${title}" xmlUrl="${xmlUrl}" htmlUrl="${htmlUrl}"${config} />`;
     })
     .join("\n");
 

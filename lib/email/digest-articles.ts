@@ -1,5 +1,6 @@
 import { eq, and, gt, lte, sql, not, inArray, exists } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { articleIsVisibleTo } from "@/lib/db/queries/articles";
 import {
   emailSentArticles,
   articles,
@@ -47,6 +48,7 @@ export async function getArticlesForEmail(
     )
     .where(
       and(
+        articleIsVisibleTo(userId),
         dateCondition,
         not(
           exists(

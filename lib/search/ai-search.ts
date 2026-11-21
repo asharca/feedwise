@@ -1,6 +1,7 @@
 import { and, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { articles, feeds, subscriptions } from "@/lib/db/schema";
+import { articleIsVisibleTo } from "@/lib/db/queries/articles";
 import { callChatCompletion, withLlmRetry } from "@/lib/digest/llm-client";
 import type { LlmConfig } from "@/lib/digest/llm-config";
 
@@ -76,7 +77,7 @@ export async function aiSearchArticles(
       subscriptions,
       and(eq(subscriptions.feedId, feeds.id), eq(subscriptions.userId, userId)),
     )
-    .where(gte(articles.createdAt, since))
+    .where(and(articleIsVisibleTo(userId), gte(articles.createdAt, since)))
     .orderBy(desc(articles.createdAt))
     .limit(ARTICLE_POOL_SIZE);
 

@@ -75,7 +75,7 @@ export function SortableFolderGroup(props: FolderGroupProps) {
             onClick={() => onToggle(folder.id)}
             aria-expanded={!isCollapsed}
             className="flex flex-1 min-w-0 cursor-grab items-center gap-1 rounded-sm outline-none select-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-            title="Click to toggle, drag to reorder"
+            title="点击折叠或展开，拖拽排序"
           >
             <ChevronRight
               className={cn(
@@ -94,8 +94,8 @@ export function SortableFolderGroup(props: FolderGroupProps) {
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={<button type="button" />}
-                aria-label={`Actions for ${folder.name}`}
-                title={`Actions for ${folder.name}`}
+                aria-label={`${folder.name} 操作`}
+                title={`${folder.name} 操作`}
                 className="size-5 inline-flex items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-accent hover:text-sidebar-accent-foreground aria-expanded:text-sidebar-accent-foreground outline-none focus-visible:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               >
                 <MoreHorizontal className="size-3" />
@@ -108,7 +108,7 @@ export function SortableFolderGroup(props: FolderGroupProps) {
                   }}
                 >
                   <FolderOpen className="size-4" />
-                  View all in folder
+                  查看文件夹全部文章
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={(e) => {
@@ -117,7 +117,7 @@ export function SortableFolderGroup(props: FolderGroupProps) {
                   }}
                 >
                   <Pencil className="size-4" />
-                  Rename
+                  重命名
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -128,7 +128,7 @@ export function SortableFolderGroup(props: FolderGroupProps) {
                   }}
                 >
                   <Trash2 className="size-4" />
-                  Delete folder
+                  删除文件夹
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -149,7 +149,7 @@ export function SortableFolderGroup(props: FolderGroupProps) {
                 ))
               ) : (
                 <li className="px-2 py-1 text-xs italic text-muted-foreground">
-                  Empty — drag a feed in or use Move to folder.
+                  暂无订阅源，可在订阅菜单中选择移动到此文件夹。
                 </li>
               )}
             </SidebarMenu>
