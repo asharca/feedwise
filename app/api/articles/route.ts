@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withAuth } from "@/lib/api/with-auth";
 import { getArticles } from "@/lib/db/queries/articles";
+import { CONTENT_VIEWS } from "@/lib/db/schema-types";
+import { parsePageParams } from "@/lib/search/article-cursor";
 
 export const GET = withAuth(async (req, session) => {
   const { searchParams } = new URL(req.url);
@@ -26,8 +28,11 @@ export const GET = withAuth(async (req, session) => {
     starredOnly: searchParams.get("starred") === "true",
     since,
     search: searchQuery,
-    limit: Math.min(parseInt(searchParams.get("limit") ?? "50", 10) || 50, 200),
-    offset: parseInt(searchParams.get("offset") ?? "0", 10) || 0,
+    view: z
+      .enum(CONTENT_VIEWS)
+      .optional()
+      .parse(searchParams.get("view") ?? undefined),
+    ...parsePageParams(searchParams),
   });
 
   return NextResponse.json({ success: true, data: articles });

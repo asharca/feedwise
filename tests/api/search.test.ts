@@ -55,6 +55,13 @@ describe("GET /api/search", () => {
     expect(res.status).toBe(400);
   });
 
+  it("accepts a single CJK character unchanged", async () => {
+    vi.mocked(requireSession).mockResolvedValueOnce(mockSession as never);
+    const res = await callGet("q=猫");
+    expect(res.status).toBe(200);
+    expect(searchArticles).toHaveBeenCalledWith("user-1", expect.objectContaining({ q: "猫" }));
+  });
+
   it("returns combined results on success", async () => {
     vi.mocked(requireSession).mockResolvedValueOnce(mockSession as never);
     vi.mocked(searchArticles).mockResolvedValueOnce([

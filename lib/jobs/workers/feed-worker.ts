@@ -6,8 +6,8 @@ export function startFeedWorker() {
   const worker = new Worker(
     "feed.fetch",
     async (job) => {
-      const { feedId, url } = job.data as { feedId: string; url: string };
-      await ingestFeed(feedId, url);
+      const { feedId } = job.data as { feedId: string };
+      await ingestFeed(feedId);
     },
     { connection: getConnection(), concurrency: 5 },
   );

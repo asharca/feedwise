@@ -1,3 +1,5 @@
+import { ResponseTooLargeError, UnsafeUrlError } from "@/lib/net/safe-fetch";
+
 export type FeedErrorCode =
   | "network"
   | "timeout"
@@ -5,22 +7,27 @@ export type FeedErrorCode =
   | "http-5xx"
   | "not-feed"
   | "parse"
+  | "blocked"
+  | "too-large"
   | "unknown";
 
 interface FeedErrorOptions {
   httpStatus?: number;
+  retryAfterMs?: number;
   cause?: unknown;
 }
 
 export class FeedError extends Error {
   readonly code: FeedErrorCode;
   readonly httpStatus?: number;
+  readonly retryAfterMs?: number;
 
   constructor(code: FeedErrorCode, message: string, options: FeedErrorOptions = {}) {
     super(message, options.cause !== undefined ? { cause: options.cause } : undefined);
     this.name = "FeedError";
     this.code = code;
     this.httpStatus = options.httpStatus;
+    this.retryAfterMs = options.retryAfterMs;
   }
 }
 
@@ -53,7 +60,8 @@ const PARSE_PATTERNS = [
 export function classifyError(err: unknown): FeedError {
   if (err instanceof FeedError) return err;
 
-  if (!(err instanceof Error)) {
+  // Abort signals can carry a DOMException from a different JS realm.
+  if (!(err instanceof Error) && !(err instanceof DOMException)) {
     return new FeedError("unknown", typeof err === "string" ? err : "Unknown error", {
       cause: err,
     });
@@ -63,12 +71,23 @@ export function classifyError(err: unknown): FeedError {
   const message = err.message ?? "";
   const code = (err as NodeJS.ErrnoException).code;
 
+  if (err instanceof UnsafeUrlError || code === "EUNSAFEADDR") {
+    return new FeedError("blocked", message, { cause: err });
+  }
+  if (err instanceof ResponseTooLargeError) {
+    return new FeedError("too-large", message, { cause: err });
+  }
   if (name === "AbortError" || name === "TimeoutError" || (code && TIMEOUT_CODES.has(code))) {
     return new FeedError("timeout", message || "Request timed out", { cause: err });
   }
 
   if (code && NETWORK_CODES.has(code)) {
     return new FeedError("network", message || "Network error", { cause: err });
+  }
+
+  // Undici wraps DNS and socket failures in TypeError("fetch failed").
+  if (err.cause instanceof Error && err.message === "fetch failed") {
+    return classifyError(err.cause);
   }
 
   if (PARSE_PATTERNS.some((re) => re.test(message))) {
@@ -96,6 +115,10 @@ export function humanMessage(code: FeedErrorCode, httpStatus?: number): string {
       return "That URL does not look like an RSS or Atom feed.";
     case "parse":
       return "Could not parse the feed — the content may be malformed.";
+    case "blocked":
+      return "This URL points to a private or local network address and cannot be fetched.";
+    case "too-large":
+      return "The feed is too large to fetch.";
     case "unknown":
       return "Could not fetch the feed for an unexpected reason.";
   }

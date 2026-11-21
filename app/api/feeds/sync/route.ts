@@ -12,7 +12,12 @@ export const POST = withAuth(async (_req, session) => {
       await getFeedFetchQueue().add(
         "fetch",
         { feedId: sub.feedId, url: sub.url },
-        { jobId: `feed-${sub.feedId}-manual-${Date.now()}`, attempts: 3 },
+        {
+          jobId: `feed-${sub.feedId}-manual-${crypto.randomUUID()}`,
+          attempts: 1,
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
       );
       enqueued++;
     } catch {

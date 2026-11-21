@@ -6,6 +6,7 @@ import {
   isTransient,
   type FeedErrorCode,
 } from "@/lib/feeds/feed-error";
+import { ResponseTooLargeError, UnsafeUrlError } from "@/lib/net/safe-fetch";
 
 describe("FeedError", () => {
   it("carries code, message, and optional httpStatus", () => {
@@ -21,6 +22,19 @@ describe("classifyError", () => {
   it("returns the error unchanged when it is already a FeedError", () => {
     const original = new FeedError("not-feed", "Bad content");
     expect(classifyError(original)).toBe(original);
+  });
+
+  it("reports SSRF refusals as blocked, including undici-wrapped connect errors", () => {
+    expect(classifyError(new UnsafeUrlError("nope")).code).toBe("blocked");
+    const wrapped = new TypeError("fetch failed", {
+      cause: Object.assign(new UnsafeUrlError("nope"), { code: "EUNSAFEADDR" }),
+    });
+    expect(classifyError(wrapped).code).toBe("blocked");
+    expect(isTransient("blocked")).toBe(false);
+  });
+
+  it("reports oversized responses as too-large", () => {
+    expect(classifyError(new ResponseTooLargeError(10)).code).toBe("too-large");
   });
 
   it("classifies AbortError as timeout", () => {

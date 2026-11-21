@@ -11,20 +11,30 @@ export function getConnection(): IORedis {
   return _connection;
 }
 
-let _feedFetchQueue: Queue | null = null;
-export function getFeedFetchQueue(): Queue {
-  if (!_feedFetchQueue) {
-    _feedFetchQueue = new Queue("feed.fetch", { connection: getConnection() });
+const queues = new Map<string, Queue>();
+
+export function getJobQueue(name: string): Queue {
+  let queue = queues.get(name);
+  if (!queue) {
+    queue = new Queue(name, { connection: getConnection() });
+    queues.set(name, queue);
   }
-  return _feedFetchQueue;
+  return queue;
 }
 
-let _hotFetchQueue: Queue | null = null;
-export function getHotFetchQueue(): Queue {
-  if (!_hotFetchQueue) {
-    _hotFetchQueue = new Queue("hot.fetch", { connection: getConnection() });
+export const getFeedFetchQueue = () => getJobQueue("feed.fetch");
+export const getHotFetchQueue = () => getJobQueue("hot.fetch");
+export const getMaintenanceQueue = () => getJobQueue("maintenance");
+
+/** Call after workers have drained: active jobs may still enqueue more work. */
+export async function closeJobQueues() {
+  const results = await Promise.allSettled(Array.from(queues.values(), (queue) => queue.close()));
+  queues.clear();
+  if (_connection) {
+    await _connection.quit();
+    _connection = null;
   }
-  return _hotFetchQueue;
+  for (const result of results) if (result.status === "rejected") throw result.reason;
 }
 
 export function enqueueHotFetch(key: string) {

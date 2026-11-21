@@ -1,85 +1,85 @@
-// tests/feeds/ingest.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { expect, it, vi } from "vitest";
+import { ingestFeed, type IngestDeps } from "@/lib/feeds/ingest";
 import { FeedError } from "@/lib/feeds/feed-error";
+import { parseFeed } from "@/lib/feeds/parser";
 
-const h = vi.hoisted(() => {
-  const updateCalls: Array<{ set: unknown }> = [];
-  const insertedIds = [{ id: "a-1" }, { id: "a-2" }];
-  const tx = {
-    update: () => ({
-      set: (set: unknown) => {
-        updateCalls.push({ set });
-        return { where: async () => undefined };
-      },
-    }),
-    insert: () => ({
-      values: () => ({
-        onConflictDoUpdate: () => ({
-          returning: async () => insertedIds,
-        }),
-      }),
-    }),
-  };
-  const db = {
-    transaction: vi.fn(async (fn: (t: unknown) => Promise<unknown>) => fn(tx)),
-    update: tx.update,
-  };
-  return { db, updateCalls, insertedIds };
-});
+const url = "https://example.org/feed";
+const response = {
+  url,
+  etag: "v2",
+  contentType: "application/xml",
+  lastModified: null,
+  maxAgeMs: 0,
+  body: '<rss version="2.0"><channel><title>Feed</title><item><title>One</title></item><item><title>Two</title></item></channel></rss>',
+};
 
-vi.mock("@/lib/db", () => ({ db: h.db }));
-
-import { ingestFeed } from "@/lib/feeds/ingest";
-
-function deps(overrides: Partial<Parameters<typeof ingestFeed>[2]> = {}) {
+function setup() {
   return {
-    parse: vi.fn(async () => ({
-      title: "Feed",
-      description: null,
-      siteUrl: null,
-      iconUrl: null,
-      articles: [
-        { guid: "g1", url: "https://e.com/1", title: "A1", author: null, contentHtml: null, contentText: null, summary: null, imageUrl: null, publishedAt: null },
-      ],
+    load: vi.fn(async () => ({
+      url,
+      sourceType: "rss" as const,
+      sourceConfig: null,
+      etag: "v1",
+      lastModified: null,
     })),
-    publish: vi.fn(async () => undefined),
-    getSubscribers: vi.fn(async () => ["u1", "u2"]),
-    ...overrides,
-  };
+    fetch: vi.fn<IngestDeps["fetch"]>(async () => response),
+    parse: vi.fn(parseFeed),
+    save: vi.fn<IngestDeps["save"]>(async () => ["new-1"]),
+    saveFailure: vi.fn(async () => {}),
+    getSubscribers: vi.fn(async () => [
+      { userId: "u1", fetchFullText: false },
+      { userId: "u2", fetchFullText: true },
+    ]),
+    publish: vi.fn(async () => {}),
+    applyRules: vi.fn(async () => {}),
+    enqueueFullText: vi.fn(async () => {}),
+  } satisfies IngestDeps;
 }
 
-beforeEach(() => {
-  h.updateCalls.length = 0;
-  h.db.transaction.mockClear();
+it("counts only inserted ids, invokes rules and enqueues once per article after commit", async () => {
+  const d = setup();
+  expect(await ingestFeed("f", d)).toEqual({ articleCount: 1 });
+  expect(d.parse.mock.results[0].value.articles).toHaveLength(2);
+  expect(d.applyRules).toHaveBeenCalledWith("f", ["new-1"]);
+  expect(d.applyRules.mock.invocationCallOrder[0]).toBeGreaterThan(
+    d.save.mock.invocationCallOrder[0],
+  );
+  expect(d.enqueueFullText).toHaveBeenCalledExactlyOnceWith("new-1");
+  expect(d.publish).toHaveBeenCalledTimes(2);
+  expect(d.publish).toHaveBeenCalledWith("u2", { type: "articles.new", feedId: "f", count: 1 });
 });
 
-describe("ingestFeed", () => {
-  it("updates feed metadata and inserts articles in one transaction, then publishes per subscriber", async () => {
-    const d = deps();
-    const out = await ingestFeed("feed-1", "https://e.com/rss", d);
-    expect(h.db.transaction).toHaveBeenCalledTimes(1);
-    expect(out.articleCount).toBe(2); // returning() rows
-    expect(d.publish).toHaveBeenCalledTimes(2);
-    expect(d.publish).toHaveBeenCalledWith("u1", { type: "articles.new", feedId: "feed-1", count: 2 });
-  });
-
-  it("publishes feed.fetched (no articles.new) when the feed has no entries", async () => {
-    const d = deps({
-      parse: vi.fn(async () => ({ title: "Feed", description: null, siteUrl: null, iconUrl: null, articles: [] })),
-    });
-    const out = await ingestFeed("feed-1", "https://e.com/rss", d);
-    expect(out.articleCount).toBe(0);
-    expect(d.publish).toHaveBeenCalledWith("u1", { type: "feed.fetched", feedId: "feed-1" });
-  });
-
-  it("on parse failure: records the error on the feed, notifies subscribers, rethrows a FeedError", async () => {
-    const d = deps({ parse: vi.fn(async () => { throw new Error("not a feed"); }) });
-    await expect(ingestFeed("feed-1", "https://e.com/rss", d)).rejects.toBeInstanceOf(FeedError);
-    // failure path writes via db.update (outside transaction)
-    expect(h.updateCalls.length).toBeGreaterThanOrEqual(1);
-    expect(d.publish).toHaveBeenCalledWith(
-      "u1",
-      expect.objectContaining({ type: "feed.error", feedId: "feed-1" }),
+it.each([true, false])(
+  "publishes only feed.fetched for zero inserts (not modified: %s)",
+  async (notModified) => {
+    const d = setup();
+    d.save.mockResolvedValue([]);
+    if (notModified) d.fetch.mockResolvedValue({ ...response, body: null });
+    expect(await ingestFeed("f", d)).toEqual({ articleCount: 0 });
+    expect(d.parse).toHaveBeenCalledTimes(notModified ? 0 : 1);
+    expect(d.save).toHaveBeenCalledWith(
+      "f",
+      url,
+      expect.anything(),
+      notModified ? null : expect.anything(),
     );
-  });
+    expect(d.publish).toHaveBeenCalledTimes(2);
+    for (const user of ["u1", "u2"])
+      expect(d.publish).toHaveBeenCalledWith(user, { type: "feed.fetched", feedId: "f" });
+    expect(d.applyRules).not.toHaveBeenCalled();
+    expect(d.enqueueFullText).not.toHaveBeenCalled();
+  },
+);
+
+it("records classified failures without storing articles or validators", async () => {
+  const d = setup();
+  d.fetch.mockRejectedValue(new FeedError("timeout", "late"));
+  await expect(ingestFeed("f", d)).rejects.toMatchObject({ code: "timeout" });
+  expect(d.saveFailure).toHaveBeenCalledWith(
+    "f",
+    url,
+    expect.objectContaining({ code: "timeout" }),
+  );
+  expect(d.save).not.toHaveBeenCalled();
+  expect(d.publish).toHaveBeenCalledWith("u1", expect.objectContaining({ type: "feed.error" }));
 });

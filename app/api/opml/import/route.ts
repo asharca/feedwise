@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api/with-auth";
 import { subscribeFeed } from "@/lib/db/queries/feeds";
 import { getFeedFetchQueue } from "@/lib/jobs/queue";
+import { DOMParser } from "linkedom";
+import { htmlConfigSchema, htmlSourceUrl } from "@/lib/feeds/source-config";
 
 export const POST = withAuth(async (req, session) => {
   const formData = await req.formData();
@@ -12,9 +14,10 @@ export const POST = withAuth(async (req, session) => {
   }
 
   const text = await file.text();
-  const feedUrls = parseOPML(text);
+  const doc = new DOMParser().parseFromString(text, "text/xml");
+  const outlines = Array.from<Element>(doc.querySelectorAll("outline[xmlUrl]"));
 
-  if (feedUrls.length === 0) {
+  if (outlines.length === 0) {
     return NextResponse.json(
       { success: false, error: "No feeds found in OPML" },
       { status: 400 },
@@ -23,10 +26,23 @@ export const POST = withAuth(async (req, session) => {
 
   const results: { url: string; ok: boolean }[] = [];
 
-  for (const url of feedUrls) {
+  for (const outline of outlines) {
+    const url = outline.getAttribute("xmlUrl")!;
     try {
-      const { feedId } = await subscribeFeed(session.user.id, url);
-      await getFeedFetchQueue().add("fetch", { feedId, url }, { jobId: `import-${feedId}` });
+      const encoded = outline.getAttribute("feedwise-html");
+      const config = encoded ? htmlConfigSchema.parse(JSON.parse(encoded)) : undefined;
+      const key = config ? htmlSourceUrl(url, config) : url;
+      const { feedId } = await subscribeFeed(session.user.id, key, undefined, config);
+      await getFeedFetchQueue().add(
+        "fetch",
+        { feedId, url: key },
+        {
+          jobId: `feed-${feedId}`,
+          attempts: 1,
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
+      );
       results.push({ url, ok: true });
     } catch {
       results.push({ url, ok: false });
@@ -42,20 +58,3 @@ export const POST = withAuth(async (req, session) => {
     },
   });
 });
-
-function parseOPML(xml: string): string[] {
-  const urls: string[] = [];
-  // Simple regex-based OPML parser for outline elements with xmlUrl
-  const outlineRegex = /<outline[^>]*xmlUrl\s*=\s*"([^"]*)"[^>]*\/?>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = outlineRegex.exec(xml)) !== null) {
-    const url = match[1]
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'");
-    if (url) urls.push(url);
-  }
-  return urls;
-}

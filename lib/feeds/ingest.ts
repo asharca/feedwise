@@ -1,129 +1,84 @@
-import { eq, sql } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { feeds, articles } from "@/lib/db/schema";
-import { parseFeed } from "@/lib/feeds/parser";
-import { classifyError, humanMessage } from "@/lib/feeds/feed-error";
+import { getFeedSubscribers } from "@/lib/db/queries/feeds";
 import { publishEvent } from "@/lib/events/publisher";
-import { getSubscriberUserIds } from "@/lib/db/queries/feeds";
+import type { FeedwiseEvent } from "@/lib/events/types";
+import { enqueueFullText } from "@/lib/jobs/queues/fulltext";
+import { applyRulesToNewArticles } from "@/lib/rules/apply";
+import { classifyError, FeedError, humanMessage } from "./feed-error";
+import { fetchFeed } from "./fetcher";
+import { parseHtmlSource } from "./html-source";
+import { parseFeed, type ParsedFeed } from "./parser";
+import { loadFeed, saveFetch, saveFailure } from "./store";
 
 export interface IngestDeps {
+  load: typeof loadFeed;
+  fetch: typeof fetchFeed;
   parse: typeof parseFeed;
+  save: typeof saveFetch;
+  saveFailure: typeof saveFailure;
+  getSubscribers: typeof getFeedSubscribers;
   publish: typeof publishEvent;
-  getSubscribers: typeof getSubscriberUserIds;
+  applyRules: typeof applyRulesToNewArticles;
+  enqueueFullText: typeof enqueueFullText;
 }
 
-const defaultDeps: IngestDeps = {
+const defaults: IngestDeps = {
+  load: loadFeed,
+  fetch: fetchFeed,
   parse: parseFeed,
+  save: saveFetch,
+  saveFailure,
+  getSubscribers: getFeedSubscribers,
   publish: publishEvent,
-  getSubscribers: getSubscriberUserIds,
+  applyRules: applyRulesToNewArticles,
+  enqueueFullText,
 };
 
-function extractFirstImageUrl(html: string | null | undefined): string | undefined {
-  if (!html) return undefined;
-  const match = html.match(/<img[^>]+src=["'](https?:\/\/[^"'\s>]+)["']/i);
-  return match?.[1];
-}
-
-/**
- * Fetch + parse a feed and store its articles. Feed metadata update and
- * article upsert happen in ONE transaction; subscriber events are published
- * after commit (best-effort — publishEvent swallows Redis errors).
- *
- * On failure: records the classified error on the feed row, notifies
- * subscribers, and rethrows the FeedError so BullMQ can retry per job options.
- */
 export async function ingestFeed(
   feedId: string,
-  url: string,
-  deps: IngestDeps = defaultDeps,
+  deps: IngestDeps = defaults,
 ): Promise<{ articleCount: number }> {
+  // Always use the current URL/config, never a stale queue payload.
+  const feed = await deps.load(feedId);
+  if (!feed) return { articleCount: 0 };
+  let inserted: string[];
   try {
-    const parsed = await deps.parse(url);
-
-    const inserted = await db.transaction(async (tx) => {
-      await tx
-        .update(feeds)
-        .set({
-          title: parsed.title ?? undefined,
-          description: parsed.description ?? undefined,
-          siteUrl: parsed.siteUrl ?? undefined,
-          iconUrl: parsed.iconUrl ?? undefined,
-          lastFetchedAt: new Date(),
-          lastFetchError: null,
-          errorCode: null,
-          consecutiveFailures: 0,
-        })
-        .where(eq(feeds.id, feedId));
-
-      if (parsed.articles.length === 0) return [];
-
-      return tx
-        .insert(articles)
-        .values(
-          parsed.articles.map((a) => ({
-            feedId,
-            guid: a.guid,
-            url: a.url ?? undefined,
-            title: a.title ?? undefined,
-            author: a.author ?? undefined,
-            contentHtml: a.contentHtml ?? undefined,
-            contentText: a.contentText ?? undefined,
-            summary: a.summary ?? undefined,
-            imageUrl: a.imageUrl ?? extractFirstImageUrl(a.contentHtml) ?? undefined,
-            publishedAt: a.publishedAt ?? undefined,
-          })),
-        )
-        .onConflictDoUpdate({
-          target: [articles.feedId, articles.guid],
-          set: {
-            url: sql`excluded.url`,
-            title: sql`excluded.title`,
-            author: sql`excluded.author`,
-            contentHtml: sql`excluded.content_html`,
-            contentText: sql`excluded.content_text`,
-            summary: sql`excluded.summary`,
-            imageUrl: sql`excluded.image_url`,
-            publishedAt: sql`excluded.published_at`,
-          },
-        })
-        .returning({ id: articles.id });
+    const html = feed.sourceType === "html";
+    const response = await deps.fetch(feed.url, {
+      etag: feed.etag,
+      lastModified: feed.lastModified,
+      html,
     });
-
-    const subscriberIds = await deps.getSubscribers(feedId).catch(() => []);
-    if (inserted.length === 0) {
-      await Promise.all(
-        subscriberIds.map((uid) => deps.publish(uid, { type: "feed.fetched", feedId })),
-      );
-      return { articleCount: 0 };
+    let parsed: ParsedFeed | null = null;
+    if (response.body !== null) {
+      if (html && !feed.sourceConfig) throw new FeedError("parse", "HTML 源缺少选择器");
+      parsed =
+        html && feed.sourceConfig
+          ? parseHtmlSource(response.body, response.url, feed.sourceConfig)
+          : deps.parse(response.body, response.url);
     }
-
+    inserted = await deps.save(feedId, feed.url, response, parsed);
+  } catch (err) {
+    const error = classifyError(err);
+    await deps.saveFailure(feedId, feed.url, error);
+    const message = humanMessage(error.code, error.httpStatus);
+    const subscribers = await deps.getSubscribers(feedId);
     await Promise.all(
-      subscriberIds.map((uid) =>
-        deps.publish(uid, { type: "articles.new", feedId, count: inserted.length }),
+      subscribers.map((s) =>
+        deps.publish(s.userId, { type: "feed.error", feedId, errorCode: error.code, message }),
       ),
     );
-    return { articleCount: inserted.length };
-  } catch (rawError) {
-    const feedError = classifyError(rawError);
-    const message = humanMessage(feedError.code, feedError.httpStatus);
-
-    await db
-      .update(feeds)
-      .set({
-        lastFetchError: message,
-        errorCode: feedError.code,
-        lastFetchedAt: new Date(),
-        consecutiveFailures: sql`${feeds.consecutiveFailures} + 1`,
-      })
-      .where(eq(feeds.id, feedId));
-
-    const subscriberIds = await deps.getSubscribers(feedId).catch(() => []);
-    await Promise.all(
-      subscriberIds.map((uid) =>
-        deps.publish(uid, { type: "feed.error", feedId, errorCode: feedError.code, message }),
-      ),
-    );
-
-    throw feedError;
+    throw error;
   }
+
+  // Side effects run only after commit; a queue outage is not an upstream feed failure.
+  const subscribers = await deps.getSubscribers(feedId);
+  if (inserted.length) await deps.applyRules(feedId, inserted);
+  const event: FeedwiseEvent = inserted.length
+    ? { type: "articles.new", feedId, count: inserted.length }
+    : { type: "feed.fetched", feedId };
+  await Promise.all(subscribers.map((s) => deps.publish(s.userId, event)));
+  if (subscribers.some((s) => s.fetchFullText)) {
+    for (const id of inserted) await deps.enqueueFullText(id);
+  }
+  return { articleCount: inserted.length };
 }
