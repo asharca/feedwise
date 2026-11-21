@@ -1,129 +1,124 @@
 # Feedwise
 
-Self-hosted information collection platform: RSS/Atom/JSON feeds, RSSHub routes, hot lists from 22+ platforms and arbitrary web pages flow into one reader, get de-duplicated, filtered by rules and pushed to where you want them — all on your own server.
+自托管的全网信息收集平台。把 RSS、RSSHub 路由、22+ 平台热榜和任意网页汇成一条信息流，在你自己的服务器上完成去重、筛选、推送和再输出。
 
-## Features
+![阅读器：三栏布局，支持原文/全文切换](docs/images/reader.jpg)
 
-- **Sources**: RSS 2.0 / Atom / RDF / JSON Feed, RSSHub routes (Discover page), any web page via CSS selectors with live preview, OPML import/export, 热榜 (DailyHotApi or newsnow).
-- **Polite, efficient fetching**: conditional requests (ETag / Last-Modified), `Cache-Control` / `Retry-After` honoured, adaptive per-feed polling interval from the feed's publishing cadence (15 min – 24 h) with failure backoff, per-host concurrency limit, schedulers safe to run as multiple replicas.
-- **Reader**: three-panel layout, virtualized compact list or card grid, content views (文章 / 社交 / 图片 / 视频 / 音频) auto-detected per feed with per-subscription override, inline audio/video, full-text extraction (Readability) on demand or automatically per subscription, "相关报道" via SimHash near-duplicate detection, keyboard shortcuts, live updates over SSE.
-- **Search**: indexed full-text search that handles Chinese/Japanese/Korean (CJK bigrams) as well as latin text; `-term` excludes.
-- **Rules**: match title / content / author / URL / feed / folder (contains, regex, equals…) on new articles → mark read, star, hide, tag, fetch full text, notify. Hot-list rules alert on keywords across all boards.
-- **Notifications**: Webhook (HMAC-signed), Telegram, Bark, ntfy, 飞书, 钉钉, 企业微信, browser Web Push (PWA).
-- **Open ecosystem**: Google Reader API and Fever API for third-party clients (Reeder, NetNewsWire, Read You, FeedMe, Fluent Reader…), re-published RSS feeds of any filter, MCP server (stdio + OAuth-protected HTTP) for AI assistants.
-- **AI (optional, bring your own OpenAI-compatible key)**: per-article summaries and importance, auto-tagging, AI search, daily email digest with clustering.
-- **Security**: every server-side fetch of a feed/user-supplied URL is SSRF-guarded (private, loopback and link-local addresses refused at connect time, redirects re-validated, size and time limits); secrets encrypted at rest.
+## 功能
 
-## Quick Start
+**采集**
+- RSS 2.0 / Atom / RDF / JSON Feed，OPML 导入导出
+- RSSHub 路由发现页，一键订阅
+- 任意网页：用 CSS 选择器把页面变成订阅源，保存前可预览
+- 热榜：DailyHotApi 或 newsnow，排名变化、新上榜与跨平台事件
+- 抓取讲礼貌：ETag / Last-Modified 条件请求，遵守 `Cache-Control` 与 `Retry-After`，按订阅源发布节奏自适应轮询（15 分钟–24 小时），失败退避，单站点并发限制
 
-### Prerequisites
+**阅读**
+- 三栏阅读器，虚拟化长列表，`j` / `k` / `s` / `m` / `o` 快捷键，SSE 实时更新
+- 按内容类型自动分视图：文章、社交、图片、视频、音频，可按订阅覆盖
+- Readability 全文提取（手动或按订阅自动），SimHash「相关报道」
+- 中日韩全文搜索（二元切分建索引），`-词` 排除
 
-- Node.js 20.18+
-- PostgreSQL 14+ (16 recommended)
-- Redis
-- pnpm
+| 首页 | 视频视图 | 音频视图 |
+| --- | --- | --- |
+| ![首页：今日阅读与热点速览](docs/images/dashboard.jpg) | ![视频视图：卡片网格](docs/images/video.jpg) | ![音频视图：内联播放](docs/images/audio.jpg) |
 
-### Setup
+**规则与推送**
+- 规则按标题、正文、作者、链接、订阅源、文件夹匹配（包含 / 正则 / 等于…），对新文章执行标记已读、加星、隐藏、打标签、抓全文、通知
+- 热榜规则：关键词上榜即提醒，同一条目只提醒一次
+- 通知渠道：Webhook（HMAC 签名）、Telegram、Bark、ntfy、飞书、钉钉、企业微信、浏览器推送（PWA）
+
+![规则设置](docs/images/rules.jpg)
+
+**开放**
+- Google Reader API / Fever API：Reeder、NetNewsWire、Read You、FeedMe、Fluent Reader 等客户端直连
+- 任意筛选条件发布为公开 RSS 链接
+- MCP：stdio 与带 OAuth 2.1 的 HTTP 端点，接入 Claude、Cursor 等 AI 助手
+
+**AI（可选，自带 OpenAI 兼容 Key）**：文章摘要与重要度、自动打标签、AI 搜索、每日邮件简报。
+
+**安全**：所有抓取用户或订阅源提供 URL 的服务端请求在连接时拒绝内网、回环和链路本地地址，逐跳校验重定向并限制大小与时间；敏感配置加密存储。
+
+## 快速开始
+
+需要 Node.js 20.18+、PostgreSQL 14+（推荐 16）、Redis、pnpm。
 
 ```bash
 pnpm install
 
 cp .env.example .env
-# Edit DATABASE_URL, REDIS_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL, NEXT_PUBLIC_APP_URL
+# 填写 DATABASE_URL、REDIS_URL、BETTER_AUTH_SECRET、BETTER_AUTH_URL、NEXT_PUBLIC_APP_URL
 node -e "console.log('ENCRYPTION_KEY=' + require('crypto').randomBytes(32).toString('base64'))" >> .env
 
-# Create/upgrade the schema. Use migrations, not `db:push`: search relies on
-# SQL functions that only the migrations create.
+# 建表 / 升级。必须用迁移：搜索依赖只在迁移中创建的 SQL 函数
 pnpm db:migrate
 
-# If you have existing rows with plaintext SMTP/LLM secrets (idempotent):
+# 已有明文 SMTP/LLM 密钥时执行一次（可重复执行）
 pnpm db:encrypt-secrets
 
-# Dev server + background workers
+# 开发服务器 + 后台 worker
 pnpm dev:all
 ```
 
-Open http://localhost:3000, create an account, and start adding feeds.
+打开 http://localhost:3000 注册账号后添加订阅。本机或局域网内的订阅源会被 SSRF 防护拒绝，开发时可在 `.env` 设置 `ALLOW_PRIVATE_NETWORK_FETCH=1`。
 
-Local feeds served from your own machine or LAN are refused by the SSRF guard; set `ALLOW_PRIVATE_NETWORK_FETCH=1` in development if you need them.
+### 脚本
 
-### Scripts
+| 命令 | 说明 |
+| --- | --- |
+| `pnpm dev` | Next.js 开发服务器 |
+| `pnpm worker` | 后台 worker（订阅、热榜、全文、通知、邮件简报） |
+| `pnpm dev:all` | 同时启动以上两者 |
+| `pnpm build` / `pnpm start` | 生产构建 / 启动 |
+| `pnpm mcp` | stdio MCP 服务（以 `FEEDWISE_USER_EMAIL` 身份） |
+| `pnpm db:generate` / `pnpm db:migrate` | 生成 / 执行迁移 |
+| `pnpm db:encrypt-secrets` | 一次性加密旧的明文密钥 |
 
-| Command                   | Description                                              |
-| ------------------------- | -------------------------------------------------------- |
-| `pnpm dev`                | Start Next.js dev server                                 |
-| `pnpm worker`             | Start background workers (feeds, hot lists, full text, notifications, digests) |
-| `pnpm dev:all`            | Run both dev server + workers                            |
-| `pnpm build`              | Production build                                         |
-| `pnpm start`              | Start production server                                  |
-| `pnpm mcp`                | Start MCP server over stdio (as `FEEDWISE_USER_EMAIL`)   |
-| `pnpm db:generate`        | Generate migration files                                 |
-| `pnpm db:migrate`         | Run migrations                                           |
-| `pnpm db:encrypt-secrets` | One-time encrypt existing plaintext secrets (idempotent) |
+## Docker 部署
 
-## Deployment (Docker)
-
-`docker-compose.yml` runs PostgreSQL, Redis, DailyHotApi (internal only), a one-shot migration job, the web app and the worker. Set the compose variables listed at the bottom of `.env.example`, then:
+`docker-compose.yml` 包含 PostgreSQL、Redis、DailyHotApi（仅内网访问）、一次性迁移任务、Web 应用和 worker。按 `.env.example` 末尾的 Compose 变量配置后：
 
 ```bash
 docker compose up -d
 ```
 
-Workers can be scaled horizontally: feed scheduling claims due feeds with `FOR UPDATE SKIP LOCKED` and periodic tasks run as BullMQ job schedulers.
+worker 可以水平扩容：订阅调度用 `FOR UPDATE SKIP LOCKED` 认领，周期任务是 BullMQ Job Scheduler。
 
-### Browser push
+### 浏览器推送
 
-Generate VAPID keys once (`npx web-push generate-vapid-keys`) and set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` for both the app and the worker. Then enable push per device in 设置 → 通知渠道.
+生成一次 VAPID 密钥（`npx web-push generate-vapid-keys`），为 Web 和 worker 同时设置 `VAPID_PUBLIC_KEY`、`VAPID_PRIVATE_KEY`、`VAPID_SUBJECT`，然后在「设置 → 通知渠道」为每台设备启用。
 
-## Third-party clients
+## 第三方客户端
 
-Set an API password in 设置 → 第三方客户端 (separate from your login password).
+在「设置 → 第三方客户端」设置独立的 API 密码（不是登录密码），用户名为邮箱：
 
-- **Google Reader API** (Reeder, NetNewsWire "FreshRSS", Read You, FeedMe, Fluent Reader): server `<origin>/api/greader`, username = your email.
-- **Fever API**: endpoint `<origin>/api/fever`.
+- Google Reader API：`<站点地址>/api/greader`
+- Fever API：`<站点地址>/api/fever`
 
-Changing or revoking the API password signs out every client.
+修改或撤销 API 密码会让所有客户端重新登录。
 
-## RSS output
+## RSS 输出
 
-设置 → RSS 输出 publishes any filter (feed, folder, tag, starred, view) as an unguessable public RSS 2.0 URL. Rotate the token to revoke a URL.
+「设置 → RSS 输出」可把任意筛选（订阅源、文件夹、标签、星标、视图）发布为不可猜测的公开 RSS 2.0 链接，重置链接即可作废旧地址。
 
 ## MCP
 
-- **HTTP**: `<origin>/api/mcp`, OAuth 2.1 with dynamic client registration and PKCE — add it as a remote MCP server in Claude, Cursor, etc.
-- **stdio**: `FEEDWISE_USER_EMAIL=you@example.com pnpm mcp`.
+- HTTP：`<站点地址>/api/mcp`，OAuth 2.1 动态注册 + PKCE，在 Claude、Cursor 中添加为远程 MCP 服务器
+- stdio：`FEEDWISE_USER_EMAIL=you@example.com pnpm mcp`
 
-Tools: `search_articles`, `list_articles`, `get_article`, `mark_articles`, `list_feeds`, `subscribe_feed`, `hot_boards`, `hot_trending`, `related_coverage`.
+工具：`search_articles`、`list_articles`、`get_article`、`mark_articles`、`list_feeds`、`subscribe_feed`、`hot_boards`、`hot_trending`、`related_coverage`。
 
 ## 热榜
 
-热榜独立于 RSS 文章，聚合新闻、科技、社区和文娱榜单；不会写入文章表或影响未读数。登录后访问「热榜」，可查看各源前 30 名、相对上一快照的排名变化、新上榜条目、跨平台事件及上升趋势。手动刷新只排队，不会阻塞页面等待上游。
+热榜独立于 RSS 文章，不写入文章表、不影响未读数。
 
-- 上游由 `HOT_API_PROVIDER` 选择：`dailyhot`（默认，自托管 [DailyHotApi](https://github.com/imsyy/DailyHotApi)）或 `newsnow`（[newsnow](https://github.com/newsnext/newsnow)）；地址为 `HOT_API_URL`。newsnow 未提供的榜单会显示明确错误。
-- 生产 Compose 内置 `imsyy/dailyhot-api:latest`，仅在容器网络内访问（`http://dailyhot-api:6688`），不对外暴露端口。本地开发的 `docker-compose.dev.yml` 映射 `6688` 端口。
-- Worker 每 5 分钟检查待刷新源。默认刷新间隔 20 分钟，最低 10 分钟；连续失败按 2、4、8 倍间隔退避，成功后复位。快照和超过 14 天未出现的条目会被清理。
-- 部分源可能暂时不可用：显示错误并保留最后成功榜单，其他源照常更新；「更新时间」指最后成功快照时间。尚未抓取的源显示空榜。
-- 热榜规则只对新上榜条目生效，同一规则对同一条目只通知一次。
-- 所有接口要求登录：`GET /api/hot?category=all|news|tech|community|entertainment`、`GET /api/hot/trending`、`POST /api/hot/[key]/refresh`。跨平台事件采用标题相似度聚类，属于启发式结果，并非人工核验。
+- 上游由 `HOT_API_PROVIDER` 选择：`dailyhot`（默认，[DailyHotApi](https://github.com/imsyy/DailyHotApi)）或 `newsnow`（[newsnow](https://github.com/newsnext/newsnow)），地址为 `HOT_API_URL`；newsnow 未提供的榜单显示明确错误。
+- worker 每 5 分钟检查一次，默认 20 分钟刷新、最低 10 分钟，连续失败按 2、4、8 倍退避；快照和 14 天未出现的条目自动清理。
+- 某个源暂时不可用时保留最后成功的榜单，其他源照常更新。跨平台事件按标题相似度聚类，属启发式结果。
 
-## Tech Stack
+## 技术栈
 
-- **Frontend**: Next.js 16, React 19, Tailwind CSS 4, shadcn/ui (Base UI), TanStack Query + Virtual
-- **Backend**: Next.js API routes, Drizzle ORM, PostgreSQL
-- **Jobs**: BullMQ + Redis
-- **Auth**: Better Auth (email + password); OAuth 2.1 for MCP
-- **Parsing**: feedsmith, linkedom, Mozilla Readability
-
-## Keyboard Shortcuts
-
-| Key      | Action                   |
-| -------- | ------------------------ |
-| `j`      | Next article             |
-| `k`      | Previous article         |
-| `s`      | Toggle star              |
-| `m`      | Toggle read              |
-| `o`      | Open original in new tab |
-| `Escape` | Close article            |
+Next.js 16 · React 19 · Tailwind CSS 4 · shadcn/ui（Base UI）· TanStack Query / Virtual · Drizzle ORM · PostgreSQL · BullMQ + Redis · Better Auth · feedsmith · linkedom · Mozilla Readability
 
 ## License
 
